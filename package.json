@@ -1,0 +1,28 @@
+{
+  "name": "purescript-read-dts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc && spago build",
+    "test": "npm run-script build && spago test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambdaterms/purescript-read-dts.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lambdaterms/purescript-read-dts/issues"
+  },
+  "homepage": "https://github.com/lambdaterms/purescript-read-dts#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^12.7.4",
+    "typescript": "^3.6.2"
+  }
+}
