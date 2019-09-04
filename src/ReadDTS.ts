@@ -5,31 +5,29 @@ export const compilerOptions = {
   module: ts.ModuleKind.CommonJS
 };
 
-export function _readDTS<t, a>(
+export function _readDTS<t>(
   fileName: string,
   options: ts.CompilerOptions,
-  onVisit: {
+  onType: {
     interface: (x:
       {
         name: string,
         members: { name: string, type: t, optional: boolean }[]
-      }) => a,
-    typeAlias: (x: { name: string, type: t }) => a
-  },
-  onType: {
+      }) => t,
+    typeAlias: (x: { name: string, type: t }) => t,
     unionOrIntersection: (types: t[]) => t,
     stringLiteral: (s: string) => t,
     numberLiteral: (n: number) => t,
     primitive: (name: string) => t,
     unknown: (name: string) => t
   }
-): a[] {
+): t[] {
   // Build a program using the set of root file names in fileNames
   let program = ts.createProgram([fileName], options);
 
   let checker = program.getTypeChecker();
 
-  let output: a[] = [];
+  let output: t[] = [];
 
   // Visit every sourceFile in the program
   for (const sourceFile of program.getSourceFiles()) {
@@ -65,11 +63,11 @@ export function _readDTS<t, a>(
         let x = { name: node.name.text, members };
 
         // console.log(x);
-        output.push(onVisit.interface(x));
+        output.push(onType.interface(x));
       } else {
         let x = { name: node.name.text, type: getTSType(nodeType) };
         // console.log(x);
-        output.push(onVisit.typeAlias(x));
+        output.push(onType.typeAlias(x));
       }
 
     } else if (node.kind === ts.SyntaxKind.ModuleDeclaration) {
@@ -133,6 +131,8 @@ export function _readDTS<t, a>(
     //   return { type: "typeparam", name: checker.typeToString(memType) };
     // }
     else {
+      // console.log("UNKONWN");
+      // console.log(memType);
       return onType.unknown(checker.typeToString(memType));
       // return { unknown: checker.typeToString(memType), flags: memType.flags };
     }

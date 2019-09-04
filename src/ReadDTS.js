@@ -12,7 +12,7 @@ exports.compilerOptions = {
     target: ts.ScriptTarget.ES5,
     module: ts.ModuleKind.CommonJS
 };
-function _readDTS(fileName, options, onVisit, onType) {
+function _readDTS(fileName, options, onType) {
     // Build a program using the set of root file names in fileNames
     var program = ts.createProgram([fileName], options);
     var checker = program.getTypeChecker();
@@ -44,12 +44,12 @@ function _readDTS(fileName, options, onVisit, onType) {
                 });
                 var x = { name: node.name.text, members: members };
                 // console.log(x);
-                output.push(onVisit.interface(x));
+                output.push(onType.interface(x));
             }
             else {
                 var x = { name: node.name.text, type: getTSType(nodeType) };
                 // console.log(x);
-                output.push(onVisit.typeAlias(x));
+                output.push(onType.typeAlias(x));
             }
         }
         else if (node.kind === ts.SyntaxKind.ModuleDeclaration) {
@@ -109,6 +109,8 @@ function _readDTS(fileName, options, onVisit, onType) {
         //   return { type: "typeparam", name: checker.typeToString(memType) };
         // }
         else {
+            console.log("UNKONWN");
+            console.log(memType);
             return onType.unknown(checker.typeToString(memType));
             // return { unknown: checker.typeToString(memType), flags: memType.flags };
         }

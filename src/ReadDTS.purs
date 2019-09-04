@@ -1,23 +1,20 @@
 module ReadDTS where
 
 import Effect (Effect)
-import Effect.Uncurried (EffectFn4, runEffectFn4)
+import Effect.Uncurried (EffectFn3, runEffectFn3)
 import Foreign (Foreign)
 import Node.Path (FilePath)
 
 type CompilerOptions = Foreign
 
-type OnVisit a t = 
-  { interface ∷ 
+type OnType t =
+  { interface ∷
       { name ∷ String
       , members ∷ Array { name ∷ String, type ∷ t, optional ∷ Boolean }
       }
-      → a
-  , typeAlias ∷ { name ∷ String, type ∷ t } → a
-  }
-
-type OnType t = 
-  { unionOrIntersection ∷ Array t → t
+      → t
+  , typeAlias ∷ { name ∷ String, type ∷ t } → t
+  , unionOrIntersection ∷ Array t → t
   , primitive ∷ String → t
   , stringLiteral ∷  String → t
   , numberLiteral ∷ Number → t
@@ -25,21 +22,19 @@ type OnType t =
   }
 
 readDTS
-  ∷ ∀ a t
+  ∷ ∀ t
   . FilePath
   → CompilerOptions
-  → OnVisit a t
   → OnType t
-  → Effect (Array a)
-readDTS = runEffectFn4 _readDTS
+  → Effect (Array t)
+readDTS = runEffectFn3 _readDTS
 
 foreign import _readDTS
-  ∷ ∀ a t
-  . EffectFn4
+  ∷ ∀ t
+  . EffectFn3
       FilePath
       CompilerOptions
-      (OnVisit a t)
       (OnType t)
-      (Array a)
+      (Array t)
 
 foreign import compilerOptions ∷ CompilerOptions
