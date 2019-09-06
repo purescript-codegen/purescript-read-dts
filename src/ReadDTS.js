@@ -58,14 +58,14 @@ function _readDTS(fileName, options, onVisit, onType) {
         }
     }
     function getTSType(memType) {
-        if (memType.isUnionOrIntersection()) {
-            var types = memType.types.map(getTSType);
-            return onType.unionOrIntersection(types);
-        }
-        else if (memType.flags & (ts.TypeFlags.String
+        if (memType.flags & (ts.TypeFlags.String
             | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
             | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
             return onType.primitive(checker.typeToString(memType));
+        }
+        else if (memType.isUnionOrIntersection()) {
+            var types = memType.types.map(getTSType);
+            return onType.unionOrIntersection(types);
         }
         else if (memType.isStringLiteral()) {
             return onType.stringLiteral(memType.value);

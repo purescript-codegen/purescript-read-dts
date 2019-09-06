@@ -79,14 +79,14 @@ export function _readDTS<t, a>(
   }
 
   function getTSType(memType: ts.Type): t {
-    if (memType.isUnionOrIntersection()) {
-      let types = memType.types.map(getTSType);
-      return onType.unionOrIntersection(types);
-    }
-    else if (memType.flags & (ts.TypeFlags.String
+    if (memType.flags & (ts.TypeFlags.String
       | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
       | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
       return onType.primitive(checker.typeToString(memType));
+    }
+    else if (memType.isUnionOrIntersection()) {
+      let types = memType.types.map(getTSType);
+      return onType.unionOrIntersection(types);
     }
     else if (memType.isStringLiteral()) {
       return onType.stringLiteral(memType.value);

@@ -6,7 +6,6 @@ import Data.Foldable (for_)
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Class.Console (log)
-import Effect.Console (logShow)
 import ReadDTS (OnType, OnVisit, compilerOptions, readDTS)
 
 stringOnVisit ∷ OnVisit String String

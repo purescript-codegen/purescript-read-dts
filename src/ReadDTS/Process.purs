@@ -2,12 +2,11 @@ module ReadDTS.Process where
 
 import Prelude
 
-import Control.Monad.Except (class MonadError, ExceptT, except, throwError)
+import Control.Monad.Except (class MonadError, throwError)
 import Data.Array (foldMap, head)
 import Data.Either (Either, either, note)
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..))
-import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
 import Foreign.Object (Object)
 import Foreign.Object as O
@@ -19,7 +18,7 @@ processDTSWith
   ∷ ∀ a m
   . MonadError String m
   ⇒ MonadEffect m
-  ⇒ (Type → a) 
+  ⇒ (Type → a)
   → FilePath 
   → String 
   → Object a 
