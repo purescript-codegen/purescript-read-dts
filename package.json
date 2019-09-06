@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "tsc && spago build",
-    "test": "npm run-script build && spago test"
+    "test": "npm run-script build && spago test",
+    "run": "npm run-script build && spago run"
   },
   "repository": {
     "type": "git",

@@ -19,7 +19,7 @@ type OnVisit a t =
 type OnType t = 
   { unionOrIntersection ∷ Array t → t
   , primitive ∷ String → t
-  , stringLiteral ∷  String → t
+  , stringLiteral ∷ String → t
   , numberLiteral ∷ Number → t
   , unknown ∷ String → t
   }

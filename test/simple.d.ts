@@ -24,6 +24,8 @@ export type text = string;
 
 export type Tree<T> = { value: T } | { children: Tree<T> };
 
+export type AliasOrInterface = text | BadgeProps;
+
 export type BadgeClassKey =
   | 'root'
   | 'badge'
