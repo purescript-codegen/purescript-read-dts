@@ -3,9 +3,10 @@ module ReadDTS.Process where
 import Prelude
 
 import Control.Monad.Except (class MonadError, throwError)
-import Data.Array (foldMap, head)
+import Data.Array (find, foldMap, head)
 import Data.Either (Either, either, note)
 import Data.Foldable (foldl)
+import Data.FoldableWithIndex (forWithIndex_)
 import Data.Maybe (Maybe(..))
 import Effect.Class (class MonadEffect, liftEffect)
 import Foreign.Object (Object)
@@ -31,9 +32,22 @@ processDTSWith f path name partialObj = do
   -- props
   let interfaceName = name <> "Props"
   members ← findInterfaceMembers interfaceName declarations # either throwError pure
+  checkAdditionalProps partialObj members
   let props = fillMissingMembersWith f partialObj members
   -- return
   pure { classKey, props }
+
+checkAdditionalProps
+  ∷ ∀ m a r
+  . MonadError String m
+  ⇒ Object a
+  → Array { name ∷ String | r }
+  → m Unit
+checkAdditionalProps obj members =
+  forWithIndex_ obj \propName _ → do
+    case find (\r → r.name == propName) members of
+      Nothing → throwError $ "redundant prop name (" <> propName <> ") found in the given object"
+      Just _ → pure unit
 
 findClassKey
   ∷ String
