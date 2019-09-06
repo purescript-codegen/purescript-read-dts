@@ -2,37 +2,37 @@ module ReadDTS.Process where
 
 import Prelude
 
-import Control.Monad.Except (ExceptT, except)
+import Control.Monad.Except (class MonadError, ExceptT, except, throwError)
 import Data.Array (foldMap, head)
-import Data.Either (Either, note)
+import Data.Either (Either, either, note)
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Class (liftEffect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Node.Path (FilePath)
 import ReadDTS (compilerOptions, readDTS)
 import ReadDTS.Types (InterfaceMember, TopLevelDec(..), Type(..), onType, onVisit)
 
-type AppT = ExceptT String Effect
-
 processDTSWith
-  ∷ ∀ a
-  . (Type → a) 
+  ∷ ∀ a m
+  . MonadError String m
+  ⇒ MonadEffect m
+  ⇒ (Type → a) 
   → FilePath 
   → String 
   → Object a 
-  → AppT { classKey ∷ Array Type, props ∷ Object a }
+  → m { classKey ∷ Array Type, props ∷ Object a }
 processDTSWith f path name partialObj = do
   declarations ← liftEffect $ readDTS path compilerOptions onVisit onType
   -- classKey
   let classKeyName = name <> "ClassKey"
-  classKey ← except $ findClassKey classKeyName declarations
+  classKey ← findClassKey classKeyName declarations # either throwError pure
   -- props
   let interfaceName = name <> "Props"
-  interfaceMembers ← except $ findInterfaceMembers interfaceName declarations
-  let props = fillMissingMembersWith f partialObj interfaceMembers
+  members ← findInterfaceMembers interfaceName declarations # either throwError pure
+  let props = fillMissingMembersWith f partialObj members
   -- return
   pure { classKey, props }
 
