@@ -8,53 +8,59 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var ts = __importStar(require("typescript"));
+exports.eqIdentifierImpl = function (i1) {
+    return function (i2) {
+        return i1 === i2;
+    };
+};
 exports.compilerOptions = {
     target: ts.ScriptTarget.ES5,
     module: ts.ModuleKind.CommonJS
 };
-function _readDTS(fileName, options, onVisit, onType) {
-    // Build a program using the set of root file names in fileNames
+function _readDTS(options, visit, fileName) {
     var program = ts.createProgram([fileName], options);
     var checker = program.getTypeChecker();
-    var output = [];
-    // Visit every sourceFile in the program
+    var onDeclaration = visit.onDeclaration;
+    var onType = visit.onType;
+    // Check only given declaration file
     for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
         var sourceFile = _a[_i];
-        if (sourceFile.fileName === fileName) {
-            ts.forEachChild(sourceFile, visit);
+        if (sourceFile.isDeclarationFile && sourceFile.fileName === fileName) {
+            ts.forEachChild(sourceFile, visitDeclaration);
         }
     }
-    return output;
-    function visit(node) {
+    function visitDeclaration(node) {
         // Only consider exported nodes
         if (!isNodeExported(node)) {
             return;
         }
-        if ((node.kind === ts.SyntaxKind.InterfaceDeclaration
-            || node.kind === ts.SyntaxKind.TypeAliasDeclaration)
-            && node.name) {
-            // let symbol = checker.getSymbolAtLocation(node.name);
-            // if (symbol) {
+        if (ts.isInterfaceDeclaration(node)) {
             var nodeType = checker.getTypeAtLocation(node);
-            if (nodeType.isClassOrInterface()) {
-                var members = nodeType.getProperties().map(function (sym) {
-                    var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
-                    var memType = checker.getTypeOfSymbolAtLocation(sym, node);
-                    return { name: sym.name, type: getTSType(memType), optional: optional };
-                });
-                var x = { name: node.name.text, members: members };
-                // console.log(x);
-                output.push(onVisit.interface(x));
-            }
-            else {
-                var x = { name: node.name.text, type: getTSType(nodeType) };
-                // console.log(x);
-                output.push(onVisit.typeAlias(x));
-            }
+            var members = nodeType.getProperties().map(function (sym) {
+                var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
+                var memType = checker.getTypeOfSymbolAtLocation(sym, node);
+                var t = getTSType(memType);
+                return { name: sym.name, type: t, optional: optional };
+            });
+            var fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol);
+            var typeParameters = (!node.typeParameters) ? [] : node.typeParameters.map(function (p) {
+                return onType.typeParameter(p.name.escapedText);
+            });
+            var i = { name: node.name.text, fullyQualifiedName: fullyQualifiedName, members: members, typeParameters: typeParameters };
+            onDeclaration.interface(i)();
         }
-        else if (node.kind === ts.SyntaxKind.ModuleDeclaration) {
-            // This is a namespace, visit its children
-            ts.forEachChild(node, visit);
+        else if (ts.isTypeAliasDeclaration(node)) {
+            var nodeType = checker.getTypeAtLocation(node);
+            var x = { name: node.name.text, type: getTSType(nodeType) };
+            onDeclaration.typeAlias(x)();
+        }
+        else if (ts.isModuleDeclaration(node)) {
+            ts.forEachChild(node, visitDeclaration);
+        }
+        else {
+            var nodeType = checker.getTypeAtLocation(node);
+            if (nodeType.symbol)
+                console.log(nodeType.symbol.getName());
         }
     }
     function getTSType(memType) {
@@ -63,9 +69,13 @@ function _readDTS(fileName, options, onVisit, onType) {
             | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
             return onType.primitive(checker.typeToString(memType));
         }
-        else if (memType.isUnionOrIntersection()) {
+        else if (memType.isUnion()) {
             var types = memType.types.map(getTSType);
-            return onType.unionOrIntersection(types);
+            return onType.union(types);
+        }
+        else if (memType.isIntersection()) {
+            var types = memType.types.map(getTSType);
+            return onType.intersection(types);
         }
         else if (memType.isStringLiteral()) {
             return onType.stringLiteral(memType.value);
@@ -73,47 +83,44 @@ function _readDTS(fileName, options, onVisit, onType) {
         else if (memType.isNumberLiteral()) {
             return onType.numberLiteral(memType.value);
         }
-        // TODO
-        // -------------------------------------------------------------------------
-        // var callSigs = memType.getCallSignatures();
-        // if (callSigs.length > 0) {
-        //   var sig = callSigs[0];
-        //   var params = sig.getParameters().map(function (p) { return optionalMember(p); });
-        //   return { type: "function", params: params, return: getWithAliasProps(sig.getReturnType()) };
-        // }
-        // if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
-        //   var objFlags = memType.objectFlags;
-        //   if (objFlags & ts.ObjectFlags.Reference) {
-        //     var tr = memType;
-        //     return {
-        //       type: "typeReference", name: getFullyQualifiedName(memType.symbol),
-        //       typeParams: tr.typeArguments ? tr.typeArguments.map(getWithAliasProps) : [],
-        //       flags: memType.flags,
-        //       objFlags: objFlags
-        //     };
-        //   }
-        //   else {
-        //     if (objFlags & ts.ObjectFlags.Anonymous) {
-        //       return {
-        //         type: "object",
-        //         members: convertProperties(memType)
-        //       };
-        //     }
-        //     if (objFlags & ts.ObjectFlags.Interface) {
-        //       return { type: "interfaceReference", name: getFullyQualifiedName(memType.symbol) };
-        //     }
-        //     return { type: "unknownObject", flags: objFlags };
-        //   }
-        // }
-        // else if (memType.flags & ts.TypeFlags.TypeParameter) {
-        //   return { type: "typeparam", name: checker.typeToString(memType) };
-        // }
-        else {
-            return onType.unknown(checker.typeToString(memType));
-            // return { unknown: checker.typeToString(memType), flags: memType.flags };
+        else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
+            var memObjectType = memType;
+            var onInterfaceReference = function (target, typeArguments) {
+                return onType.interfaceReference({
+                    typeArguments: typeArguments,
+                    fullyQualifiedName: checker.getFullyQualifiedName(target.symbol),
+                    read: function () {
+                        // XXX: This is for sure stupid strategy to access external interfaces.
+                        if (target.symbol) {
+                            if (target.symbol.valueDeclaration) {
+                                return visitDeclaration(target.symbol.valueDeclaration);
+                            }
+                            // XXX: I'm not sure why have to use declarations here...
+                            //      For sure we should introduce proper error handling.
+                            else if (target.symbol.declarations.length === 1) {
+                                return visitDeclaration(target.symbol.declarations[0]);
+                            }
+                        }
+                    }
+                });
+            };
+            if (memObjectType.objectFlags & ts.ObjectFlags.Reference) {
+                var reference = memObjectType;
+                if (reference.target.isClassOrInterface()) {
+                    var typeArguments = reference.typeArguments ? reference.typeArguments.map(getTSType) : [];
+                    return onInterfaceReference(reference.target, typeArguments);
+                }
+            }
+            else if (memObjectType.isClassOrInterface()) {
+                return onInterfaceReference(memObjectType, []);
+            }
         }
+        // I'm not sure why this check turns memType type into `never`
+        else if (memType.isTypeParameter()) {
+            return onType.typeParameter(memType.symbol.escapedName);
+        }
+        return onType.unknown(checker.typeToString(memType));
     }
-    /** True if this is visible outside this file, false otherwise */
     function isNodeExported(node) {
         var sym = checker.getSymbolAtLocation(node);
         return (
