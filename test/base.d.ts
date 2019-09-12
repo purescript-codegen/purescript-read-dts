@@ -1,7 +1,3 @@
-export type AliasOfPrimitiveTypes = number | string;
-
-export type AliasWithRecursion<t> = { head : t, tail: AliasWithRecursion<t> } | null;
-
 export interface Base1<f, s> {
   f: f,
   s: s

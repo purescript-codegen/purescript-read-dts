@@ -22,46 +22,59 @@ function _readDTS(options, visit, fileName) {
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
     var onType = visit.onType;
+    var result = [];
     // Check only given declaration file
     for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
         var sourceFile = _a[_i];
         if (sourceFile.isDeclarationFile && sourceFile.fileName === fileName) {
-            ts.forEachChild(sourceFile, visitDeclaration);
+            ts.forEachChild(sourceFile, function (declaration) {
+                if (isNodeExported(declaration))
+                    result.push(visitDeclaration(declaration));
+            });
         }
     }
+    return result;
     function visitDeclaration(node) {
-        // Only consider exported nodes
-        if (!isNodeExported(node)) {
-            return;
-        }
+        var processTypeParameters = function (typeParameters) {
+            return (!typeParameters) ? [] : typeParameters.map(function (p) {
+                var d = p.default ? getTSType(checker.getTypeAtLocation(p.default)) : null;
+                return onType.typeParameter({ identifier: p.name.escapedText, default: d });
+            });
+        };
         if (ts.isInterfaceDeclaration(node)) {
-            var nodeType = checker.getTypeAtLocation(node);
-            var members = nodeType.getProperties().map(function (sym) {
+            var nodeType_1 = checker.getTypeAtLocation(node);
+            var members = nodeType_1.getProperties().map(function (sym) {
                 var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
                 var memType = checker.getTypeOfSymbolAtLocation(sym, node);
                 var t = getTSType(memType);
                 return { name: sym.name, type: t, optional: optional };
             });
-            var fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol);
-            var typeParameters = (!node.typeParameters) ? [] : node.typeParameters.map(function (p) {
-                return onType.typeParameter(p.name.escapedText);
-            });
-            var i = { name: node.name.text, fullyQualifiedName: fullyQualifiedName, members: members, typeParameters: typeParameters };
-            onDeclaration.interface(i)();
+            var fullyQualifiedName_1 = checker.getFullyQualifiedName(nodeType_1.symbol);
+            var i = {
+                name: node.name.text,
+                fullyQualifiedName: fullyQualifiedName_1,
+                members: members,
+                typeParameters: processTypeParameters(node.typeParameters)
+            };
+            return onDeclaration.interface(i);
         }
         else if (ts.isTypeAliasDeclaration(node)) {
-            var nodeType = checker.getTypeAtLocation(node);
-            var x = { name: node.name.text, type: getTSType(nodeType) };
-            onDeclaration.typeAlias(x)();
+            var nodeType_2 = checker.getTypeAtLocation(node);
+            var x = {
+                name: node.name.text,
+                type: getTSType(nodeType_2),
+                typeParameters: processTypeParameters(node.typeParameters)
+            };
+            return onDeclaration.typeAlias(x);
         }
-        else if (ts.isModuleDeclaration(node)) {
-            ts.forEachChild(node, visitDeclaration);
+        var nodeType = checker.getTypeAtLocation(node);
+        var fullyQualifiedName = null;
+        try {
+            fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol);
         }
-        else {
-            var nodeType = checker.getTypeAtLocation(node);
-            if (nodeType.symbol)
-                console.log(nodeType.symbol.getName());
+        catch (e) {
         }
+        return onDeclaration.unknown({ fullyQualifiedName: fullyQualifiedName, msg: "Unknown declaration node" });
     }
     function getTSType(memType) {
         if (memType.flags & (ts.TypeFlags.String
@@ -86,21 +99,26 @@ function _readDTS(options, visit, fileName) {
         else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
             var memObjectType = memType;
             var onInterfaceReference = function (target, typeArguments) {
-                return onType.interfaceReference({
+                return onType.typeReference({
                     typeArguments: typeArguments,
                     fullyQualifiedName: checker.getFullyQualifiedName(target.symbol),
                     read: function () {
                         // XXX: This is for sure stupid strategy to access external interfaces.
+                        var r = null;
                         if (target.symbol) {
                             if (target.symbol.valueDeclaration) {
-                                return visitDeclaration(target.symbol.valueDeclaration);
+                                r = visitDeclaration(target.symbol.valueDeclaration);
                             }
                             // XXX: I'm not sure why have to use declarations here...
                             //      For sure we should introduce proper error handling.
-                            else if (target.symbol.declarations.length === 1) {
-                                return visitDeclaration(target.symbol.declarations[0]);
+                            if (target.symbol.declarations.length === 1) {
+                                r = visitDeclaration(target.symbol.declarations[0]);
                             }
                         }
+                        return (r ? r : visit.onDeclaration.unknown({
+                            fullyQualifiedName: this.fullyQualifiedName,
+                            msg: "Unable to extract declaration"
+                        }));
                     }
                 });
             };
@@ -117,7 +135,8 @@ function _readDTS(options, visit, fileName) {
         }
         // I'm not sure why this check turns memType type into `never`
         else if (memType.isTypeParameter()) {
-            return onType.typeParameter(memType.symbol.escapedName);
+            var d = memType.getDefault();
+            return onType.typeParameter({ identifier: memType.symbol.escapedName, default: d ? getTSType(d) : null });
         }
         return onType.unknown(checker.typeToString(memType));
     }

@@ -10,6 +10,8 @@ You can edit this file as you like.
     , "foreign"
     , "foreign-object"
     , "node-fs-aff"
+    , "profunctor"
+    , "profunctor-lenses"
     , "psci-support"
     ]
 , packages =

@@ -2,96 +2,130 @@ module Test.Main where
 
 import Prelude
 
-import Data.Foldable (fold, foldMap, for_)
+import Data.Array (catMaybes, (:))
+import Data.Foldable (fold, foldM, foldMap, for_)
 import Data.Map (Map)
-import Data.Map (insert, lookup) as Map
+import Data.Map (fromFoldable, insert, lookup) as Map
 import Data.Maybe (Maybe(..), isNothing)
+import Data.Newtype (class Newtype, unwrap)
 import Data.String (joinWith)
-import Data.Traversable (for, sequence)
+import Data.Traversable (for, sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console (log)
 import Effect.Ref (modify, modify', new, read) as Ref
 import Global.Unsafe (unsafeStringify)
-import ReadDTS (OnDeclaration, OnType, compilerOptions, readDTS)
+import ReadDTS (FullyQualifiedName(..), OnDeclaration, OnType, TypeReference, compilerOptions, readDTS)
+import Unsafe.Coerce (unsafeCoerce)
 
-logOnDeclartion ∷ OnDeclaration String
-logOnDeclartion =
-  { interface: log <<< serInterface
-  , typeAlias: \r → log $
-      "typeAlias: " <> joinWith " " ["type", r.name, ":", r.type]
+type ReadDeclaration = { fullyQualifiedName ∷ FullyQualifiedName, read ∷ Effect DeclarationRepr }
+type TypeRepr = { repr ∷ String, reads ∷ Array ReadDeclaration }
+newtype DeclarationRepr = DeclarationRepr
+  { fullyQualifiedName ∷ Maybe FullyQualifiedName
+  , repr ∷ String
+  , reads ∷ Array ReadDeclaration
   }
+derive instance newtypeDeclarationRepr ∷ Newtype DeclarationRepr _
+
+stringOnDeclaration ∷ OnDeclaration DeclarationRepr TypeRepr
+stringOnDeclaration =
+  { interface: \i → DeclarationRepr
+      { fullyQualifiedName: Just i.fullyQualifiedName
+      , repr: serInterface i
+      , reads: foldMap _.reads i.typeParameters <> foldMap _.type.reads i.members
+      }
+  -- | It seems that type aliases don't introduce names so they don't
+  -- | have fullyQualifiedName... but of course I can be wrong.
+  , typeAlias: \r@{ type: t, typeParameters } → DeclarationRepr
+      { fullyQualifiedName: Nothing
+      , repr: serTypeAlias r
+      , reads: t.reads <> foldMap _.reads typeParameters
+      }
+  , unknown: \u → DeclarationRepr
+      { repr: serUnknown u
+      , fullyQualifiedName: u.fullyQualifiedName
+      , reads: []
+      }
+  }
+
+serUnknown r = "unkownDeclaration " <> show r.fullyQualifiedName <> ": " <> r.msg
+
+serTypeAlias r
+  = "typeAlias "
+  <> r.name
+  <> " <" <> joinWith ", " (map _.repr r.typeParameters) <> "> : "
+  <> r.type.repr
 
 serInterface { name, fullyQualifiedName, members, typeParameters }
   = "interface "
-  <> fullyQualifiedName
-  <> " <" <> joinWith ", " typeParameters <> "> : \n\t"
+  <> show fullyQualifiedName
+  <> " <" <> joinWith ", " (map _.repr typeParameters) <> "> : \n\t"
   <> joinWith ";\n\t" (map onMember members)
   where
-    onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type]
+    onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
 
-stringOnType ∷ OnType String
+noReads ∷ String → TypeRepr
+noReads repr = { repr, reads: [] }
+
+stringOnType ∷ OnType DeclarationRepr TypeRepr
 stringOnType =
-  { intersection: append "intersection: " <<< joinWith " & "
-  , interfaceReference: append "interfaceReference: " <<< _.fullyQualifiedName
-  , primitive: append "primitive: " <<< show
-  , stringLiteral: append "stringLiteral: " <<< show
-  , numberLiteral: append "numberLiteral: " <<< show
-  , typeParameter: unsafeStringify
-  , union: append "union: " <<< joinWith " | "
-  , unknown: append "unknown: " <<< show
+  { intersection: \ts →
+      { repr: append "intersection: " <<< joinWith " & " <<< map _.repr $ ts
+      , reads: foldMap _.reads ts
+      }
+  , primitive: noReads <<< append "primitive: " <<< show
+  , stringLiteral: noReads <<< append "stringLiteral: " <<< show
+  , numberLiteral: noReads <<< append "numberLiteral: " <<< show
+  , typeParameter: case _ of
+      { default: Nothing, identifier } → noReads $ unsafeStringify identifier
+      { default: Just d, identifier } →
+          { repr: unsafeStringify identifier <> " = " <> d.repr
+          , reads: d.reads
+          }
+  , typeReference: \{ fullyQualifiedName, read, typeArguments } →
+      { repr: "typeReference: " <> show fullyQualifiedName <> "<" <> joinWith ", " (map _.repr typeArguments) <> ">"
+      , reads: { fullyQualifiedName, read } : foldMap _.reads typeArguments
+      }
+  , union: \ts →
+      { repr: append "union: " <<< joinWith " | " <<< map _.repr $ ts
+      , reads: foldMap _.reads ts
+      }
+  , unknown: noReads <<< append "unknown: " <<< show
   }
-
-accumDeclaration ∷ Effect Unit
-accumDeclaration = do
-  cache ← Ref.new (mempty ∷ Map String String)
-  let
-    interfaceReference { fullyQualifiedName, read, typeArguments } = do
-      c ← Ref.read cache
-      void $ case Map.lookup fullyQualifiedName c of
-        Nothing → read
-        Just interface → pure unit
-      args ← sequence typeArguments
-      pure $ fullyQualifiedName <> " <" <> joinWith ", " args <> ">"
-    onType ∷ OnType (Effect String)
-    onType =
-      { intersection: pure <<< append "intersection: " <<< joinWith " & " <=< sequence
-      , interfaceReference: pure <<< append "interfaceReference: " <=< interfaceReference
-      , primitive: pure <<< append "primitive: " <<< show
-      , stringLiteral: pure <<< append "stringLiteral: " <<< show
-      , numberLiteral: pure <<< append "numberLiteral: " <<< show
-      , typeParameter: pure <<< unsafeStringify
-      , union: pure <<< append "union: " <<< joinWith " | " <=< sequence
-      , unknown: pure <<< append "unknown: " <<< show
-      }
-    onDeclaration ∷ OnDeclaration (Effect String)
-    onDeclaration =
-      { interface: \{ name, fullyQualifiedName, members, typeParameters } → do
-          tps ← sequence typeParameters
-          ms ← for members \{ name: n, optional, type: t } → do
-            t' ← t
-            pure { name: n, optional, type: t' }
-          let
-            onMember r = joinWith " "
-              [r.name, if r.optional then "?:" else ":", r.type]
-            value = serInterface { name, fullyQualifiedName, members: ms, typeParameters: tps }
-          void $ Ref.modify (Map.insert fullyQualifiedName value) cache
-      , typeAlias: const $ pure unit
-        -- \r → do
-        --   t ← r.type
-        --   let
-        --     value = "typeAlias: " <> joinWith " " ["type", r.name, ":", t ]
-        --   void $ Ref.modify (Map.insert fullyQualifiedName value) cache
-      }
-  readDTS compilerOptions { onDeclaration,  onType } fileName
-  res ← Ref.read cache
-  log $ foldMap (\v → v <> "\n\n") res
 
 fileName ∷ String
 fileName = "test/simple.d.ts"
 
 main ∷ Effect Unit
 main = do
-  -- readDTS compilerOptions { onDeclaration: logOnDeclartion, onType: stringOnType } fileName
-  -- for_ res log
-  accumDeclaration
+  declarations ← readDTS compilerOptions { onDeclaration: stringOnDeclaration, onType: stringOnType } fileName
+  for_ declarations \(DeclarationRepr r) → do
+     log r.repr
+     log "\n"
+
+  -- Let's try to load all related declarations
+  let
+    initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
+      d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
+      otherwise → Nothing
+    cache = initCache declarations
+
+    step cache { fullyQualifiedName, read } = case fullyQualifiedName `Map.lookup` cache of
+      Nothing → do
+        read >>= \d@(DeclarationRepr { fullyQualifiedName }) → case fullyQualifiedName of
+          Nothing → pure cache
+          Just fullyQualifiedName → do
+            pure $ Map.insert fullyQualifiedName d cache
+      Just _ → pure cache
+
+  log "Building declarations cache...\n\n"
+
+  cache' ← foldM step cache (foldMap (unwrap >>> _.reads) declarations)
+
+  log "Collected declarations:\n\n"
+
+  for_ cache' \(DeclarationRepr r) → do
+     log r.repr
+     log "\n"
+
+  pure unit
