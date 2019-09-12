@@ -103,22 +103,18 @@ main = do
      log r.repr
      log "\n"
 
-  -- Let's try to load all related declarations
+  -- | Single pass of loading... We should test exhaustive loading too.
   let
     initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
       d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
       otherwise → Nothing
     cache = initCache declarations
 
-    step cache { fullyQualifiedName, read } = case fullyQualifiedName `Map.lookup` cache of
-      Nothing → do
-        read >>= \d@(DeclarationRepr { fullyQualifiedName }) → case fullyQualifiedName of
-          Nothing → pure cache
-          Just fullyQualifiedName → do
-            pure $ Map.insert fullyQualifiedName d cache
-      Just _ → pure cache
+    step c { fullyQualifiedName, read } = case fullyQualifiedName `Map.lookup` c of
+      Nothing → read >>= flip (Map.insert fullyQualifiedName) c >>> pure
+      Just _ → pure c
 
-  log "Building declarations cache...\n\n"
+  log "Single pass of loading declarations...\n\n"
 
   cache' ← foldM step cache (foldMap (unwrap >>> _.reads) declarations)
 

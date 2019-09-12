@@ -47,18 +47,19 @@ type OnDeclarationBase (nullable ∷ Type → Type) d t =
   , unknown ∷
       { fullyQualifiedName ∷ nullable FullyQualifiedName
       , msg ∷ String
-      } → d
+      }
+      → d
   }
 
 -- | * As typescript allows us to define
--- | recursive types so `read` should be
+-- | recursive types `read` should be
 -- | treated with caution. You should guard
--- | against to id infinite typescript AST
--- | reference traversing.
+-- | against infinite reference traversing.
+-- |
 -- | * Because this lib implements only part of
--- | the compiler API we are not able to promise that
+-- | the ts compiler API we are not able to promise that
 -- | `read` reference resolution will not end up with
--- | `unknown`.
+-- | something like `unknown`.
 type TypeReference d t =
   { typeArguments ∷ Array t
   , fullyQualifiedName ∷ FullyQualifiedName
