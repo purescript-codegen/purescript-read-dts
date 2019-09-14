@@ -21,7 +21,7 @@ function _readDTS(options, visit, fileName) {
     var program = ts.createProgram([fileName], options);
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
-    var onType = visit.onType;
+    var onTypeNode = visit.onTypeNode;
     var result = [];
     // Check only given declaration file
     for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
@@ -33,27 +33,31 @@ function _readDTS(options, visit, fileName) {
             });
         }
     }
-    return result;
+    return {
+        topLevel: result,
+        readDeclaration: function (v) { return function () { return visitDeclaration(v); }; }
+    };
+    function property(sym, dec) {
+        var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
+        var memType = checker.getTypeOfSymbolAtLocation(sym, dec);
+        var t = getTSType(memType);
+        return { name: sym.name, type: t, optional: optional };
+    }
     function visitDeclaration(node) {
         var processTypeParameters = function (typeParameters) {
             return (!typeParameters) ? [] : typeParameters.map(function (p) {
                 var d = p.default ? getTSType(checker.getTypeAtLocation(p.default)) : null;
-                return onType.typeParameter({ identifier: p.name.escapedText, default: d });
+                return onTypeNode.typeParameter({ identifier: p.name.escapedText, default: d });
             });
         };
         if (ts.isInterfaceDeclaration(node)) {
             var nodeType_1 = checker.getTypeAtLocation(node);
-            var members = nodeType_1.getProperties().map(function (sym) {
-                var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
-                var memType = checker.getTypeOfSymbolAtLocation(sym, node);
-                var t = getTSType(memType);
-                return { name: sym.name, type: t, optional: optional };
-            });
+            var properties = nodeType_1.getProperties().map(function (sym) { return property(sym, node); });
             var fullyQualifiedName_1 = checker.getFullyQualifiedName(nodeType_1.symbol);
             var i = {
                 name: node.name.text,
                 fullyQualifiedName: fullyQualifiedName_1,
-                members: members,
+                properties: properties,
                 typeParameters: processTypeParameters(node.typeParameters)
             };
             return onDeclaration.interface(i);
@@ -80,47 +84,28 @@ function _readDTS(options, visit, fileName) {
         if (memType.flags & (ts.TypeFlags.String
             | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
             | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
-            return onType.primitive(checker.typeToString(memType));
+            return onTypeNode.primitive(checker.typeToString(memType));
         }
         else if (memType.isUnion()) {
             var types = memType.types.map(getTSType);
-            return onType.union(types);
+            return onTypeNode.union(types);
         }
         else if (memType.isIntersection()) {
             var types = memType.types.map(getTSType);
-            return onType.intersection(types);
-        }
-        else if (memType.isStringLiteral()) {
-            return onType.stringLiteral(memType.value);
-        }
-        else if (memType.isNumberLiteral()) {
-            return onType.numberLiteral(memType.value);
+            return onTypeNode.intersection(types);
         }
         else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
             var memObjectType = memType;
             var onInterfaceReference = function (target, typeArguments) {
-                return onType.typeReference({
-                    typeArguments: typeArguments,
-                    fullyQualifiedName: checker.getFullyQualifiedName(target.symbol),
-                    read: function () {
-                        // XXX: This is for sure stupid strategy to access external interfaces.
-                        var r = null;
-                        if (target.symbol) {
-                            if (target.symbol.valueDeclaration) {
-                                r = visitDeclaration(target.symbol.valueDeclaration);
-                            }
-                            // XXX: I'm not sure why have to use declarations here...
-                            //      For sure we should introduce proper error handling.
-                            if (target.symbol.declarations.length === 1) {
-                                r = visitDeclaration(target.symbol.declarations[0]);
-                            }
-                        }
-                        return (r ? r : visit.onDeclaration.unknown({
-                            fullyQualifiedName: this.fullyQualifiedName,
-                            msg: "Unable to extract declaration"
-                        }));
-                    }
-                });
+                var ref = (target.symbol && target.symbol.valueDeclaration)
+                    ? target.symbol.valueDeclaration
+                    : (target.symbol && target.symbol.declarations.length === 1)
+                        ? target.symbol.declarations[0]
+                        : null;
+                var fullyQualifiedName = checker.getFullyQualifiedName(target.symbol);
+                return ref
+                    ? onTypeNode.typeReference({ typeArguments: typeArguments, fullyQualifiedName: fullyQualifiedName, ref: ref })
+                    : onTypeNode.unknown("Unable to get type declaration for:" + fullyQualifiedName + "<" + typeArguments + ">");
             };
             if (memObjectType.objectFlags & ts.ObjectFlags.Reference) {
                 var reference = memObjectType;
@@ -132,13 +117,18 @@ function _readDTS(options, visit, fileName) {
             else if (memObjectType.isClassOrInterface()) {
                 return onInterfaceReference(memObjectType, []);
             }
+            else if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
+                var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
+                return onTypeNode.anonymousObject(props);
+            }
+            return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
         }
         // I'm not sure why this check turns memType type into `never`
         else if (memType.isTypeParameter()) {
             var d = memType.getDefault();
-            return onType.typeParameter({ identifier: memType.symbol.escapedName, default: d ? getTSType(d) : null });
+            return onTypeNode.typeParameter({ identifier: memType.symbol.escapedName, default: d ? getTSType(d) : null });
         }
-        return onType.unknown(checker.typeToString(memType));
+        return onTypeNode.unknown(checker.typeToString(memType));
     }
     function isNodeExported(node) {
         var sym = checker.getSymbolAtLocation(node);

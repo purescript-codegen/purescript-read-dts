@@ -6,9 +6,11 @@ You can edit this file as you like.
     "my-project"
 , dependencies =
     [ "console"
+    , "debug"
     , "effect"
     , "foreign"
     , "foreign-object"
+    , "matryoshka"
     , "node-fs-aff"
     , "profunctor"
     , "profunctor-lenses"
