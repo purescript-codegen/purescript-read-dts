@@ -109,15 +109,37 @@ function _readDTS(options, visit, fileName) {
             };
             if (memObjectType.objectFlags & ts.ObjectFlags.Reference) {
                 var reference = memObjectType;
+                if (checker.isArrayType(reference)) {
+                    var elem = checker.getElementTypeOfArrayType(reference);
+                    if (elem)
+                        return onTypeNode.array(getTSType(elem));
+                }
+                if (checker.isTupleType(reference)) {
+                    var e = void 0, elem = void 0, elems = [];
+                    for (var i = 0;; i++) {
+                        // Hack source:
+                        // https://github.com/microsoft/TypeScript/blob/v3.6.3/src/compiler/checker.ts + getTupleElementType
+                        e = "" + i;
+                        elem = checker.getTypeOfPropertyOfType(reference, e);
+                        if (elem) {
+                            elems.push(getTSType(elem));
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    ;
+                    return onTypeNode.tuple(elems);
+                }
                 if (reference.target.isClassOrInterface()) {
                     var typeArguments = reference.typeArguments ? reference.typeArguments.map(getTSType) : [];
                     return onInterfaceReference(reference.target, typeArguments);
                 }
             }
-            else if (memObjectType.isClassOrInterface()) {
+            if (memObjectType.isClassOrInterface()) {
                 return onInterfaceReference(memObjectType, []);
             }
-            else if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
+            if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
                 var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
                 return onTypeNode.anonymousObject(props);
             }

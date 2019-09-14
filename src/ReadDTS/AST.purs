@@ -75,10 +75,12 @@ instance traversableDeclaration ∷ Traversable Declaration where
 
 data TypeNode ref
   = AnonymousObject (Array (Property ref))
+  | Array (TypeNode ref)
   | Boolean
   | Intersection (Array (TypeNode ref))
   | Number
   | String
+  | Tuple (Array (TypeNode ref))
   | TypeParameter
     { identifier ∷ ReadDTS.TsString
     , default ∷ Maybe (TypeNode ref)
@@ -95,11 +97,13 @@ derive instance functorTypeNode ∷ Functor TypeNode
 
 instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (AnonymousObject ts) = foldMap (foldMap f <<< _.type) ts
+  foldMap f (Array t) = foldMap f t
   foldMap _ Boolean = mempty
   foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f Number = mempty
   foldMap f String = mempty
   foldMap f (Union ts) = fold (map (foldMap f) ts)
+  foldMap f (Tuple ts) = fold (map (foldMap f) ts)
   foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap f (TypeReference { ref }) = f ref
   foldMap f (UnknownTypeNode _) = mempty
@@ -108,10 +112,12 @@ instance foldableTypeNode ∷ Foldable TypeNode where
 
 instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (AnonymousObject ts) = AnonymousObject <$> (sequence <<< map sequenceProperty) ts
+  sequence (Array t) = Array <$> sequence t
   sequence Boolean = pure Boolean
   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
   sequence Number = pure $ Number
   sequence String = pure $ String
+  sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   sequence (TypeParameter { identifier, default }) =
     TypeParameter <<< { identifier, default: _ } <$> (sequence <<< map sequence) default
   sequence (TypeReference { ref, fullyQualifiedName, typeArguments }) = map TypeReference
@@ -152,12 +158,14 @@ build fileName = do
     onDeclaration = { interface: Interface, typeAlias: TypeAlias, unknown: UnknownDeclaration }
     onTypeNode =
       { anonymousObject: AnonymousObject
+      , array: Array
       , intersection: Intersection
       , primitive: case _ of
         "number" → Number
         "string" → String
         "boolean" → Boolean
         x → UnknownTypeNode ("Unknown primitive type:" <> x)
+      , tuple: Tuple
       , typeParameter: TypeParameter
       , typeReference: TypeReference
       , union: Union

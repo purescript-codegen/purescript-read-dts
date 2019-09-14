@@ -83,11 +83,16 @@ stringOnType =
         { repr: "{" <> (joinWith " , " (map onMember props)) <> "}"
         , tsDeclarations: foldMap _.type.tsDeclarations props
         }
+  , array: \t → { repr: "Array: " <> t.repr, tsDeclarations: t.tsDeclarations }
   , intersection: \ts →
       { repr: append "intersection: " <<< joinWith " & " <<< map _.repr $ ts
       , tsDeclarations: foldMap _.tsDeclarations ts
       }
   , primitive: noDeclarations <<< append "primitive: " <<< show
+  , tuple: \ts →
+      { repr: "(" <> (joinWith ", " $ map _.repr ts) <> ")"
+      , tsDeclarations: foldMap _.tsDeclarations ts
+      }
   , typeParameter: case _ of
       { default: Nothing, identifier } → noDeclarations $ unsafeStringify identifier
       { default: Just d, identifier } →

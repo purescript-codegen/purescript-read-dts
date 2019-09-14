@@ -63,9 +63,9 @@ type OnDeclarationBase (nullable ∷ Type → Type) d t =
   }
 
 -- | * As typescript allows us to define
--- | recursive types `declaration` resolution
+-- | recursive types `ref` resolution
 -- | should be treated with caution. You should guard
--- | against infinite reference traversing.
+-- | against infinite declartion reference traversing.
 -- |
 -- | * Because this lib implements only part of
 -- | the ts compiler API we are not able to promise that
@@ -79,8 +79,10 @@ type TypeReference d t =
 
 type OnTypeBase (nullable ∷ Type → Type) d t =
   { anonymousObject ∷ Array (Property t) → t
+  , array ∷ t → t
   , intersection ∷ Array t → t
   , primitive ∷ String → t
+  , tuple ∷ Array t → t
   , typeParameter ∷ { identifier ∷ TsString, default ∷ nullable t } → t
   , typeReference ∷ TypeReference d t → t
   , union ∷ Array t → t

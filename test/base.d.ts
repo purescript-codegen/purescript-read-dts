@@ -1,10 +1,17 @@
-export interface Base1<f, s> {
-  f: f,
-  s: s
+export interface Base1<t1, t2, t3, n=number> {
+  t1: t1,
+  t2: t2[],
+  t3: [t3],
+  tp: [string, number, any],
+  n: n
 }
 
-export interface Base2 {
-  second: string
+export interface Base2<t=string> {
+  t: t
+}
+
+export interface Base3 {
+  s: string
 }
 
 // export interface BaseProps<t> {

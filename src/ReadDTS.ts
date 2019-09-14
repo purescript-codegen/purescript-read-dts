@@ -15,8 +15,7 @@ export const compilerOptions = {
 
 type Nullable<a> = a | null;
 type TypeParameter<t> = { identifier: ts.__String, default: Nullable<t> };
-
- type Property<t> = { name: string, type: t, optional: boolean }
+type Property<t> = { name: string, type: t, optional: boolean }
 
 export function _readDTS<d, t>(
   options: ts.CompilerOptions,
@@ -34,8 +33,10 @@ export function _readDTS<d, t>(
     },
     onTypeNode: {
       anonymousObject: (properties: (Property<t>)[]) => t,
+      array: (type: t) => t,
       intersection: (types: t[]) => t,
       primitive: (name: string) => t,
+      tuple: (types: t[]) => t,
       typeParameter: (tp: TypeParameter<t>) => t,
       typeReference: (i: { typeArguments: t[], fullyQualifiedName: string, ref: Nullable<ts.Declaration> }) => t,
       union: (types: t[]) => t,
@@ -45,7 +46,7 @@ export function _readDTS<d, t>(
   fileName: string
 ): { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }{
   let program = ts.createProgram([fileName], options);
-  let checker = program.getTypeChecker();
+  let checker = <MyChecker>program.getTypeChecker();
   let onDeclaration = visit.onDeclaration;
   let onTypeNode = visit.onTypeNode;
   let result:d[] = [];
@@ -62,6 +63,26 @@ export function _readDTS<d, t>(
   return {
     topLevel: result,
     readDeclaration: (v:ts.Declaration) => () => visitDeclaration(v)
+  }
+  // It is probably better to use some internal checker machinery
+  // than to use heuristics like `fullyQualifiedName == "Array"`
+  interface MyChecker extends ts.TypeChecker {
+    // Hack source:
+    // https://github.com/microsoft/TypeScript/blob/v3.6.3/src/compiler/checker.ts
+    // I've additionally restricted some signatures.
+    getElementTypeOfArrayType: (type: ts.TypeReference) =>  ts.Type | undefined;
+    isArrayType: (type: ts.TypeReference) => boolean;
+    isTupleType: (type: ts.TypeReference) => boolean;
+    isReadonlyArrayType: (type: ts.TypeReference) => boolean;
+    getTypeOfPropertyOfType: (type: ts.TypeReference, propertyName: string) => ts.Type | undefined;
+    // Some other possible helpers:
+    // isTupleLikeType: (type: ts.Type) => boolean;
+    // isArrayLikeType: (type: ts.Type) => boolean;
+    // isEmptyArrayLiteralType: (type: ts.Type) => boolean;
+    // isArrayOrTupleLikeType: (type: ts.Type) => boolean;
+    // isNeitherUnitTypeNorNever: (type: ts.Type) => boolean;
+    // isUnitType: (type: ts.Type) => boolean;
+    // isLiteralType: (type: ts.Type) => boolean;
   }
 
   interface MyNode extends ts.Node {
@@ -115,7 +136,7 @@ export function _readDTS<d, t>(
 
   function getTSType(memType: ts.Type): t {
     if (memType.flags & (ts.TypeFlags.String
-      | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
+      | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number  
       | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
       return onTypeNode.primitive(checker.typeToString(memType));
     }
@@ -142,13 +163,35 @@ export function _readDTS<d, t>(
       }
       if(memObjectType.objectFlags & ts.ObjectFlags.Reference) {
         let reference = <ts.TypeReference>memObjectType;
+        if(checker.isArrayType(reference)) {
+          let elem = checker.getElementTypeOfArrayType(reference);
+          if(elem)
+            return onTypeNode.array(getTSType(elem));
+        }
+        if(checker.isTupleType(reference)) {
+          let e: string, elem:ts.Type | undefined, elems:t[] = [];
+          for(let i=0;; i++) {
+            // Hack source:
+            // https://github.com/microsoft/TypeScript/blob/v3.6.3/src/compiler/checker.ts + getTupleElementType
+            e = "" + i as string;
+            elem = checker.getTypeOfPropertyOfType(reference, e);
+            if(elem) {
+              elems.push(getTSType(elem));
+            } else {
+              break;
+            }
+          };
+          return onTypeNode.tuple(elems);
+        }
         if (reference.target.isClassOrInterface()) {
           let typeArguments = reference.typeArguments?reference.typeArguments.map(getTSType):[];
           return onInterfaceReference(reference.target, typeArguments);
         }
-      } else if(memObjectType.isClassOrInterface()) {
+      }
+      if(memObjectType.isClassOrInterface()) {
         return onInterfaceReference(memObjectType, []);
-      } else if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
+      }
+      if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
         let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.valueDeclaration));
         return onTypeNode.anonymousObject(props);
       }
