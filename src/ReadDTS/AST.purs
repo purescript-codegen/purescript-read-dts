@@ -169,19 +169,16 @@ newtype TsRef = TsRef
   }
 derive instance newtypeTsRef ∷ Newtype TsRef _
 
--- | This simple `readTypeConstructor` extensions
--- | should allow us to provide cache for
--- | already loaded declarations
-type ReadTypeConstructor = TsRef → Effect (TypeConstructor TsRef)
+type ReadDeclaration = TsRef → Effect (TypeConstructor TsRef)
 
 type Seed = { level ∷ Int, ref ∷ TsRef }
 
 type Application' = Mu Application
 
-coalgebra ∷ ReadTypeConstructor → CoalgebraM Effect Application Seed
-coalgebra readApplication { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } = if level < 5
+coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
+coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } = if level < 5
   then do
-    d ← readApplication tsRef
+    d ← readDeclaration tsRef
     pure $ Application
       { declaration: (map seed d)
       , typeArguments: map seed <$> typeArguments
@@ -239,7 +236,7 @@ build fileName = do
   for topLevel \declaration →
     sequence $ map ({ ref: _, level: 0} >>> u) declaration
 
-type Apply a = Map String (TypeNode Void) → Except String (TypeNode Void)
+type Apply = Map String (TypeNode Void) → Except String (TypeNode Void)
 
 applyApplication :: Application Apply -> Apply
 applyApplication (Application { typeArguments, declaration }) = case declaration of
