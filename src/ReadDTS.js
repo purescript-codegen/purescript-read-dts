@@ -47,7 +47,7 @@ function _readDTS(options, visit, fileName) {
         var processTypeParameters = function (typeParameters) {
             return (!typeParameters) ? [] : typeParameters.map(function (p) {
                 var d = p.default ? getTSType(checker.getTypeAtLocation(p.default)) : null;
-                return onTypeNode.typeParameter({ identifier: p.name.escapedText, default: d });
+                return { name: p.name.escapedText, default: d };
             });
         };
         if (ts.isInterfaceDeclaration(node)) {
@@ -145,10 +145,9 @@ function _readDTS(options, visit, fileName) {
             }
             return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
         }
-        // I'm not sure why this check turns memType type into `never`
         else if (memType.isTypeParameter()) {
             var d = memType.getDefault();
-            return onTypeNode.typeParameter({ identifier: memType.symbol.escapedName, default: d ? getTSType(d) : null });
+            return onTypeNode.typeParameter({ name: memType.symbol.escapedName, default: d ? getTSType(d) : null });
         }
         return onTypeNode.unknown(checker.typeToString(memType));
     }

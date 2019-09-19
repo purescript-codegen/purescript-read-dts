@@ -2,7 +2,7 @@ module ReadDTS where
 
 import Prelude
 
-import Data.Lens (Lens, over)
+import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
@@ -38,6 +38,11 @@ type Property t =
   , optional ∷ Boolean
   }
 
+type TypeParameter nullable t =
+  { name ∷ TsString
+  , default ∷ nullable t
+  }
+
 -- | XXX: Is there a way to pass `Maybe` constructors to FFI
 -- | but preserving typechecking on typescript side and drop this
 -- | `nullable` parameter?
@@ -45,13 +50,13 @@ type OnDeclarationBase (nullable ∷ Type → Type) d t =
   { interface ∷
       { name ∷ String
       , fullyQualifiedName ∷ FullyQualifiedName
-      , typeParameters ∷ Array t
+      , typeParameters ∷ Array (TypeParameter nullable t)
       , properties ∷ Array (Property t)
       }
       → d
   , typeAlias ∷
       { name ∷ String
-      , typeParameters ∷ Array t
+      , typeParameters ∷ Array (TypeParameter nullable t)
       , "type" ∷ t
       }
       → d
@@ -83,8 +88,8 @@ type OnTypeBase (nullable ∷ Type → Type) d t =
   , intersection ∷ Array t → t
   , primitive ∷ String → t
   , tuple ∷ Array t → t
-  , typeParameter ∷ { identifier ∷ TsString, default ∷ nullable t } → t
   , typeReference ∷ TypeReference d t → t
+  , typeParameter ∷ TypeParameter nullable t → t
   , union ∷ Array t → t
   , unknown ∷ String → t
   }
@@ -115,19 +120,33 @@ readDTS
 readDTS opts visit = (runEffectFn3 _readDTS) opts visit'
   where
     visit'
-      = over (_onDeclarationL <<< _unknownL) (lcmap  (over _fullyQualifiedNameL toMaybe))
-      <<< over (_onTypeNodeL <<< _typeParameterL) (lcmap (over _defaultL toMaybe))
+      = over (_onTypeNodeL <<< _typeParameterL) (lcmap (over _defaultL toMaybe))
+      <<< over (_onDeclarationL <<< _unknownL) (lcmap  (over _fullyQualifiedNameL toMaybe))
+      <<< over (_onDeclarationL <<< _interfaceL) (lcmap (over (_typeParametersL <<< traversed <<< _defaultL) toMaybe))
+      <<< over (_onDeclarationL <<< _typeAliasL) (lcmap (over (_typeParametersL <<< traversed <<< _defaultL) toMaybe))
       $ visit
 
     -- | An example signature in case you want to turn these into polymorphic ones :-P
     _onTypeNodeL ∷ ∀ a b r. Lens { onTypeNode ∷ a | r } { onTypeNode ∷ b | r } a b
     _onTypeNodeL = prop (SProxy ∷ SProxy "onTypeNode")
+
+    _onDeclarationL ∷ ∀ a b r. Lens { onDeclaration ∷ a | r } { onDeclaration ∷ b | r } a b
     _onDeclarationL = prop (SProxy ∷ SProxy "onDeclaration")
+
+    _defaultL ∷ ∀ a b r. Lens { default ∷ a | r } { default ∷ b | r } a b
+    _defaultL = prop (SProxy ∷ SProxy "default")
+
+    _typeParametersL ∷ ∀ a b r. Lens { typeParameters ∷ a | r } { typeParameters ∷ b | r } a b
+    _typeParametersL = prop (SProxy ∷ SProxy "typeParameters")
+
+    _typeParameterL ∷ ∀ a b r. Lens { typeParameter ∷ a | r } { typeParameter ∷ b | r } a b
     _typeParameterL = prop (SProxy ∷ SProxy "typeParameter")
+
     _typeReferenceL = prop (SProxy ∷ SProxy "typeReference")
     _fullyQualifiedNameL = prop (SProxy ∷ SProxy "fullyQualifiedName")
     _unknownL = prop (SProxy ∷ SProxy "unknown")
-    _defaultL = prop (SProxy ∷ SProxy "default")
+    _interfaceL = prop (SProxy ∷ SProxy "interface")
+    _typeAliasL = prop (SProxy ∷ SProxy "typeAlias")
 
 foreign import _readDTS
   ∷ ∀ d t

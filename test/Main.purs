@@ -19,8 +19,8 @@ import Effect.Ref (modify, modify', new, read) as Ref
 import Global.Unsafe (unsafeStringify)
 import Matryoshka (cata)
 import Matryoshka.Class.Corecursive (embed)
-import ReadDTS (FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, Declarations, compilerOptions, readDTS)
-import ReadDTS.AST (build, pprintDeclaration) as AST
+import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS.AST (build) as AST
 import Unsafe.Coerce (unsafeCoerce)
 
 type TsDeclarationRef= { fullyQualifiedName ∷ FullyQualifiedName, tsDeclaration ∷ TsDeclaration }
@@ -38,7 +38,7 @@ stringOnDeclaration =
       { fullyQualifiedName: Just i.fullyQualifiedName
       , repr: serInterface i
       , tsDeclarations:
-          foldMap _.tsDeclarations i.typeParameters
+          (foldMap (foldMap _.tsDeclarations <<< _.default)) i.typeParameters
           <> foldMap _.type.tsDeclarations i.properties
       }
   -- | It seems that type aliases don't introduce names so they don't
@@ -46,7 +46,8 @@ stringOnDeclaration =
   , typeAlias: \r@{ type: t, typeParameters } → DeclarationRepr
       { fullyQualifiedName: Nothing
       , repr: serTypeAlias r
-      , tsDeclarations: t.tsDeclarations <> foldMap _.tsDeclarations typeParameters
+      , tsDeclarations: t.tsDeclarations <>
+          (foldMap (foldMap _.tsDeclarations <<< _.default)) typeParameters
       }
   , unknown: \u → DeclarationRepr
       { repr: serUnknown u
@@ -60,13 +61,13 @@ serUnknown r = "unkownDeclaration " <> show r.fullyQualifiedName <> ": " <> r.ms
 serTypeAlias r
   = "typeAlias "
   <> r.name
-  <> " <" <> joinWith ", " (map _.repr r.typeParameters) <> "> : "
+  <> " <" <> joinWith ", " (map (unsafeTsStringToString <<< _.name) r.typeParameters) <> "> : "
   <> r.type.repr
 
 serInterface { name, fullyQualifiedName, properties, typeParameters }
   = "interface "
   <> show fullyQualifiedName
-  <> " <" <> joinWith ", " (map _.repr typeParameters) <> "> : \n\t"
+  <> " <" <> joinWith ", " (map (\{ name, default } → unsafeTsStringToString name <> " = " <> foldMap _.repr default) typeParameters) <> "> : \n\t"
   <> joinWith ";\n\t" (map onMember properties)
   where
     onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
@@ -94,9 +95,9 @@ stringOnType =
       , tsDeclarations: foldMap _.tsDeclarations ts
       }
   , typeParameter: case _ of
-      { default: Nothing, identifier } → noDeclarations $ unsafeStringify identifier
-      { default: Just d, identifier } →
-          { repr: unsafeStringify identifier <> " = " <> d.repr
+      { default: Nothing, name } → noDeclarations $ unsafeStringify name
+      { default: Just d, name } →
+          { repr: unsafeStringify name <> " = " <> d.repr
           , tsDeclarations: d.tsDeclarations
           }
   , typeReference: \{ fullyQualifiedName, ref, typeArguments } →
@@ -144,6 +145,6 @@ main = do
   result ← AST.build fileName
   log $ unsafeStringify $ unsafeCoerce $ result
 
-  log $ joinWith "\n\n" $ ((map (_.repr <<< cata AST.pprintDeclaration <<< embed) result))
+  -- log $ joinWith "\n\n" $ ((map (_.repr <<< cata AST.pprintDeclaration <<< embed) result))
 
   pure unit

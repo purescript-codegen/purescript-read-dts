@@ -2,6 +2,7 @@ import * as ts from "typescript";
 
 type Effect<a> = () => a;
 
+
 exports.eqIdentifierImpl = function(i1: ts.Identifier) {
   return function(i2: ts.Identifier) {
     return i1 === i2;
@@ -14,7 +15,7 @@ export const compilerOptions = {
 };
 
 type Nullable<a> = a | null;
-type TypeParameter<t> = { identifier: ts.__String, default: Nullable<t> };
+type TypeParameter<t> = { name: ts.__String, default: Nullable<t> };
 type Property<t> = { name: string, type: t, optional: boolean }
 
 export function _readDTS<d, t>(
@@ -26,9 +27,9 @@ export function _readDTS<d, t>(
           name: string,
           fullyQualifiedName: string,
           properties: Property<t>[]
-          typeParameters: t[]
+          typeParameters: TypeParameter<t>[]
         }) => d
-      typeAlias: (x: { name: string, type: t, typeParameters: t[] }) => d
+      typeAlias: (x: { name: string, type: t, typeParameters: TypeParameter<t>[] }) => d
       unknown: (u: { fullyQualifiedName: Nullable<string>, msg: string }) => d
     },
     onTypeNode: {
@@ -97,10 +98,10 @@ export function _readDTS<d, t>(
   }
 
   function visitDeclaration(node: MyNode): d {
-    let processTypeParameters = function ( typeParameters: ts.NodeArray<ts.TypeParameterDeclaration> | undefined): t[] {
+    let processTypeParameters = function ( typeParameters: ts.NodeArray<ts.TypeParameterDeclaration> | undefined): TypeParameter<t>[] {
       return (!typeParameters)?[]:typeParameters.map(function(p: ts.TypeParameterDeclaration) {
         let d = p.default?getTSType(checker.getTypeAtLocation(p.default)):null;
-        return onTypeNode.typeParameter({ identifier: p.name.escapedText, default: d });
+        return { name: p.name.escapedText, default: d };
       })
     }
     if(ts.isInterfaceDeclaration(node)) {
@@ -197,10 +198,9 @@ export function _readDTS<d, t>(
       }
       return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
     }
-    // I'm not sure why this check turns memType type into `never`
     else if (memType.isTypeParameter()) {
       let d = memType.getDefault();
-      return onTypeNode.typeParameter({ identifier: memType.symbol.escapedName, default: d?getTSType(d):null });
+      return onTypeNode.typeParameter({ name: memType.symbol.escapedName, default: d?getTSType(d):null });
     }
     return onTypeNode.unknown(checker.typeToString(memType));
   }
