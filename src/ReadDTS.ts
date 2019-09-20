@@ -192,6 +192,12 @@ export function _readDTS<d, t>(
       if(memObjectType.isClassOrInterface()) {
         return onInterfaceReference(memObjectType, []);
       }
+      // This __seems__ to work in case of Pick<..>
+      if((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
+         (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
+        let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.declarations[0]));
+        return onTypeNode.anonymousObject(props);
+      }
       if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
         let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.valueDeclaration));
         return onTypeNode.anonymousObject(props);

@@ -139,6 +139,12 @@ function _readDTS(options, visit, fileName) {
             if (memObjectType.isClassOrInterface()) {
                 return onInterfaceReference(memObjectType, []);
             }
+            // This __seems__ to work in case of Pick<..>
+            if ((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
+                (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
+                var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.declarations[0]); });
+                return onTypeNode.anonymousObject(props);
+            }
             if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
                 var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
                 return onTypeNode.anonymousObject(props);
