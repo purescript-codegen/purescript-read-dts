@@ -46,6 +46,13 @@ derive instance ordVar ∷ Ord Var
 printVar ∷ Var → String
 printVar (Var s) = show s
 
+-- | * Recursion of this type closes down
+-- | in the `TypeNode` `TypeApplication` constructor.
+-- |
+-- | * FFI provides us `TsDeclaration` reference which
+-- | we are able to exapand using provided by FFI
+-- | `readDeclaration` effect. This is a basis for
+-- | our unfolding scheme in `build` function.
 newtype Application ref = Application
   { typeArguments ∷ Array (TypeNode ref)
   , typeConstructor ∷ TypeConstructor ref
@@ -115,7 +122,7 @@ data TypeNode ref
   | Number
   | String
   | Tuple (Array (TypeNode ref))
-  | TypeReference ref
+  | TypeApplication ref
   | TypeParameter (TypeParameter ref)
   | Union (Array (TypeNode ref))
   | UnknownTypeNode String
@@ -132,7 +139,7 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (Union ts) = fold (map (foldMap f) ts)
   foldMap f (Tuple ts) = fold (map (foldMap f) ts)
   foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
-  foldMap f (TypeReference ref) = f ref
+  foldMap f (TypeApplication ref) = f ref
   foldMap f (UnknownTypeNode _) = mempty
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
@@ -147,7 +154,7 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   sequence (TypeParameter { name, default }) =
     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
-  sequence (TypeReference ref) = TypeReference <$> ref
+  sequence (TypeApplication ref) = TypeApplication <$> ref
   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
   traverse = traverseDefault
@@ -165,6 +172,7 @@ type Seed = { level ∷ Int, ref ∷ TsRef }
 
 type Application' = Mu Application
 
+-- | XXX: Of course we should parametrize by this maxLevel value ;-)
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
 coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } = if level < 5
   then do
@@ -205,7 +213,7 @@ visit =
           _name = prop (SProxy ∷ SProxy "name")
         in
           TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
-    , typeReference: TypeReference <<< TsRef
+    , typeReference: TypeApplication <<< TsRef
     , union: Union
     , unknown: UnknownTypeNode
     }
@@ -259,7 +267,7 @@ applyTypeNode (TypeParameter { name, default }) ctx = case Map.lookup name ctx, 
   _, _ → throwError ("Variable not defined: " <> name)
 applyTypeNode (Union ts) ctx = Union <$> traverse (flip applyTypeNode ctx) ts
 applyTypeNode (Tuple ts) ctx = Tuple <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode (TypeReference ref) ctx = unsafeCrashWith ("Matching void case (applyTypeNode): " <> unsafeStringify ref)
+applyTypeNode (TypeApplication ref) ctx = unsafeCrashWith ("Matching void case (applyTypeNode): " <> unsafeStringify ref)
 applyTypeNode (UnknownTypeNode s) ctx = pure $ UnknownTypeNode s
 
 -- -- type Repr = { fullyQualifiedName ∷ Maybe String, repr ∷ String }
