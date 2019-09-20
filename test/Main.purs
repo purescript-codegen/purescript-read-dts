@@ -158,15 +158,15 @@ main = do
 
   (result ∷ Array (TypeConstructor Application')) ← AST.build fileName
   -- log $ unsafeStringify $ unsafeCoerce $ result
-  let
-    f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
-    f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t
-    g ∷ TypeConstructor (TypeNode Repr) → Effect Unit
-    g = f >>> pprintTypeConstructor >>> _.repr >>> log
-    h ∷ Array (TypeConstructor (TypeNode Repr)) → Effect Unit
-    h = traverse_ g
+  -- let
+  --   f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
+  --   f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t
+  --   g ∷ TypeConstructor (TypeNode Repr) → Effect Unit
+  --   g = f >>> pprintTypeConstructor >>> _.repr >>> log
+  --   h ∷ Array (TypeConstructor (TypeNode Repr)) → Effect Unit
+  --   h = traverse_ g
 
-  either log h $ unwrap $ runExceptT $ traverse (traverse app) result
+  -- either log logShow $ unwrap $ runExceptT $ traverse (traverse app) result
 -- cata
   -- log $ joinWith "\n\n" $ ((map (_.repr <<< cata AST.pprintDeclaration <<< embed) result))
 

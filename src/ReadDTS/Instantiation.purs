@@ -4,16 +4,14 @@ import Prelude
 
 import Control.Monad.Except (Except, throwError)
 import Data.Array as Array
-import Data.Functor.Mu (Mu)
+import Data.Functor.Mu (Mu, roll)
 import Data.Lens.Record (prop)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Data.Traversable (for, traverse)
-import Global.Unsafe (unsafeStringify)
 import Matryoshka (cata)
-import Partial.Unsafe (unsafeCrashWith)
 import ReadDTS.AST (Application(..), TypeConstructor(..), TypeNode)
 import ReadDTS.AST as AST
 
@@ -34,25 +32,26 @@ import ReadDTS.AST as AST
 -- | Badge.d.ts and provide some kind of "tests" for it.
 -- |
 -- | * Do we really want to expand ts intersections here? Do we lose something?
--- | How we are going to treat intersections which contain 'Uknown'?
+-- | How we are going to treat intersections which contain 'Unknown'?
 
 data TypeF a
   = Array a
   | Boolean
   | Number
-  | Object (Map String { t ∷ a, optional ∷ Boolean })
+  -- | Object (Map String { t ∷ a, optional ∷ Boolean })
+  | Object (Array { type ∷ a, optional ∷ Boolean, name ∷ String })
   | String
   | Tuple (Array a)
   | Union (Array a)
-  | Uknown String
+  | Unknown String
 
 type Type = Mu TypeF
 
 -------------------------------------------------------------------------------- 
 
-type Apply a = Map String (TypeNode a) → Except String (TypeNode a)
+type Apply = Map String Type → Except String Type
 
-applyApplication ∷ ∀ a. Application (Apply a) → (Apply a)
+applyApplication ∷ Application Apply → Apply
 applyApplication (Application { typeArguments, typeConstructor }) =
   case typeConstructor of
     Interface { properties, typeParameters } → \ctx → do
@@ -60,38 +59,39 @@ applyApplication (Application { typeArguments, typeConstructor }) =
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
         _typeL = prop (SProxy ∷ SProxy "type")
-      AST.AnonymousObject <$> for properties \{ name, type: t, optional } →
+      roll <$> Object <$> for properties \{ name, type: t, optional } →
         { name, type: _, optional } <$> (flip applyTypeNode ctx' t)
     TypeAlias { type: t, typeParameters } → \ctx → do
       typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
       applyTypeNode t ctx'
-    UnknownTypeConstructor r → const $ pure $ AST.UnknownTypeNode
+    UnknownTypeConstructor r → const $ pure $ roll $ Unknown
       ("Unknown type constructor: " <> show r.fullyQualifiedName)
 
-applyTypeNode ∷ ∀ a. TypeNode (Apply a) → (Apply a)
-applyTypeNode (AST.AnonymousObject ps) ctx =
-  AST.AnonymousObject <$> for ps \{ name, type: t, optional } →
-    { name, type: _, optional } <$> applyTypeNode t ctx
-applyTypeNode (AST.Array t) ctx = AST.Array <$> applyTypeNode t ctx
-applyTypeNode AST.Boolean ctx = pure AST.Boolean
-applyTypeNode (AST.Intersection ts) ctx = 
-  AST.Intersection <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode AST.Number ctx = pure AST.Number
-applyTypeNode AST.String ctx = pure $ AST.String
-applyTypeNode (AST.TypeParameter { name, default }) ctx = 
-  case Map.lookup name ctx, default of
-    Just t, _ → pure t
-    Nothing, Just d → applyTypeNode d ctx
-    _, _ → throwError ("Variable not defined: " <> name)
-applyTypeNode (AST.Union ts) ctx = AST.Union <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode (AST.Tuple ts) ctx = AST.Tuple <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode (AST.TypeApplication ref) ctx = unsafeCrashWith
-  $ "Matching void case (applyTypeNode): " <> unsafeStringify ref
-applyTypeNode (AST.UnknownTypeNode s) ctx = pure $ AST.UnknownTypeNode s
+applyTypeNode ∷ TypeNode Apply → Apply
+applyTypeNode typeNode ctx = case typeNode of
+  AST.AnonymousObject ps →
+    roll <$> Object <$> for ps \{ name, type: t, optional } →
+      { name, type: _, optional } <$> applyTypeNode t ctx
+  AST.Array t → roll <$> Array <$> applyTypeNode t ctx
+  AST.Boolean → pure $ roll Boolean
+  AST.Intersection ts → 
+    throwError "Apply for Intersection unsupported"
+    -- roll <$> Intersection <$> traverse (flip applyTypeNode ctx) ts
+  AST.Number → pure $ roll Number
+  AST.String → pure $ roll String
+  AST.TypeParameter { name, default } → 
+    case Map.lookup name ctx, default of
+      Just t, _ → pure t
+      Nothing, Just d → applyTypeNode d ctx
+      _, _ → throwError ("Variable not defined: " <> name)
+  AST.Union ts → roll <$> Union <$> traverse (flip applyTypeNode ctx) ts
+  AST.Tuple ts → roll <$> Tuple <$> traverse (flip applyTypeNode ctx) ts
+  AST.TypeApplication ref → ref ctx
+  AST.UnknownTypeNode s → pure $ roll $ Unknown s
 
-app ∷ ∀ a. Mu Application → Except String (TypeNode a)
+app ∷ Mu Application → Except String Type
 app t = cata applyApplication t Map.empty
 
 -- foo ∷ Mu TypeNode → Type
