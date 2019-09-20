@@ -2,24 +2,19 @@ module ReadDTS.AST where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except (Except)
 import Data.Array (fold)
-import Data.Array (zip) as Array
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Mu (Mu)
 import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
-import Data.Map (Map)
-import Data.Map (fromFoldable, lookup) as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
+import Data.String (joinWith)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Effect (Effect)
 import Global.Unsafe (unsafeStringify)
 import Matryoshka (CoalgebraM, anaM)
-import Partial.Unsafe (unsafeCrashWith)
-import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, fqnToString, readDTS, unsafeTsStringToString)
 import ReadDTS (unsafeTsStringToString) as ReadDTS
 import Type.Prelude (SProxy(..))
 
@@ -174,11 +169,12 @@ type Application' = Mu Application
 
 -- | XXX: Of course we should parametrize by this maxLevel value ;-)
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
-coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } = if level < 5
+coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } =
+  if level < 5
   then do
     d ← readDeclaration tsRef
     pure $ Application
-      { typeConstructor: (map seed d)
+      { typeConstructor: map seed d
       , typeArguments: map seed <$> typeArguments
       }
   else pure $ Application
@@ -209,10 +205,8 @@ visit =
       x → UnknownTypeNode ("Unknown primitive type:" <> x)
     , tuple: Tuple
     , typeParameter:
-        let
-          _name = prop (SProxy ∷ SProxy "name")
-        in
-          TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
+        let _name = prop (SProxy ∷ SProxy "name") in
+        TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
     , typeReference: TypeApplication <<< TsRef
     , union: Union
     , unknown: UnknownTypeNode
@@ -230,88 +224,58 @@ build fileName = do
   { readDeclaration, topLevel } ← readDTS compilerOptions visit fileName
   let
     go ∷ Seed → Effect Application'
-    go = anaM (coalgebra (\(TsRef { ref }) → readDeclaration ref))
+    go = anaM $ coalgebra \(TsRef { ref }) → readDeclaration ref
   for topLevel \typeConstructor →
-    sequence $ map ({ ref: _, level: 0} >>> go) typeConstructor
+    traverse ({ ref: _, level: 0} >>> go) typeConstructor
 
-type Apply = Map String (TypeNode Void) → Except String (TypeNode Void)
+type Repr = { fullyQualifiedName ∷ Maybe String, repr ∷ String }
 
-applyApplication :: Application Apply -> Apply
-applyApplication (Application { typeArguments, typeConstructor }) = case typeConstructor of
-  Interface { properties, typeParameters } → \ctx → do
-    typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
-    let
-      ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
-      _typeL = prop (SProxy ∷ SProxy "type")
-    AnonymousObject <$> for properties \{ name, type: t, optional } →
-      { name, type: _, optional } <$> (flip applyTypeNode ctx' t)
-  TypeAlias { type: t, typeParameters } → \ctx → do
-    typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
-    let
-      ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
-    applyTypeNode t ctx'
-  UnknownTypeConstructor r → const $ pure $ UnknownTypeNode
-    ("Unknown type constructor: " <> show r.fullyQualifiedName)
+pprintApplication ∷ Application Repr → Repr
+pprintApplication (Application { typeArguments, typeConstructor }) =
+  let
+    args = joinWith ", " $ map pprintTypeNode typeArguments
+    r = pprintTypeConstructor typeConstructor
+  in
+    r { repr = r.repr <> "<" <> args <> ">" }
+  -- case declaration of
+  -- Interface { fullyQualifiedName } ->
+  --   fullyQualifiedName <> args
+  -- TypeAlias { name } ->
+  --   name <> args
+  -- UnknownTypeConstructor { fullyQualifiedName } → case fullyQualifiedName of
+  --   Just fqn → "unknown: " <> fqn
+  --   Nothing → "unknown:?"
+  -- where
+  --   args = "<" <> joinWith ", " map pprintTypeNode typeArguments <> ">"
 
-applyTypeNode ∷ TypeNode Apply → Apply
-applyTypeNode (AnonymousObject ps) ctx = AnonymousObject <$> for ps \{ name, type: t, optional } →
-  { name, type: _, optional } <$> (flip applyTypeNode ctx t)
-applyTypeNode (Array t) ctx = Array <$> applyTypeNode t ctx
-applyTypeNode Boolean ctx = pure Boolean
-applyTypeNode (Intersection ts) ctx = Intersection <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode Number ctx = pure Number
-applyTypeNode String ctx = pure $ String
-applyTypeNode (TypeParameter { name, default }) ctx = case Map.lookup name ctx, default of
-  Just t, _ → pure t
-  Nothing, Just d → applyTypeNode d ctx
-  _, _ → throwError ("Variable not defined: " <> name)
-applyTypeNode (Union ts) ctx = Union <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode (Tuple ts) ctx = Tuple <$> traverse (flip applyTypeNode ctx) ts
-applyTypeNode (TypeApplication ref) ctx = unsafeCrashWith ("Matching void case (applyTypeNode): " <> unsafeStringify ref)
-applyTypeNode (UnknownTypeNode s) ctx = pure $ UnknownTypeNode s
+pprintTypeConstructor ∷ TypeConstructor Repr → Repr
+pprintTypeConstructor = case _ of
+  Interface { fullyQualifiedName, name, properties, typeParameters } →
+    { fullyQualifiedName: Just $ fqnToString fullyQualifiedName
+    , repr: 
+        "interface "
+          <> show fullyQualifiedName <> " <"
+          <> joinWith ", " (map pprintTypeParameter typeParameters) <> "> : \n\t"
+          <> joinWith ";\n\t" (map onMember properties)
+    }
+  t → { fullyQualifiedName: Nothing, repr: unsafeStringify t }
+  where
+    onMember ∷ Property Repr → String
+    onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", pprintTypeNode r.type ]
+-- pprintApplication _ = { repr: "Other declaration", fullyQualifiedName: Nothing }
 
--- -- type Repr = { fullyQualifiedName ∷ Maybe String, repr ∷ String }
--- -- 
--- -- pprintApplication ∷ Application Repr → Repr
--- -- pprintApplication (Application { typeArguments, declaration }) = case declaration of
--- --   Interface { fullyQualifiedName } ->
--- --     fullyQualifiedName <> args
--- --   TypeAlias { name } ->
--- --     name <> args
--- --   UnknownTypeConstructor { fullyQualifiedName } → case fullyQualifiedName of
--- --     Just fqn → "unknown: " <> fqn
--- --     Nothing → "unknown:?"
--- --   where
--- --     args = "<" <> joinWith ", " map pprintType typeArguments <> ">"
--- -- 
--- -- 
--- -- pprintTypeConstructor ∷ TypeConstructor Repr → Repr
--- -- pprintTypeConstructor (Interface =
--- -- 
--- -- 
--- --   { fullyQualifiedName: Just (fqnToString i.fullyQualifiedName)
--- --   , repr:
--- --     "interface "
--- --       <> show i.fullyQualifiedName
--- --       <> " <" <> joinWith ", " (map pprintTypeNode i.typeParameters) <> "> : \n\t"
--- --   }
--- --   -- <> joinWith ";\n\t" (map onMember i.properties)
--- --   -- where
--- --   --  onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
--- -- pprintApplication _ = { repr: "Other declaration", fullyQualifiedName: Nothing }
--- -- 
--- -- 
--- -- pprintTypeNode ∷ TypeNode Repr → String
--- -- pprintTypeNode Boolean = "boolean"
--- -- pprintTypeNode (Intersection reprs) =
--- --   joinWith " & " <<< map (pprintTypeNode) $ reprs
--- -- pprintTypeNode Number = "number"
--- -- pprintTypeNode String = "string"
--- -- pprintTypeNode (TypeParameter r) = case r.default of
--- --   Just d → unsafeTsStringToString r.identifier <> "=" <> pprintTypeNode d
--- --   Nothing → unsafeTsStringToString r.identifier
--- -- pprintTypeNode (Union reprs) =
--- --   joinWith " | " <<< map (pprintTypeNode) $ reprs
--- -- pprintTypeNode _ = "Unfinished"
--- -- 
--- -- 
+pprintTypeParameter ∷ TypeParameter Repr → String
+pprintTypeParameter { name, default } = case default of
+      Just d → name <> "=" <> pprintTypeNode d
+      Nothing → name
+
+pprintTypeNode ∷ TypeNode Repr → String
+pprintTypeNode Boolean = "boolean"
+pprintTypeNode (Intersection reprs) =
+  joinWith " & " <<< map (pprintTypeNode) $ reprs
+pprintTypeNode Number = "number"
+pprintTypeNode String = "string"
+pprintTypeNode (TypeParameter r) = pprintTypeParameter r
+pprintTypeNode (Union reprs) =
+  joinWith " | " <<< map (pprintTypeNode) $ reprs
+pprintTypeNode t = unsafeStringify t

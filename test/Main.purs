@@ -2,9 +2,12 @@ module Test.Main where
 
 import Prelude
 
+import Control.Monad.Except (runExceptT)
 import Data.Array (catMaybes, (:))
 import Data.Array (cons) as Array
-import Data.Foldable (fold, foldM, foldMap, for_)
+import Data.Either (Either(..), either)
+import Data.Foldable (fold, foldM, foldMap, for_, traverse_)
+import Data.Functor.Mu (Mu)
 import Data.Map (Map)
 import Data.Map (fromFoldable, insert, lookup) as Map
 import Data.Maybe (Maybe(..), isNothing)
@@ -14,17 +17,28 @@ import Data.Traversable (for, sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Debug.Trace (trace)
 import Effect (Effect)
+import Effect.Class.Console (logShow)
 import Effect.Console (log)
 import Effect.Ref (modify, modify', new, read) as Ref
 import Global.Unsafe (unsafeStringify)
 import Matryoshka (cata)
 import Matryoshka.Class.Corecursive (embed)
 import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode, Repr, pprintTypeConstructor, pprintTypeNode)
 import ReadDTS.AST (build) as AST
+import ReadDTS.Instantiation (app)
 import Unsafe.Coerce (unsafeCoerce)
 
-type TsDeclarationRef= { fullyQualifiedName ∷ FullyQualifiedName, tsDeclaration ∷ TsDeclaration }
-type TypeRepr = { repr ∷ String, tsDeclarations ∷ Array TsDeclarationRef }
+type TsDeclarationRef = 
+  { fullyQualifiedName ∷ FullyQualifiedName
+  , tsDeclaration ∷ TsDeclaration
+  }
+
+type TypeRepr =
+  { repr ∷ String
+  , tsDeclarations ∷ Array TsDeclarationRef
+  }
+
 newtype DeclarationRepr = DeclarationRepr
   { fullyQualifiedName ∷ Maybe FullyQualifiedName
   , repr ∷ String
@@ -142,9 +156,21 @@ main = do
      log r.repr
      log "\n"
 
-  result ← AST.build fileName
-  log $ unsafeStringify $ unsafeCoerce $ result
+  (result ∷ Array (TypeConstructor Application')) ← AST.build fileName
+  -- log $ unsafeStringify $ unsafeCoerce $ result
+  let
+    f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
+    f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t
+    g ∷ TypeConstructor (TypeNode Repr) → Effect Unit
+    g = f >>> pprintTypeConstructor >>> _.repr >>> log
+    h ∷ Array (TypeConstructor (TypeNode Repr)) → Effect Unit
+    h = traverse_ g
 
+  either log h $ unwrap $ runExceptT $ traverse (traverse app) result
+-- cata
   -- log $ joinWith "\n\n" $ ((map (_.repr <<< cata AST.pprintDeclaration <<< embed) result))
 
   pure unit
+
+-- foo ∷ TypeConstructor (TypeNode Void) → String
+-- foo t = 
