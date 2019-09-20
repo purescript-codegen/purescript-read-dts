@@ -3,35 +3,25 @@ module ReadDTS.AST where
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except (ExceptT(..), Except)
-import Control.Monad.Free (Free, liftF)
+import Control.Monad.Except (Except)
 import Data.Array (fold)
 import Data.Array (zip) as Array
-import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
-import Data.FoldableWithIndex (foldMapDefault)
 import Data.Functor.Mu (Mu)
 import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
 import Data.Map (Map)
-import Data.Map (fromFoldable, insert, lookup) as Map
-import Data.Maybe (Maybe(..), fromMaybe, optional)
-import Data.Newtype (class Newtype, unwrap, wrap)
-import Data.String (joinWith)
+import Data.Map (fromFoldable, lookup) as Map
+import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Effect (Effect)
-import Effect.Ref (Ref)
-import Effect.Ref (modify) as Ref
 import Global.Unsafe (unsafeStringify)
-import Matryoshka (class Corecursive, Algebra, CoalgebraM, GCoalgebraM, AlgebraM, anaM, embed, futuM)
-import Matryoshka.Pattern.CoEnvT (CoEnvT(..))
+import Matryoshka (CoalgebraM, anaM)
 import Partial.Unsafe (unsafeCrashWith)
-import Prim.Row (class Cons, class Lacks) as Row
-import ReadDTS (FullyQualifiedName(..), OnType, TsDeclaration, Visit, compilerOptions, fqnToString, readDTS, unsafeTsStringToString)
-import ReadDTS (OnDeclaration, OnType, TsString, unsafeTsStringToString) as ReadDTS
-import Record (insert) as Record
+import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS (unsafeTsStringToString) as ReadDTS
 import Type.Prelude (SProxy(..))
-import Unsafe.Coerce (unsafeCoerce)
 
 type Property ref =
   { name ∷ String
@@ -39,7 +29,7 @@ type Property ref =
   , optional ∷ Boolean
   }
 
--- sequenceProperty ∷ ∀ ref t. Applicative t ⇒ Property (t ref) → t (Property ref)
+sequenceProperty ∷ ∀ ref t. Applicative t ⇒ Property (t ref) → t (Property ref)
 sequenceProperty { name, type: t, optional } = { type: _, name, optional } <$> sequence t
 
 type TypeParameter ref =
@@ -58,21 +48,21 @@ printVar (Var s) = show s
 
 newtype Application ref = Application
   { typeArguments ∷ Array (TypeNode ref)
-  , declaration ∷ TypeConstructor ref
+  , typeConstructor ∷ TypeConstructor ref
   }
 derive instance functorApplication ∷ Functor Application
 
 instance foldableApplication ∷ Foldable Application where
   foldMap f (Application d)
     = foldMap (foldMap f) d.typeArguments
-    <> foldMap f d.declaration
+    <> foldMap f d.typeConstructor
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
 instance traversableApplication ∷ Traversable Application where
-  sequence (Application d@{ declaration, typeArguments }) = map Application
-    $ (\b ta → d { declaration = b, typeArguments = ta })
-    <$> (sequence declaration)
+  sequence (Application d@{ typeConstructor, typeArguments }) = map Application
+    $ (\tc ta → d { typeConstructor = tc, typeArguments = ta })
+    <$> (sequence typeConstructor)
     <*> (sequence <<< map sequence) typeArguments
   traverse = traverseDefault
 
@@ -180,12 +170,12 @@ coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeA
   then do
     d ← readDeclaration tsRef
     pure $ Application
-      { declaration: (map seed d)
+      { typeConstructor: (map seed d)
       , typeArguments: map seed <$> typeArguments
       }
   else pure $ Application
     { typeArguments: map seed <$> typeArguments
-    , declaration: UnknownTypeConstructor
+    , typeConstructor: UnknownTypeConstructor
       { fullyQualifiedName: Just fullyQualifiedName
       , msg: "Maximum recursion depth"
       }
@@ -231,15 +221,15 @@ build ∷ String → Effect (Array (TypeConstructor Application'))
 build fileName = do
   { readDeclaration, topLevel } ← readDTS compilerOptions visit fileName
   let
-    u ∷ Seed → Effect Application'
-    u = anaM (coalgebra (\(TsRef { ref }) → readDeclaration ref))
-  for topLevel \declaration →
-    sequence $ map ({ ref: _, level: 0} >>> u) declaration
+    go ∷ Seed → Effect Application'
+    go = anaM (coalgebra (\(TsRef { ref }) → readDeclaration ref))
+  for topLevel \typeConstructor →
+    sequence $ map ({ ref: _, level: 0} >>> go) typeConstructor
 
 type Apply = Map String (TypeNode Void) → Except String (TypeNode Void)
 
 applyApplication :: Application Apply -> Apply
-applyApplication (Application { typeArguments, declaration }) = case declaration of
+applyApplication (Application { typeArguments, typeConstructor }) = case typeConstructor of
   Interface { properties, typeParameters } → \ctx → do
     typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
     let
@@ -271,7 +261,6 @@ applyTypeNode (Union ts) ctx = Union <$> traverse (flip applyTypeNode ctx) ts
 applyTypeNode (Tuple ts) ctx = Tuple <$> traverse (flip applyTypeNode ctx) ts
 applyTypeNode (TypeReference ref) ctx = unsafeCrashWith ("Matching void case (applyTypeNode): " <> unsafeStringify ref)
 applyTypeNode (UnknownTypeNode s) ctx = pure $ UnknownTypeNode s
-
 
 -- -- type Repr = { fullyQualifiedName ∷ Maybe String, repr ∷ String }
 -- -- 
