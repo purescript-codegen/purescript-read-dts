@@ -2,12 +2,12 @@ module Test.Main where
 
 import Prelude
 
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Except (runExcept, runExceptT)
 import Data.Array (catMaybes, (:))
 import Data.Array (cons) as Array
 import Data.Either (Either(..), either)
 import Data.Foldable (fold, foldM, foldMap, for_, traverse_)
-import Data.Functor.Mu (Mu)
+import Data.Functor.Mu (Mu, roll)
 import Data.Map (Map)
 import Data.Map (fromFoldable, insert, lookup) as Map
 import Data.Maybe (Maybe(..), isNothing)
@@ -26,6 +26,8 @@ import Matryoshka.Class.Corecursive (embed)
 import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, compilerOptions, readDTS, unsafeTsStringToString)
 import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode, Repr, pprintTypeConstructor, pprintTypeNode)
 import ReadDTS.AST (build) as AST
+import ReadDTS.Instantiation (instantiate)
+import ReadDTS.Instantiation (pprint) as Instantiation
 import Unsafe.Coerce (unsafeCoerce)
 
 type TsDeclarationRef = 
@@ -156,7 +158,11 @@ main = do
      log "\n"
 
   (result ∷ Array (TypeConstructor Application')) ← AST.build fileName
-  log $ unsafeStringify $ unsafeCoerce $ result
+  for_ result $ flip instantiate [] >>> runExcept >>> case _ of
+    Right t → log $ cata Instantiation.pprint t
+    Left e → log $ "Instantiation error:" <> e
+
+  -- log $ unsafeStringify $ unsafeCoerce $ result
   -- let
   --   f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
   --   f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t

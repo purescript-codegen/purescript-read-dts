@@ -111,6 +111,7 @@ instance traversableTypeConstructor ∷ Traversable TypeConstructor where
 
 data TypeNode ref
   = AnonymousObject (Array (Property ref))
+  | Any
   | Array (TypeNode ref)
   | Boolean
   | Intersection (Array (TypeNode ref))
@@ -126,6 +127,7 @@ derive instance functorTypeNode ∷ Functor TypeNode
 
 instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (AnonymousObject ts) = foldMap (foldMap f <<< _.type) ts
+  foldMap _ Any = mempty
   foldMap f (Array t) = foldMap f t
   foldMap _ Boolean = mempty
   foldMap f (Intersection ts) = fold (map (foldMap f) ts)
@@ -141,6 +143,7 @@ instance foldableTypeNode ∷ Foldable TypeNode where
 
 instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (AnonymousObject ts) = AnonymousObject <$> (sequence <<< map sequenceProperty) ts
+  sequence Any = pure Any
   sequence (Array t) = Array <$> sequence t
   sequence Boolean = pure Boolean
   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
@@ -199,10 +202,11 @@ visit =
     , array: Array
     , intersection: Intersection
     , primitive: case _ of
-      "number" → Number
-      "string" → String
-      "boolean" → Boolean
-      x → UnknownTypeNode ("Unknown primitive type:" <> x)
+        "any" → Any
+        "boolean" → Boolean
+        "number" → Number
+        "string" → String
+        x → UnknownTypeNode ("Unknown primitive type:" <> x)
     , tuple: Tuple
     , typeParameter:
         let _name = prop (SProxy ∷ SProxy "name") in

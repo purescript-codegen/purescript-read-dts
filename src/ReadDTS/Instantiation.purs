@@ -4,94 +4,110 @@ import Prelude
 
 import Control.Monad.Except (Except, throwError)
 import Data.Array as Array
-import Data.Functor.Mu (Mu, roll)
+import Data.Foldable (foldl)
+import Data.Functor.Mu (Mu(..), roll)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.String (joinWith)
 import Data.Traversable (for, traverse)
-import ReadDTS.AST (Application(..), TypeConstructor(..), TypeNode)
+import Data.Tuple (Tuple(..)) as Tuple
+import Matryoshka (Algebra, cata)
+import ReadDTS.AST (Application(..), TypeConstructor(..), TypeNode, Application')
 import ReadDTS.AST as AST
 
--- | Not our current problems:
--- |
--- | * How to represent recursive cycles so they can be useful?
--- |
--- | * Should we provide some lazy evaluating value in place of recursive type?
--- |
--- | * Should we provide `fullyQualifiedNames` somewhere too?
-
--- | Current problems:
--- |
--- | * We want to move `AST.apply*` here and rename it probably
--- | `Instatiation.typeNode` `Instantiation.application`.
--- |
--- | * We want to start from the basic types up so let's start to material-ui
--- | Badge.d.ts and provide some kind of "tests" for it.
--- |
--- | * Do we really want to expand ts intersections here? Do we lose something?
--- | How we are going to treat intersections which contain 'Unknown'?
-
 data TypeF a
-  = Array a
+  = Any
+  | Array a
   | Boolean
+  | Intersection a a
   | Number
-  -- | Object (Map String { t ∷ a, optional ∷ Boolean })
-  | Object (Array { type ∷ a, optional ∷ Boolean, name ∷ String })
+  | Object (Map String { type ∷ a, optional ∷ Boolean })
   | String
   | Tuple (Array a)
   | Union (Array a)
   | Unknown String
+derive instance functorTypeF ∷ Functor TypeF
 
 type Type = Mu TypeF
 
--------------------------------------------------------------------------------- 
+type Instantiate = Map String Type → Except String Type
 
-type Apply = Map String Type → Except String Type
-
-applyApplication ∷ Application Apply → Apply
-applyApplication (Application { typeArguments, typeConstructor }) =
+instantiateApplication ∷ Algebra Application Instantiate
+instantiateApplication (Application { typeArguments, typeConstructor }) =
   case typeConstructor of
     Interface { properties, typeParameters } → \ctx → do
-      typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
+      typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
-      roll <$> Object <$> for properties \{ name, type: t, optional } →
-        { name, type: _, optional } <$> (flip applyTypeNode ctx' t)
+      roll <$> Object <<< Map.fromFoldable <$> for properties \{ name, type: t, optional } →
+        (Tuple.Tuple name <<< { type: _, optional }) <$> instantiateTypeNode t ctx'
     TypeAlias { type: t, typeParameters } → \ctx → do
-      typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
+      typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
-      applyTypeNode t ctx'
+      instantiateTypeNode t ctx'
     UnknownTypeConstructor r → const $ pure $ roll $ Unknown
       ("Unknown type constructor: " <> show r.fullyQualifiedName)
 
-applyTypeNode ∷ TypeNode Apply → Apply
-applyTypeNode typeNode ctx = case typeNode of
-  AST.AnonymousObject ps →
-    roll <$> Object <$> for ps \{ name, type: t, optional } →
-      { name, type: _, optional } <$> applyTypeNode t ctx
-  AST.Array t → roll <$> Array <$> applyTypeNode t ctx
+intersection ∷ Type → Type → Type
+intersection (In (Object o1)) (In (Object o2)) = roll $ Object $
+  Map.unionWith step o1 o2
+  where
+    step { type: t1, optional: op1 } { type: t2, optional: op2 } =
+      { type: intersection t1 t2
+      , optional: op1 && op2
+      }
+intersection t1 t2 = roll $ Intersection t1 t2
+
+instantiateTypeNode ∷ Algebra TypeNode Instantiate
+instantiateTypeNode typeNode ctx = case typeNode of
+  AST.Any → pure $ roll Any
+  AST.AnonymousObject properties →
+    roll <$> Object <<< Map.fromFoldable <$> for properties \{ name, type: t, optional } →
+      ((Tuple.Tuple name <<< { type: _, optional }) <$> instantiateTypeNode t ctx)
+  AST.Array t → roll <$> Array <$> instantiateTypeNode t ctx
   AST.Boolean → pure $ roll Boolean
-  AST.Intersection ts → 
-    throwError "Apply for Intersection unsupported"
-    -- roll <$> Intersection <$> traverse (flip applyTypeNode ctx) ts
+  AST.Intersection ts →
+    traverse (flip instantiateTypeNode ctx) ts >>= Array.reverse >>> Array.uncons >>> case _ of
+      Nothing → throwError "Empty intersection"
+      Just { head, tail: [] } → pure head
+      Just { head, tail } → pure $ foldl intersection head tail
   AST.Number → pure $ roll Number
   AST.String → pure $ roll String
-  AST.TypeParameter { name, default } → 
+  AST.TypeParameter { name, default } →
     case Map.lookup name ctx, default of
       Just t, _ → pure t
-      Nothing, Just d → applyTypeNode d ctx
+      Nothing, Just d → instantiateTypeNode d ctx
       _, _ → throwError ("Variable not defined: " <> name)
-  AST.Union ts → roll <$> Union <$> traverse (flip applyTypeNode ctx) ts
-  AST.Tuple ts → roll <$> Tuple <$> traverse (flip applyTypeNode ctx) ts
+  AST.Union ts → roll <$> Union <$> traverse (flip instantiateTypeNode ctx) ts
+  AST.Tuple ts → roll <$> Tuple <$> traverse (flip instantiateTypeNode ctx) ts
   AST.TypeApplication ref → ref ctx
   AST.UnknownTypeNode s → pure $ roll $ Unknown s
 
 instantiate
-  ∷ TypeConstructor Apply
-  → Array Type
-  → Except String Type
-instantiate tc args = flip applyApplication mempty $ Application 
-  { typeArguments: map (AST.TypeApplication <<< const <<< pure) args
-  , typeConstructor: tc
-  }
+   ∷ TypeConstructor (Application')
+   → Array Type
+   → Except String Type
+instantiate tc args = instantiateApplication application mempty
+  where
+  application = Application
+    { typeArguments: map (AST.TypeApplication <<< const <<< pure) args
+    , typeConstructor: map (cata instantiateApplication) tc
+    }
+
+pprint ∷ TypeF String → String
+pprint Any = "any"
+pprint (Array t) = "[" <> t <> "]"
+pprint Boolean = "boolean"
+pprint (Intersection t1 t2) = t1 <> " & " <> t2
+pprint Number = "number"
+pprint (Object props) =
+  "{" <> joinWith ";\n" props' <> "}"
+  where
+    props' = map pprintProp (Map.toUnfoldable props)
+    pprintProp (Tuple.Tuple n { type: t, optional }) = n <> if optional then " ?: " else " : " <> t
+pprint String = "string"
+pprint (Tuple ts) = "(" <> joinWith ", " ts <> ")"
+pprint (Union ts) = joinWith " | " ts
+pprint (Unknown s) = "unknown: " <> s

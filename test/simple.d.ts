@@ -1,6 +1,6 @@
 import { Base1, Base2, Base3 } from './base.d';
 
-export interface InterfaceWithAliasProps<t=string> {
+export interface A<t=string> {
   base1: Base1<t, string, number>
   base2: Base2
   base3: Base3
