@@ -26,7 +26,6 @@ import Matryoshka.Class.Corecursive (embed)
 import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, compilerOptions, readDTS, unsafeTsStringToString)
 import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode, Repr, pprintTypeConstructor, pprintTypeNode)
 import ReadDTS.AST (build) as AST
-import ReadDTS.Instantiation (app)
 import Unsafe.Coerce (unsafeCoerce)
 
 type TsDeclarationRef = 
@@ -157,7 +156,7 @@ main = do
      log "\n"
 
   (result ∷ Array (TypeConstructor Application')) ← AST.build fileName
-  -- log $ unsafeStringify $ unsafeCoerce $ result
+  log $ unsafeStringify $ unsafeCoerce $ result
   -- let
   --   f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
   --   f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t

@@ -5,13 +5,10 @@ import Prelude
 import Control.Monad.Except (Except, throwError)
 import Data.Array as Array
 import Data.Functor.Mu (Mu, roll)
-import Data.Lens.Record (prop)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Data.Traversable (for, traverse)
-import Matryoshka (cata)
 import ReadDTS.AST (Application(..), TypeConstructor(..), TypeNode)
 import ReadDTS.AST as AST
 
@@ -58,7 +55,6 @@ applyApplication (Application { typeArguments, typeConstructor }) =
       typeArguments' ← traverse (flip applyTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
-        _typeL = prop (SProxy ∷ SProxy "type")
       roll <$> Object <$> for properties \{ name, type: t, optional } →
         { name, type: _, optional } <$> (flip applyTypeNode ctx' t)
     TypeAlias { type: t, typeParameters } → \ctx → do
@@ -91,7 +87,11 @@ applyTypeNode typeNode ctx = case typeNode of
   AST.TypeApplication ref → ref ctx
   AST.UnknownTypeNode s → pure $ roll $ Unknown s
 
-app ∷ Mu Application → Except String Type
-app t = cata applyApplication t Map.empty
-
--- foo ∷ Mu TypeNode → Type
+instantiate
+  ∷ TypeConstructor Apply
+  → Array Type
+  → Except String Type
+instantiate tc args = flip applyApplication mempty $ Application 
+  { typeArguments: map (AST.TypeApplication <<< const <<< pure) args
+  , typeConstructor: tc
+  }
