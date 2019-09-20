@@ -96,7 +96,7 @@ instantiate tc args = instantiateApplication application mempty
     , typeConstructor: map (cata instantiateApplication) tc
     }
 
-pprint ∷ TypeF String → String
+pprint ∷ Algebra TypeF String
 pprint Any = "any"
 pprint (Array t) = "[" <> t <> "]"
 pprint Boolean = "boolean"
