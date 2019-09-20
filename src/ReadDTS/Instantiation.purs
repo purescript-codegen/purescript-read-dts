@@ -1,5 +1,6 @@
 module ReadDTS.Instantiation where
 
+import Data.Functor.Mu (Mu)
 import Data.Map (Map)
 
 -- | Not our current problems:
@@ -12,8 +13,6 @@ import Data.Map (Map)
 
 -- | Current problems:
 -- |
--- | * We want to parametrize this by itself so we can use recursion schemes on this type.
--- |
 -- | * We want to move `AST.apply*` here and rename it probably `Instatiation.typeNode`
 -- | `Instantiation.application`.
 -- |
@@ -23,14 +22,14 @@ import Data.Map (Map)
 -- | * Do we really want to expand ts intersections here? Do we lose something? How we are going
 -- | to treat intersections which contain 'Uknown'?
 
-data Type
-  = Array Type
+data TypeF a
+  = Array a
   | Boolean
   | Number
-  | Object (Map String { t ∷ Type, optional ∷ Boolean })
+  | Object (Map String { t ∷ a, optional ∷ Boolean })
   | String
-  | Tuple (Array Type)
-  | Union (Array Type)
+  | Tuple (Array a)
+  | Union (Array a)
   | Uknown String
 
-
+type Type = Mu TypeF
