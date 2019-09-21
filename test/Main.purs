@@ -2,34 +2,23 @@ module Test.Main where
 
 import Prelude
 
-import Control.Monad.Except (runExcept, runExceptT)
-import Data.Array (catMaybes, (:))
-import Data.Array (cons) as Array
-import Data.Either (Either(..), either)
-import Data.Foldable (fold, foldM, foldMap, for_, traverse_)
-import Data.Functor.Mu (Mu, roll)
-import Data.Map (Map)
-import Data.Map (fromFoldable, insert, lookup) as Map
-import Data.Maybe (Maybe(..), isNothing)
-import Data.Newtype (class Newtype, unwrap)
+import Control.Monad.Except (runExcept)
+import Data.Array ((:))
+import Data.Either (Either(..))
+import Data.Foldable (foldMap, for_)
+import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
 import Data.String (joinWith)
-import Data.Traversable (for, sequence, traverse)
-import Data.Tuple (Tuple(..))
-import Debug.Trace (trace)
 import Effect (Effect)
-import Effect.Class.Console (logShow)
 import Effect.Console (log)
-import Effect.Ref (modify, modify', new, read) as Ref
 import Global.Unsafe (unsafeStringify)
 import Matryoshka (cata)
-import Matryoshka.Class.Corecursive (embed)
-import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, TypeReference, compilerOptions, readDTS, unsafeTsStringToString)
-import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode, Repr, pprintTypeConstructor, pprintTypeNode)
+import ReadDTS (FullyQualifiedName, OnDeclaration, OnType, TsDeclaration, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS.AST (Application', TypeConstructor)
 import ReadDTS.AST (build) as AST
 import ReadDTS.Instantiation (instantiate)
 import ReadDTS.Instantiation (pprint) as Instantiation
 import Text.Pretty (render)
-import Unsafe.Coerce (unsafeCoerce)
 
 type TsDeclarationRef =
   { fullyQualifiedName ∷ FullyQualifiedName
@@ -72,6 +61,12 @@ stringOnDeclaration =
       }
   }
 
+serUnknown :: forall t4 t9.
+   Show t4 => { fullyQualifiedName :: t4
+              , msg :: String
+              | t9
+              }
+              -> String
 serUnknown r = "unkownDeclaration " <> show r.fullyQualifiedName <> ": " <> r.msg
 
 serTypeAlias r
@@ -178,20 +173,5 @@ main = do
     Right t → log $ render $ cata Instantiation.pprint t
     Left e → log $ "Instantiation error:" <> e
 
-  -- log $ unsafeStringify $ unsafeCoerce $ result
-  -- let
-  --   f ∷ TypeConstructor (TypeNode _) → TypeConstructor _
-  --   f t = map (pprintTypeNode >>> { fullyQualifiedName: Nothing, repr: _ }) t
-  --   g ∷ TypeConstructor (TypeNode Repr) → Effect Unit
-  --   g = f >>> pprintTypeConstructor >>> _.repr >>> log
-  --   h ∷ Array (TypeConstructor (TypeNode Repr)) → Effect Unit
-  --   h = traverse_ g
-
-  -- either log logShow $ unwrap $ runExceptT $ traverse (traverse app) result
--- cata
-  -- log $ joinWith "\n\n" $ ((map (_.repr <<< cata AST.pprintDeclaration <<< embed) result))
-
   pure unit
 
--- foo ∷ TypeConstructor (TypeNode Void) → String
--- foo t = 
