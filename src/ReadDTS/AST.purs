@@ -120,6 +120,15 @@ data TypeNode ref
   | Tuple (Array (TypeNode ref))
   | TypeApplication ref
   | TypeParameter (TypeParameter ref)
+  -- | In typescript this type level is
+  -- | mixed up with value level in declarations.
+  -- | For example this ts union:
+  -- | `'a' | 'b' | 8`
+  -- | is going to be read as:
+  -- | `Union [StringLiteral "a", StringLiteral "b", NumberLiteral 8]`
+  | BooleanLiteral Boolean
+  | StringLiteral String
+  | NumberLiteral Number
   | Union (Array (TypeNode ref))
   | UnknownTypeNode String
 
@@ -133,10 +142,13 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f Number = mempty
   foldMap f String = mempty
-  foldMap f (Union ts) = fold (map (foldMap f) ts)
   foldMap f (Tuple ts) = fold (map (foldMap f) ts)
-  foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap f (TypeApplication ref) = f ref
+  foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
+  foldMap _ (BooleanLiteral _) = mempty
+  foldMap _ (NumberLiteral _) = mempty
+  foldMap _ (StringLiteral _) = mempty
+  foldMap f (Union ts) = fold (map (foldMap f) ts)
   foldMap f (UnknownTypeNode _) = mempty
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
@@ -153,6 +165,9 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (TypeParameter { name, default }) =
     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
   sequence (TypeApplication ref) = TypeApplication <$> ref
+  sequence (BooleanLiteral n) = pure $ BooleanLiteral n
+  sequence (NumberLiteral n) = pure $ NumberLiteral n
+  sequence (StringLiteral s) = pure $ StringLiteral s
   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
   traverse = traverseDefault
@@ -212,6 +227,9 @@ visit =
         let _name = prop (SProxy ∷ SProxy "name") in
         TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
     , typeReference: TypeApplication <<< TsRef
+    , booleanLiteral: BooleanLiteral
+    , numberLiteral: NumberLiteral
+    , stringLiteral: StringLiteral
     , union: Union
     , unknown: UnknownTypeNode
     }

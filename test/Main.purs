@@ -28,9 +28,10 @@ import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode, Re
 import ReadDTS.AST (build) as AST
 import ReadDTS.Instantiation (instantiate)
 import ReadDTS.Instantiation (pprint) as Instantiation
+import Text.Pretty (render)
 import Unsafe.Coerce (unsafeCoerce)
 
-type TsDeclarationRef = 
+type TsDeclarationRef =
   { fullyQualifiedName ∷ FullyQualifiedName
   , tsDeclaration ∷ TsDeclaration
   }
@@ -104,7 +105,7 @@ stringOnType =
       { repr: append "intersection: " <<< joinWith " & " <<< map _.repr $ ts
       , tsDeclarations: foldMap _.tsDeclarations ts
       }
-  , primitive: noDeclarations <<< append "primitive: " <<< show
+  , primitive: noDeclarations <<< show
   , tuple: \ts →
       { repr: "(" <> (joinWith ", " $ map _.repr ts) <> ")"
       , tsDeclarations: foldMap _.tsDeclarations ts
@@ -119,6 +120,18 @@ stringOnType =
       { repr: "typeReference: " <> show fullyQualifiedName <> "<" <> joinWith ", " (map _.repr typeArguments) <> ">"
       , tsDeclarations: { fullyQualifiedName, tsDeclaration: ref } :foldMap _.tsDeclarations typeArguments
       }
+  , booleanLiteral: \b →
+      { repr: "booleanLiteral: " <> show b
+      , tsDeclarations: []
+      }
+  , numberLiteral: \n →
+      { repr: "numberLiteral: " <> show n
+      , tsDeclarations: []
+      }
+  , stringLiteral: \s →
+      { repr: "stringLiteral: " <> show s
+      , tsDeclarations: []
+      }
   , union: \ts →
       { repr: append "union: " <<< joinWith " | " <<< map _.repr $ ts
       , tsDeclarations: foldMap _.tsDeclarations ts
@@ -128,38 +141,41 @@ stringOnType =
 
 fileName ∷ String
 fileName = "test/simple.d.ts"
+-- fileName = "node_modules/@material-ui/core/Badge/Badge.d.ts"
+
+-- ts.createSourceFile(fileName, sourceText, languageVersion)
 
 main ∷ Effect Unit
 main = do
   { topLevel, readDeclaration } ← readDTS compilerOptions { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } fileName
-  for_ topLevel \(DeclarationRepr r) → do
-     log r.repr
-     log "\n"
+  -- for_ topLevel \(DeclarationRepr r) → do
+  --    log r.repr
+  --    log "\n"
 
-  -- | Single pass of loading... We should test exhaustive loading too.
-  let
-    initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
-      d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
-      otherwise → Nothing
-    cache = initCache topLevel
+  -- -- | Single pass of loading... We should test exhaustive loading too.
+  -- let
+  --   initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
+  --     d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
+  --     otherwise → Nothing
+  --   cache = initCache topLevel
 
-    step c { fullyQualifiedName, tsDeclaration } = case fullyQualifiedName `Map.lookup` c of
-      Nothing → readDeclaration tsDeclaration >>= flip (Map.insert fullyQualifiedName) c >>> pure
-      Just _ → pure c
+  --   step c { fullyQualifiedName, tsDeclaration } = case fullyQualifiedName `Map.lookup` c of
+  --     Nothing → readDeclaration tsDeclaration >>= flip (Map.insert fullyQualifiedName) c >>> pure
+  --     Just _ → pure c
 
-  log "Single pass of loading declarations...\n\n"
+  -- log "Single pass of loading declarations...\n\n"
 
-  cache' ← foldM step cache (foldMap (unwrap >>> _.tsDeclarations) topLevel)
+  -- cache' ← foldM step cache (foldMap (unwrap >>> _.tsDeclarations) topLevel)
 
-  log "Collected declarations:\n\n"
+  -- log "Collected declarations:\n\n"
 
-  for_ cache' \(DeclarationRepr r) → do
-     log r.repr
-     log "\n"
+  -- for_ cache' \(DeclarationRepr r) → do
+  --    log r.repr
+  --    log "\n"
 
   (result ∷ Array (TypeConstructor Application')) ← AST.build fileName
   for_ result $ flip instantiate [] >>> runExcept >>> case _ of
-    Right t → log $ cata Instantiation.pprint t
+    Right t → log $ render $ cata Instantiation.pprint t
     Left e → log $ "Instantiation error:" <> e
 
   -- log $ unsafeStringify $ unsafeCoerce $ result

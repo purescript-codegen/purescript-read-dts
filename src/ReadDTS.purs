@@ -88,6 +88,10 @@ type OnTypeBase (nullable ∷ Type → Type) d t =
   , intersection ∷ Array t → t
   , primitive ∷ String → t
   , tuple ∷ Array t → t
+  -- https://basarat.gitbooks.io/typescript/docs/types/literal-types.html
+  , booleanLiteral ∷ Boolean → t
+  , numberLiteral ∷ Number → t
+  , stringLiteral ∷ String → t
   , typeReference ∷ TypeReference d t → t
   , typeParameter ∷ TypeParameter nullable t → t
   , union ∷ Array t → t

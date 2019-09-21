@@ -1,7 +1,5 @@
 import * as ts from "typescript";
-
 type Effect<a> = () => a;
-
 
 exports.eqIdentifierImpl = function(i1: ts.Identifier) {
   return function(i2: ts.Identifier) {
@@ -40,6 +38,9 @@ export function _readDTS<d, t>(
       tuple: (types: t[]) => t,
       typeParameter: (tp: TypeParameter<t>) => t,
       typeReference: (i: { typeArguments: t[], fullyQualifiedName: string, ref: Nullable<ts.Declaration> }) => t,
+      booleanLiteral: (value: boolean) => t,
+      numberLiteral: (value: number) => t,
+      stringLiteral: (value: string) => t,
       union: (types: t[]) => t,
       unknown: (err: string) => t
     }
@@ -136,7 +137,26 @@ export function _readDTS<d, t>(
   }
 
   function getTSType(memType: ts.Type): t {
-    if (memType.flags & (ts.TypeFlags.String
+    // Because we are processing only typelevel
+    // declarations we can be sure that
+    // these literals are type level entities.
+    if(memType.isStringLiteral()) {
+      return onTypeNode.stringLiteral(memType.value);
+    }
+    else if(memType.isNumberLiteral()) {
+      return onTypeNode.numberLiteral(memType.value);
+    }
+    // XXX: I haven't found any other way to access
+    // BooleanLiteral value...
+    else if((memType.flags & ts.TypeFlags.BooleanLiteral) &&
+            ((memType as any).intrinsicName == "true" ||
+             (memType as any).intrinsicName == "false" )) {
+      if((memType as any).intrinsicName == "true") {
+          return onTypeNode.booleanLiteral(true);
+      } else {
+          return onTypeNode.booleanLiteral(false);
+      }
+    } else if (memType.flags & (ts.TypeFlags.String
       | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number  
       | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
       return onTypeNode.primitive(checker.typeToString(memType));
@@ -195,7 +215,9 @@ export function _readDTS<d, t>(
       // This __seems__ to work in case of Pick<..>
       if((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
          (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
-        let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.declarations[0]));
+        let props = memObjectType.getProperties().map((sym: ts.Symbol) => 
+          property(sym, sym.declarations?sym.declarations[0]:sym.valueDeclaration)
+        );
         return onTypeNode.anonymousObject(props);
       }
       if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {

@@ -2,6 +2,7 @@ export interface Base1<t1, t2, t3, n=number> {
   t1: t1,
   t2: t2[],
   t3: [t3],
+  union: '1' | 1 | 'value'
   tp: [string, number, any],
   n: n
 }

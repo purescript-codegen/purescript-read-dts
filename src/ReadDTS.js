@@ -81,7 +81,28 @@ function _readDTS(options, visit, fileName) {
         return onDeclaration.unknown({ fullyQualifiedName: fullyQualifiedName, msg: "Unknown declaration node" });
     }
     function getTSType(memType) {
-        if (memType.flags & (ts.TypeFlags.String
+        // Because we are processing only typelevel
+        // declarations we can be sure that
+        // these literals are type level entities.
+        if (memType.isStringLiteral()) {
+            return onTypeNode.stringLiteral(memType.value);
+        }
+        else if (memType.isNumberLiteral()) {
+            return onTypeNode.numberLiteral(memType.value);
+        }
+        // XXX: I haven't found any other way to access
+        // BooleanLiteral value...
+        else if ((memType.flags & ts.TypeFlags.BooleanLiteral) &&
+            (memType.intrinsicName == "true" ||
+                memType.intrinsicName == "false")) {
+            if (memType.intrinsicName == "true") {
+                return onTypeNode.booleanLiteral(true);
+            }
+            else {
+                return onTypeNode.booleanLiteral(false);
+            }
+        }
+        else if (memType.flags & (ts.TypeFlags.String
             | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
             | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
             return onTypeNode.primitive(checker.typeToString(memType));
@@ -142,7 +163,9 @@ function _readDTS(options, visit, fileName) {
             // This __seems__ to work in case of Pick<..>
             if ((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
                 (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
-                var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.declarations[0]); });
+                var props = memObjectType.getProperties().map(function (sym) {
+                    return property(sym, sym.declarations ? sym.declarations[0] : sym.valueDeclaration);
+                });
                 return onTypeNode.anonymousObject(props);
             }
             if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {

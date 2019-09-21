@@ -135,6 +135,15 @@ let additions =
     , repo = "https://github.com/slamdata/purescript-matryoshka.git"
     , version = "v0.4.0"
     }
+  , pprint =
+    { dependencies =
+        [ "arrays"
+        , "strings"
+        , "unfoldable"
+        ]
+    , repo = "https://github.com/paf31/purescript-pprint.git"
+    , version = "v5.0.0"
+    }
   }
 
 in  upstream // overrides // additions

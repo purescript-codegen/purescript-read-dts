@@ -12,6 +12,7 @@ You can edit this file as you like.
     , "foreign-object"
     , "matryoshka"
     , "node-fs-aff"
+    , "pprint"
     , "profunctor"
     , "profunctor-lenses"
     , "psci-support"

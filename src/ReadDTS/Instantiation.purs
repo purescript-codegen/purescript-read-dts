@@ -4,17 +4,18 @@ import Prelude
 
 import Control.Monad.Except (Except, throwError)
 import Data.Array as Array
-import Data.Foldable (foldl)
+import Data.Foldable (foldMap, foldl, intercalate)
 import Data.Functor.Mu (Mu(..), roll)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.String (joinWith)
+import Data.Newtype (unwrap)
 import Data.Traversable (for, traverse)
 import Data.Tuple (Tuple(..)) as Tuple
 import Matryoshka (Algebra, cata)
 import ReadDTS.AST (Application(..), TypeConstructor(..), TypeNode, Application')
 import ReadDTS.AST as AST
+import Text.Pretty (Columns(..), Doc, Stack(..), hcat, text)
 
 data TypeF a
   = Any
@@ -25,6 +26,9 @@ data TypeF a
   | Object (Map String { type ∷ a, optional ∷ Boolean })
   | String
   | Tuple (Array a)
+  | BooleanLiteral Boolean
+  | NumberLiteral Number
+  | StringLiteral String
   | Union (Array a)
   | Unknown String
 derive instance functorTypeF ∷ Functor TypeF
@@ -80,9 +84,12 @@ instantiateTypeNode typeNode ctx = case typeNode of
       Just t, _ → pure t
       Nothing, Just d → instantiateTypeNode d ctx
       _, _ → throwError ("Variable not defined: " <> name)
-  AST.Union ts → roll <$> Union <$> traverse (flip instantiateTypeNode ctx) ts
   AST.Tuple ts → roll <$> Tuple <$> traverse (flip instantiateTypeNode ctx) ts
   AST.TypeApplication ref → ref ctx
+  AST.BooleanLiteral b → pure $ roll $ BooleanLiteral b
+  AST.NumberLiteral n → pure $ roll $ NumberLiteral n
+  AST.StringLiteral s → pure $ roll $ StringLiteral s
+  AST.Union ts → roll <$> Union <$> traverse (flip instantiateTypeNode ctx) ts
   AST.UnknownTypeNode s → pure $ roll $ Unknown s
 
 instantiate
@@ -96,18 +103,34 @@ instantiate tc args = instantiateApplication application mempty
     , typeConstructor: map (cata instantiateApplication) tc
     }
 
-pprint ∷ Algebra TypeF String
-pprint Any = "any"
-pprint (Array t) = "[" <> t <> "]"
-pprint Boolean = "boolean"
-pprint (Intersection t1 t2) = t1 <> " & " <> t2
-pprint Number = "number"
-pprint (Object props) =
-  "{" <> joinWith ";\n" props' <> "}"
+inline ∷ String → Columns
+inline = Columns <<< text
+
+joinWithDoc ∷ Doc → Array Doc → Doc
+joinWithDoc sep elems =
+  unwrap $ intercalate (Columns sep) (map Columns elems)
+
+pprint ∷ Algebra TypeF Doc
+pprint Any = text "any"
+pprint (Array t) = hcat [ text "[", t, text "]" ]
+pprint Boolean = text "boolean"
+pprint (Intersection t1 t2) = hcat [ t1, text " & ", t2 ]
+pprint Number = text "number"
+pprint (Object props) = props'
   where
-    props' = map pprintProp (Map.toUnfoldable props)
-    pprintProp (Tuple.Tuple n { type: t, optional }) = n <> if optional then " ?: " else " : " <> t
-pprint String = "string"
-pprint (Tuple ts) = "(" <> joinWith ", " ts <> ")"
-pprint (Union ts) = joinWith " | " ts
-pprint (Unknown s) = "unknown: " <> s
+    sep = text ":  "
+    sepOpt = text "?: "
+    step (Tuple.Tuple n { type: t, optional }) =
+      Stack $ hcat [ text n, (if optional then sepOpt else sep), t ]
+    props'
+      = unwrap
+      <<< foldMap step
+      $ (Map.toUnfoldable props ∷ Array _)
+pprint String = text "string"
+pprint (Tuple ts) =
+  hcat [ text "(", joinWithDoc (text ", ") ts, text ")" ]
+pprint (BooleanLiteral b) = text $ "@" <> show b
+pprint (StringLiteral s) = text $ "@" <> show s
+pprint (NumberLiteral n) = text $ "@" <> show n
+pprint (Union ts) = joinWithDoc (text " | ") ts
+pprint (Unknown s) = text $ "unknown: " <> s
