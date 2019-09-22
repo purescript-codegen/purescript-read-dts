@@ -1,5 +1,4 @@
 import * as ts from "typescript";
-type Effect<a> = () => a;
 
 exports.eqIdentifierImpl = function(i1: ts.Identifier) {
   return function(i2: ts.Identifier) {
@@ -18,10 +17,10 @@ const formatHost: ts.FormatDiagnosticsHost = {
   getNewLine: () => ts.sys.newLine
 };
 
+type Effect<a> = () => a;
 type Nullable<a> = a | null;
 type TypeParameter<t> = { name: ts.__String, default: Nullable<t> };
 type Property<t> = { name: string, type: t, optional: boolean }
-
 type Result<d> = { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }
 
 export function _readDTS<d, t, either>(
@@ -59,22 +58,16 @@ export function _readDTS<d, t, either>(
     right: (result: Result<d>) => either
   }
 ): either {
-  let sourceFile = undefined;
-  if(file.source) {
-    sourceFile = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
-  }
-  let program = ts.createProgram([file.path], options);
+  let sourceFile:ts.SourceFile | undefined = undefined;
+  let program = createProgram(file, options);
   let checker = <MyChecker>program.getTypeChecker();
   let onDeclaration = visit.onDeclaration;
   let onTypeNode = visit.onTypeNode;
   let declarations:d[] = [];
 
-  // Check only given declaration file
-  if(sourceFile === undefined) {
-    for (const sf of program.getSourceFiles()) {
-      if (sf.isDeclarationFile && sf.fileName === file.path) {
-        sourceFile = sf;
-      }
+  for (const sf of program.getSourceFiles()) {
+    if (sf.isDeclarationFile && sf.fileName === file.path) {
+      sourceFile = sf;
     }
   }
   if(sourceFile !== undefined) {
@@ -90,12 +83,12 @@ export function _readDTS<d, t, either>(
         return either.left(errors);
       }
     }
-    ts.forEachChild(sourceFile, function(declaration) {
-      if (isNodeExported(declaration))
-        declarations.push(visitDeclaration(declaration));
+    ts.forEachChild(sourceFile, function(d) {
+      if (isNodeExported(checker, d))
+        declarations.push(visitDeclaration(d));
     });
   } else {
-    either.left(["Source file not found"])
+    return either.left(["Source file not found"])
   }
   return either.right({
     topLevel: declarations,
@@ -267,14 +260,39 @@ export function _readDTS<d, t, either>(
     }
     return onTypeNode.unknown(checker.typeToString(memType));
   }
-
-  function isNodeExported(node: ts.Node): boolean {
-    let sym = checker.getSymbolAtLocation(node);
-
+}
+// https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API#using-the-type-checker
+function isNodeExported(checker:ts.TypeChecker, node: ts.Node): boolean {
+  let sym = checker.getSymbolAtLocation(node);
     return (
-      // (ts.getCombinedModifierFlags(node.) & ts.ModifierFlags.Export) !== 0 ||
-      (sym ? ((ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0) : false) ||
-      (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile)
-    );
-  }
+      sym? ((ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0):false ||
+      (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile && node.kind !== ts.SyntaxKind.EndOfFileToken)
+    )
+};
+
+// https://stackoverflow.com/questions/53733138/how-do-i-type-check-a-snippet-of-typescript-code-in-memory
+function createProgram(file: {path: string, source: Nullable<string>}, options: ts.CompilerOptions): ts.Program {
+  const realHost = ts.createCompilerHost(options, true);
+  let host = realHost;
+  if(file.source) {
+    let sourceFile = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
+    host = {
+      fileExists: filePath => filePath === file.path || realHost.fileExists(filePath),
+      directoryExists: realHost.directoryExists && realHost.directoryExists.bind(realHost),
+      getCurrentDirectory: realHost.getCurrentDirectory.bind(realHost),
+      getDirectories: realHost.getDirectories?realHost.getDirectories.bind(realHost):undefined,
+      getCanonicalFileName: fileName => realHost.getCanonicalFileName(fileName),
+      getNewLine: realHost.getNewLine.bind(realHost),
+      getDefaultLibFileName: realHost.getDefaultLibFileName.bind(realHost),
+      getSourceFile: (fileName, languageVersion, onError, shouldCreateNewSourceFile) => fileName === file.path
+          ? sourceFile 
+          : realHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile),
+      readFile: filePath => filePath === file.path 
+          ? file.source?file.source:undefined
+          : realHost.readFile(filePath),
+      useCaseSensitiveFileNames: () => realHost.useCaseSensitiveFileNames(),
+      writeFile: (_, data) => { data },
+    };
+  } 
+  return ts.createProgram([file.path], options, host);
 }

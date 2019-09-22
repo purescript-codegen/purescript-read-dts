@@ -24,21 +24,15 @@ var formatHost = {
 };
 function _readDTS(options, visit, file, either) {
     var sourceFile = undefined;
-    if (file.source) {
-        sourceFile = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
-    }
-    var program = ts.createProgram([file.path], options);
+    var program = createProgram(file, options);
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
     var onTypeNode = visit.onTypeNode;
     var declarations = [];
-    // Check only given declaration file
-    if (sourceFile === undefined) {
-        for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
-            var sf = _a[_i];
-            if (sf.isDeclarationFile && sf.fileName === file.path) {
-                sourceFile = sf;
-            }
+    for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
+        var sf = _a[_i];
+        if (sf.isDeclarationFile && sf.fileName === file.path) {
+            sourceFile = sf;
         }
     }
     if (sourceFile !== undefined) {
@@ -54,13 +48,13 @@ function _readDTS(options, visit, file, either) {
                 return either.left(errors_1);
             }
         }
-        ts.forEachChild(sourceFile, function (declaration) {
-            if (isNodeExported(declaration))
-                declarations.push(visitDeclaration(declaration));
+        ts.forEachChild(sourceFile, function (d) {
+            if (isNodeExported(checker, d))
+                declarations.push(visitDeclaration(d));
         });
     }
     else {
-        either.left(["Source file not found"]);
+        return either.left(["Source file not found"]);
     }
     return either.right({
         topLevel: declarations,
@@ -209,13 +203,39 @@ function _readDTS(options, visit, file, either) {
         }
         return onTypeNode.unknown(checker.typeToString(memType));
     }
-    function isNodeExported(node) {
-        var sym = checker.getSymbolAtLocation(node);
-        return (
-        // (ts.getCombinedModifierFlags(node.) & ts.ModifierFlags.Export) !== 0 ||
-        (sym ? ((ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0) : false) ||
-            (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile));
-    }
 }
 exports._readDTS = _readDTS;
+// https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API#using-the-type-checker
+function isNodeExported(checker, node) {
+    var sym = checker.getSymbolAtLocation(node);
+    return (sym ? ((ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0) : false ||
+        (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile && node.kind !== ts.SyntaxKind.EndOfFileToken));
+}
+;
+// https://stackoverflow.com/questions/53733138/how-do-i-type-check-a-snippet-of-typescript-code-in-memory
+function createProgram(file, options) {
+    var realHost = ts.createCompilerHost(options, true);
+    var host = realHost;
+    if (file.source) {
+        var sourceFile_1 = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
+        host = {
+            fileExists: function (filePath) { return filePath === file.path || realHost.fileExists(filePath); },
+            directoryExists: realHost.directoryExists && realHost.directoryExists.bind(realHost),
+            getCurrentDirectory: realHost.getCurrentDirectory.bind(realHost),
+            getDirectories: realHost.getDirectories ? realHost.getDirectories.bind(realHost) : undefined,
+            getCanonicalFileName: function (fileName) { return realHost.getCanonicalFileName(fileName); },
+            getNewLine: realHost.getNewLine.bind(realHost),
+            getDefaultLibFileName: realHost.getDefaultLibFileName.bind(realHost),
+            getSourceFile: function (fileName, languageVersion, onError, shouldCreateNewSourceFile) { return fileName === file.path
+                ? sourceFile_1
+                : realHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile); },
+            readFile: function (filePath) { return filePath === file.path
+                ? file.source ? file.source : undefined
+                : realHost.readFile(filePath); },
+            useCaseSensitiveFileNames: function () { return realHost.useCaseSensitiveFileNames(); },
+            writeFile: function (_, data) { data; },
+        };
+    }
+    return ts.createProgram([file.path], options, host);
+}
 //# sourceMappingURL=ReadDTS.js.map

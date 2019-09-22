@@ -138,15 +138,15 @@ file ∷ ReadDTS.File
 --   }
 
 file =
-  { path: "./myModule.d.ts"
+  { path: "test.module.d.ts"
   , source: Just $ joinWith "\n"
-      [ "export interface MyNewType = { x: number }"
+      [ "export interface MyNewType {"
+      , "  x: number,"
+      , "  y: string"
+      , "}"
       ]
 
   }
-
--- ts.createSourceFile(fileName, sourceText, languageVersion)
-
 main ∷ Effect Unit
 main = do
   let
