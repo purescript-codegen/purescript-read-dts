@@ -3,19 +3,18 @@ module ReadDTS.AST where
 import Prelude
 
 import Data.Array (fold)
+import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Mu (Mu)
 import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
-import Data.String (joinWith)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Effect (Effect)
-import Global.Unsafe (unsafeStringify)
 import Matryoshka (CoalgebraM, anaM)
-import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, fqnToString, readDTS, unsafeTsStringToString)
-import ReadDTS (unsafeTsStringToString) as ReadDTS
+import ReadDTS (File, unsafeTsStringToString) as ReadDTS
+import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, readDTS, unsafeTsStringToString)
 import Type.Prelude (SProxy(..))
 
 type Property ref =
@@ -42,7 +41,7 @@ printVar ∷ Var → String
 printVar (Var s) = show s
 
 -- | * Recursion of this type closes down
--- | in the `TypeNode` `TypeApplication` constructor.
+-- | in the `TypeNode` `ApplicationWithRef` constructor.
 -- |
 -- | * FFI provides us `TsDeclaration` reference which
 -- | we are able to exapand using provided by FFI
@@ -118,7 +117,7 @@ data TypeNode ref
   | Number
   | String
   | Tuple (Array (TypeNode ref))
-  | TypeApplication ref
+  | ApplicationWithRef ref
   | TypeParameter (TypeParameter ref)
   -- | In typescript this type level is
   -- | mixed up with value level in declarations.
@@ -143,7 +142,7 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f Number = mempty
   foldMap f String = mempty
   foldMap f (Tuple ts) = fold (map (foldMap f) ts)
-  foldMap f (TypeApplication ref) = f ref
+  foldMap f (ApplicationWithRef ref) = f ref
   foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap _ (BooleanLiteral _) = mempty
   foldMap _ (NumberLiteral _) = mempty
@@ -164,7 +163,7 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   sequence (TypeParameter { name, default }) =
     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
-  sequence (TypeApplication ref) = TypeApplication <$> ref
+  sequence (ApplicationWithRef ref) = ApplicationWithRef <$> ref
   sequence (BooleanLiteral n) = pure $ BooleanLiteral n
   sequence (NumberLiteral n) = pure $ NumberLiteral n
   sequence (StringLiteral s) = pure $ StringLiteral s
@@ -172,22 +171,33 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
   traverse = traverseDefault
 
-newtype TsRef = TsRef
+-- | We need this `newtype` here because
+-- | `typeArguments` contain recursive
+-- | reference.
+newtype ApplicationRef = ApplicationRef
   { ref ∷ TsDeclaration
-  , typeArguments ∷ Array (TypeNode TsRef)
+  , typeArguments ∷ Array (TypeNode ApplicationRef)
   , fullyQualifiedName ∷ FullyQualifiedName
   }
-derive instance newtypeTsRef ∷ Newtype TsRef _
+derive instance newtypeApplicationRef ∷ Newtype ApplicationRef _
 
-type ReadDeclaration = TsRef → Effect (TypeConstructor TsRef)
+type ReadDeclaration = ApplicationRef → Effect (TypeConstructor ApplicationRef)
 
-type Seed = { level ∷ Int, ref ∷ TsRef }
+type Seed = { level ∷ Int, ref ∷ ApplicationRef }
 
 type Application' = Mu Application
 
--- | XXX: Of course we should parametrize by this maxLevel value ;-)
+-- XXX: Of course we should parametrize by this maxLevel value ;-)
+-- Maybe try to do the same with FreeT:
+--
+-- type Application' = FreeT Declaration Effect
+--
+-- data Declaration a
+--   = Read TsDeclaration (Effect (TypeConstructor ApplicationRef) → a)
+--   | Known a
+--
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
-coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeArguments }) } =
+coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedName, typeArguments }) } =
   if level < 5
   then do
     d ← readDeclaration tsRef
@@ -205,7 +215,7 @@ coalgebra readDeclaration { level, ref: tsRef@(TsRef { fullyQualifiedName, typeA
   where
     seed = { level: level + 1, ref: _ }
 
-visit ∷ Visit (TypeConstructor TsRef) (TypeNode TsRef)
+visit ∷ Visit (TypeConstructor ApplicationRef) (TypeNode ApplicationRef)
 visit =
   { onDeclaration:
     { interface: Interface <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
@@ -226,7 +236,7 @@ visit =
     , typeParameter:
         let _name = prop (SProxy ∷ SProxy "name") in
         TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
-    , typeReference: TypeApplication <<< TsRef
+    , typeReference: ApplicationWithRef <<< ApplicationRef
     , booleanLiteral: BooleanLiteral
     , numberLiteral: NumberLiteral
     , stringLiteral: StringLiteral
@@ -241,12 +251,14 @@ visit =
     _typeParametersL ∷ ∀ a b r. Lens { typeParameters ∷ a | r } { typeParameters ∷ b | r } a b
     _typeParametersL = prop (SProxy ∷ SProxy "typeParameters")
 
-build ∷ String → Effect (Array (TypeConstructor Application'))
-build fileName = do
-  { readDeclaration, topLevel } ← readDTS compilerOptions visit fileName
-  let
-    go ∷ Seed → Effect Application'
-    go = anaM $ coalgebra \(TsRef { ref }) → readDeclaration ref
-  for topLevel \typeConstructor →
-    traverse ({ ref: _, level: 0} >>> go) typeConstructor
+build ∷ ReadDTS.File → Effect (Either (Array String) (Array (TypeConstructor Application')))
+build file = do
+  readDTS compilerOptions visit file >>= case _ of
+    Right { readDeclaration, topLevel } → do
+      let
+        go ∷ Seed → Effect Application'
+        go = anaM $ coalgebra \(ApplicationRef { ref }) → readDeclaration ref
+      Right <$> for topLevel \typeConstructor →
+        traverse ({ ref: _, level: 0} >>> go) typeConstructor
+    Left err → pure (Left err)
 

@@ -2,13 +2,14 @@ module ReadDTS where
 
 import Prelude
 
+import Data.Either (Either(..))
 import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe)
-import Data.Nullable (Nullable, toMaybe)
+import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.Profunctor (lcmap)
 import Effect (Effect)
-import Effect.Uncurried (EffectFn3, runEffectFn3)
+import Effect.Uncurried (EffectFn4, runEffectFn4)
 import Foreign (Foreign)
 import Node.Path (FilePath)
 import Type.Prelude (SProxy(..))
@@ -115,14 +116,25 @@ type Declarations d =
   , readDeclaration ∷ TsDeclaration → Effect d
   }
 
+type FileBase nullable =
+  { path ∷ FilePath
+  , source ∷ nullable String
+  }
+
+type File = FileBase Maybe
+
 readDTS
   ∷ ∀ d t
   . CompilerOptions
   → Visit d t
-  → FilePath
-  → Effect (Declarations d)
-readDTS opts visit = (runEffectFn3 _readDTS) opts visit'
+  → File
+  → Effect (Either (Array String) (Declarations d))
+readDTS opts visit file =
+  (runEffectFn4 _readDTS) opts visit' file' { left: Left, right: Right }
   where
+    file' = over _source toNullable file
+    _source = prop (SProxy ∷ SProxy "source")
+
     visit'
       = over (_onTypeNodeL <<< _typeParameterL) (lcmap (over _defaultL toMaybe))
       <<< over (_onDeclarationL <<< _unknownL) (lcmap  (over _fullyQualifiedNameL toMaybe))
@@ -152,12 +164,17 @@ readDTS opts visit = (runEffectFn3 _readDTS) opts visit'
     _interfaceL = prop (SProxy ∷ SProxy "interface")
     _typeAliasL = prop (SProxy ∷ SProxy "typeAlias")
 
+type EitherConstrucotrs =
+  { left ∷ ∀ err a. err → Either err a
+  , right ∷ ∀ err a. a → Either err a
+  }
 foreign import _readDTS
   ∷ ∀ d t
-  . EffectFn3
+  . EffectFn4
       CompilerOptions
       (VisitBase Nullable d t)
-      FilePath
-      (Declarations d)
+      (FileBase Nullable)
+      EitherConstrucotrs
+      (Either (Array String) (Declarations d))
 
 foreign import compilerOptions ∷ CompilerOptions

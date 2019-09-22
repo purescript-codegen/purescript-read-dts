@@ -85,7 +85,7 @@ instantiateTypeNode typeNode ctx = case typeNode of
       Nothing, Just d → instantiateTypeNode d ctx
       _, _ → throwError ("Variable not defined: " <> name)
   AST.Tuple ts → roll <$> Tuple <$> traverse (flip instantiateTypeNode ctx) ts
-  AST.TypeApplication ref → ref ctx
+  AST.ApplicationWithRef ref → ref ctx
   AST.BooleanLiteral b → pure $ roll $ BooleanLiteral b
   AST.NumberLiteral n → pure $ roll $ NumberLiteral n
   AST.StringLiteral s → pure $ roll $ StringLiteral s
@@ -99,7 +99,7 @@ instantiate
 instantiate tc args = instantiateApplication application mempty
   where
   application = Application
-    { typeArguments: map (AST.TypeApplication <<< const <<< pure) args
+    { typeArguments: map (AST.ApplicationWithRef <<< const <<< pure) args
     , typeConstructor: map (cata instantiateApplication) tc
     }
 

@@ -17,26 +17,55 @@ exports.compilerOptions = {
     target: ts.ScriptTarget.ES5,
     module: ts.ModuleKind.CommonJS
 };
-function _readDTS(options, visit, fileName) {
-    var program = ts.createProgram([fileName], options);
+var formatHost = {
+    getCanonicalFileName: function (path) { return path; },
+    getCurrentDirectory: ts.sys.getCurrentDirectory,
+    getNewLine: function () { return ts.sys.newLine; }
+};
+function _readDTS(options, visit, file, either) {
+    var sourceFile = undefined;
+    if (file.source) {
+        sourceFile = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
+    }
+    var program = ts.createProgram([file.path], options);
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
     var onTypeNode = visit.onTypeNode;
-    var result = [];
+    var declarations = [];
     // Check only given declaration file
-    for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
-        var sourceFile = _a[_i];
-        if (sourceFile.isDeclarationFile && sourceFile.fileName === fileName) {
-            ts.forEachChild(sourceFile, function (declaration) {
-                if (isNodeExported(declaration))
-                    result.push(visitDeclaration(declaration));
-            });
+    if (sourceFile === undefined) {
+        for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
+            var sf = _a[_i];
+            if (sf.isDeclarationFile && sf.fileName === file.path) {
+                sourceFile = sf;
+            }
         }
     }
-    return {
-        topLevel: result,
+    if (sourceFile !== undefined) {
+        if (sourceFile !== undefined) {
+            var x = program.getSyntacticDiagnostics(sourceFile);
+            var errors_1 = [];
+            x.forEach(function (d) {
+                if (d.category === ts.DiagnosticCategory.Error) {
+                    errors_1.push(ts.formatDiagnostic(d, formatHost));
+                }
+            });
+            if (errors_1.length > 0) {
+                return either.left(errors_1);
+            }
+        }
+        ts.forEachChild(sourceFile, function (declaration) {
+            if (isNodeExported(declaration))
+                declarations.push(visitDeclaration(declaration));
+        });
+    }
+    else {
+        either.left(["Source file not found"]);
+    }
+    return either.right({
+        topLevel: declarations,
         readDeclaration: function (v) { return function () { return visitDeclaration(v); }; }
-    };
+    });
     function property(sym, dec) {
         var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
         var memType = checker.getTypeOfSymbolAtLocation(sym, dec);

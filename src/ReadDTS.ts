@@ -12,11 +12,19 @@ export const compilerOptions = {
   module: ts.ModuleKind.CommonJS
 };
 
+const formatHost: ts.FormatDiagnosticsHost = {
+  getCanonicalFileName: path => path,
+  getCurrentDirectory: ts.sys.getCurrentDirectory,
+  getNewLine: () => ts.sys.newLine
+};
+
 type Nullable<a> = a | null;
 type TypeParameter<t> = { name: ts.__String, default: Nullable<t> };
 type Property<t> = { name: string, type: t, optional: boolean }
 
-export function _readDTS<d, t>(
+type Result<d> = { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }
+
+export function _readDTS<d, t, either>(
   options: ts.CompilerOptions,
   visit: {
     onDeclaration: {
@@ -45,27 +53,54 @@ export function _readDTS<d, t>(
       unknown: (err: string) => t
     }
   },
-  fileName: string
-): { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }{
-  let program = ts.createProgram([fileName], options);
+  file: { path: string, source: Nullable<string> },
+  either: {
+    left: (err : String[]) => either,
+    right: (result: Result<d>) => either
+  }
+): either {
+  let sourceFile = undefined;
+  if(file.source) {
+    sourceFile = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
+  }
+  let program = ts.createProgram([file.path], options);
   let checker = <MyChecker>program.getTypeChecker();
   let onDeclaration = visit.onDeclaration;
   let onTypeNode = visit.onTypeNode;
-  let result:d[] = [];
+  let declarations:d[] = [];
 
   // Check only given declaration file
-  for (const sourceFile of program.getSourceFiles()) {
-    if (sourceFile.isDeclarationFile && sourceFile.fileName === fileName) {
-      ts.forEachChild(sourceFile, function(declaration) {
-        if (isNodeExported(declaration))
-          result.push(visitDeclaration(declaration));
-      });
+  if(sourceFile === undefined) {
+    for (const sf of program.getSourceFiles()) {
+      if (sf.isDeclarationFile && sf.fileName === file.path) {
+        sourceFile = sf;
+      }
     }
   }
-  return {
-    topLevel: result,
-    readDeclaration: (v:ts.Declaration) => () => visitDeclaration(v)
+  if(sourceFile !== undefined) {
+    if(sourceFile !== undefined) {
+      let x = program.getSyntacticDiagnostics(sourceFile);
+      let errors:any[] = [];
+      x.forEach(function(d) {
+        if(d.category === ts.DiagnosticCategory.Error) {
+          errors.push(ts.formatDiagnostic(d, formatHost));
+        }
+      })
+      if(errors.length > 0) {
+        return either.left(errors);
+      }
+    }
+    ts.forEachChild(sourceFile, function(declaration) {
+      if (isNodeExported(declaration))
+        declarations.push(visitDeclaration(declaration));
+    });
+  } else {
+    either.left(["Source file not found"])
   }
+  return either.right({
+    topLevel: declarations,
+    readDeclaration: (v:ts.Declaration) => () => visitDeclaration(v)
+  })
   // It is probably better to use some internal checker machinery
   // than to use heuristics like `fullyQualifiedName == "Array"`
   interface MyChecker extends ts.TypeChecker {
