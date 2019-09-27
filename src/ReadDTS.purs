@@ -84,7 +84,11 @@ type TypeReference d t =
   }
 
 type OnTypeBase (nullable ∷ Type → Type) d t =
-  { anonymousObject ∷ Array (Property t) → t
+  { anonymousObject
+    ∷ { fullyQualifiedName ∷ FullyQualifiedName
+      , properties ∷ Array (Property t)
+      }
+    → t
   , array ∷ t → t
   , intersection ∷ Array t → t
   , primitive ∷ String → t
@@ -107,7 +111,15 @@ type VisitBase nullable d t =
   , onDeclaration ∷ OnDeclarationBase nullable d t
   }
 
-type CompilerOptions = Foreign
+-- | XXX: We need to extend this option set
+-- | but we have to check at first what
+-- | kind of impact we can get from
+-- | different setups.
+-- |
+-- | Using strict mode has somewhat surprising
+-- | results as every type of an optional field of
+-- | an object is turned into a union with `undefined`.
+type CompilerOptions = { strictNullChecks ∷ Boolean }
 
 type Visit d t = VisitBase Maybe d t
 
@@ -164,7 +176,7 @@ readDTS opts visit file =
     _interfaceL = prop (SProxy ∷ SProxy "interface")
     _typeAliasL = prop (SProxy ∷ SProxy "typeAlias")
 
-type EitherConstrucotrs =
+type EitherConstructors =
   { left ∷ ∀ err a. err → Either err a
   , right ∷ ∀ err a. a → Either err a
   }
@@ -174,7 +186,5 @@ foreign import _readDTS
       CompilerOptions
       (VisitBase Nullable d t)
       (FileBase Nullable)
-      EitherConstrucotrs
+      EitherConstructors
       (Either (Array String) (Declarations d))
-
-foreign import compilerOptions ∷ CompilerOptions

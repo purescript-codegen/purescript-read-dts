@@ -13,10 +13,6 @@ exports.eqIdentifierImpl = function (i1) {
         return i1 === i2;
     };
 };
-exports.compilerOptions = {
-    target: ts.ScriptTarget.ES5,
-    module: ts.ModuleKind.CommonJS
-};
 var formatHost = {
     getCanonicalFileName: function (path) { return path; },
     getCurrentDirectory: ts.sys.getCurrentDirectory,
@@ -24,7 +20,12 @@ var formatHost = {
 };
 function _readDTS(options, visit, file, either) {
     var sourceFile = undefined;
-    var program = createProgram(file, options);
+    var compilerOptions = {
+        target: ts.ScriptTarget.ES5,
+        module: ts.ModuleKind.CommonJS,
+        strictNullChecks: options.strictNullChecks
+    };
+    var program = createProgram(file, compilerOptions);
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
     var onTypeNode = visit.onTypeNode;
@@ -189,11 +190,13 @@ function _readDTS(options, visit, file, either) {
                 var props = memObjectType.getProperties().map(function (sym) {
                     return property(sym, sym.declarations ? sym.declarations[0] : sym.valueDeclaration);
                 });
-                return onTypeNode.anonymousObject(props);
+                var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
+                return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName: fullyQualifiedName });
             }
             if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
                 var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
-                return onTypeNode.anonymousObject(props);
+                var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
+                return onTypeNode.anonymousObject({ fullyQualifiedName: fullyQualifiedName, properties: props });
             }
             return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
         }

@@ -6,11 +6,6 @@ exports.eqIdentifierImpl = function(i1: ts.Identifier) {
   }
 }
 
-export const compilerOptions = {
-  target: ts.ScriptTarget.ES5,
-  module: ts.ModuleKind.CommonJS
-};
-
 const formatHost: ts.FormatDiagnosticsHost = {
   getCanonicalFileName: path => path,
   getCurrentDirectory: ts.sys.getCurrentDirectory,
@@ -24,7 +19,7 @@ type Property<t> = { name: string, type: t, optional: boolean }
 type Result<d> = { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }
 
 export function _readDTS<d, t, either>(
-  options: ts.CompilerOptions,
+  options: { strictNullChecks: boolean },
   visit: {
     onDeclaration: {
       interface: (x:
@@ -38,7 +33,7 @@ export function _readDTS<d, t, either>(
       unknown: (u: { fullyQualifiedName: Nullable<string>, msg: string }) => d
     },
     onTypeNode: {
-      anonymousObject: (properties: (Property<t>)[]) => t,
+      anonymousObject: (properties: ({ fullyQualifiedName: string, properties: Property<t>[] })) => t,
       array: (type: t) => t,
       intersection: (types: t[]) => t,
       primitive: (name: string) => t,
@@ -48,7 +43,7 @@ export function _readDTS<d, t, either>(
       booleanLiteral: (value: boolean) => t,
       numberLiteral: (value: number) => t,
       stringLiteral: (value: string) => t,
-      union: (types: t[]) => t,
+      union: (members: t[]) => t,
       unknown: (err: string) => t
     }
   },
@@ -59,7 +54,12 @@ export function _readDTS<d, t, either>(
   }
 ): either {
   let sourceFile:ts.SourceFile | undefined = undefined;
-  let program = createProgram(file, options);
+  let compilerOptions:ts.CompilerOptions =  {
+    target: ts.ScriptTarget.ES5,
+    module: ts.ModuleKind.CommonJS,
+    strictNullChecks: options.strictNullChecks
+  };
+  let program = createProgram(file, compilerOptions);
   let checker = <MyChecker>program.getTypeChecker();
   let onDeclaration = visit.onDeclaration;
   let onTypeNode = visit.onTypeNode;
@@ -105,7 +105,9 @@ export function _readDTS<d, t, either>(
     isTupleType: (type: ts.TypeReference) => boolean;
     isReadonlyArrayType: (type: ts.TypeReference) => boolean;
     getTypeOfPropertyOfType: (type: ts.TypeReference, propertyName: string) => ts.Type | undefined;
-    // Some other possible helpers:
+    getNullType: () => ts.Type,
+    getUndefinedType: () => ts.Type,
+    // Some other possible helpers
     // isTupleLikeType: (type: ts.Type) => boolean;
     // isArrayLikeType: (type: ts.Type) => boolean;
     // isEmptyArrayLiteralType: (type: ts.Type) => boolean;
@@ -184,9 +186,10 @@ export function _readDTS<d, t, either>(
       } else {
           return onTypeNode.booleanLiteral(false);
       }
-    } else if (memType.flags & (ts.TypeFlags.String
-      | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number  
-      | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
+    }
+    else if (memType.flags & (ts.TypeFlags.String
+            | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
+            | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
       return onTypeNode.primitive(checker.typeToString(memType));
     }
     else if (memType.isUnion()) {
@@ -246,11 +249,14 @@ export function _readDTS<d, t, either>(
         let props = memObjectType.getProperties().map((sym: ts.Symbol) => 
           property(sym, sym.declarations?sym.declarations[0]:sym.valueDeclaration)
         );
-        return onTypeNode.anonymousObject(props);
+        let fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
+        return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName });
       }
       if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
         let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.valueDeclaration));
-        return onTypeNode.anonymousObject(props);
+
+        let fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
+        return onTypeNode.anonymousObject({ fullyQualifiedName,  properties: props });
       }
       return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
     }

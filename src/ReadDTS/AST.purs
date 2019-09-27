@@ -14,7 +14,7 @@ import Data.Traversable (class Traversable, for, sequence, traverse, traverseDef
 import Effect (Effect)
 import Matryoshka (CoalgebraM, anaM)
 import ReadDTS (File, unsafeTsStringToString) as ReadDTS
-import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, CompilerOptions, readDTS, unsafeTsStringToString)
 import Type.Prelude (SProxy(..))
 
 type Property ref =
@@ -67,6 +67,7 @@ instance traversableApplication ∷ Traversable Application where
     <*> (sequence <<< map sequence) typeArguments
   traverse = traverseDefault
 
+
 data TypeConstructor ref =
   Interface
     { fullyQualifiedName ∷ FullyQualifiedName
@@ -109,7 +110,9 @@ instance traversableTypeConstructor ∷ Traversable TypeConstructor where
   traverse = traverseDefault
 
 data TypeNode ref
-  = AnonymousObject (Array (Property ref))
+  = AnonymousObject
+      FullyQualifiedName
+      (Array (Property ref))
   | Any
   | Array (TypeNode ref)
   | Boolean
@@ -128,13 +131,15 @@ data TypeNode ref
   | BooleanLiteral Boolean
   | StringLiteral String
   | NumberLiteral Number
+  | Null
+  | Undefined
   | Union (Array (TypeNode ref))
   | UnknownTypeNode String
 
 derive instance functorTypeNode ∷ Functor TypeNode
 
 instance foldableTypeNode ∷ Foldable TypeNode where
-  foldMap f (AnonymousObject ts) = foldMap (foldMap f <<< _.type) ts
+  foldMap f (AnonymousObject _ ts) = foldMap (foldMap f <<< _.type) ts
   foldMap _ Any = mempty
   foldMap f (Array t) = foldMap f t
   foldMap _ Boolean = mempty
@@ -146,27 +151,31 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap _ (BooleanLiteral _) = mempty
   foldMap _ (NumberLiteral _) = mempty
+  foldMap _ Null = mempty
   foldMap _ (StringLiteral _) = mempty
+  foldMap _ Undefined = mempty
   foldMap f (Union ts) = fold (map (foldMap f) ts)
   foldMap f (UnknownTypeNode _) = mempty
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
 instance traversableTypeNode ∷ Traversable TypeNode where
-  sequence (AnonymousObject ts) = AnonymousObject <$> (sequence <<< map sequenceProperty) ts
+  sequence (AnonymousObject fqn ts) = AnonymousObject fqn <$> (sequence <<< map sequenceProperty) ts
   sequence Any = pure Any
+  sequence (ApplicationWithRef ref) = ApplicationWithRef <$> ref
   sequence (Array t) = Array <$> sequence t
   sequence Boolean = pure Boolean
+  sequence (BooleanLiteral n) = pure $ BooleanLiteral n
   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
+  sequence Null = pure Null
   sequence Number = pure $ Number
+  sequence (NumberLiteral n) = pure $ NumberLiteral n
   sequence String = pure $ String
   sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   sequence (TypeParameter { name, default }) =
     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
-  sequence (ApplicationWithRef ref) = ApplicationWithRef <$> ref
-  sequence (BooleanLiteral n) = pure $ BooleanLiteral n
-  sequence (NumberLiteral n) = pure $ NumberLiteral n
   sequence (StringLiteral s) = pure $ StringLiteral s
+  sequence Undefined = pure Undefined
   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
   traverse = traverseDefault
@@ -187,15 +196,10 @@ type Seed = { level ∷ Int, ref ∷ ApplicationRef }
 
 type Application' = Mu Application
 
--- XXX: Of course we should parametrize by this maxLevel value ;-)
--- Maybe try to do the same with FreeT:
---
--- type Application' = FreeT Declaration Effect
---
--- data Declaration a
---   = Read TsDeclaration (Effect (TypeConstructor ApplicationRef) → a)
---   | Known a
---
+-- XXX:
+-- * Parametrize by this maxLevel value
+-- * Accumulate `path ∷ Set FullyQualifiedName` and detect cycles
+-- * How to detect recurssion in the case of type aliases?
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
 coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedName, typeArguments }) } =
   if level < 5
@@ -223,14 +227,17 @@ visit =
     , unknown: UnknownTypeConstructor
     }
   , onTypeNode:
-    { anonymousObject: AnonymousObject
+    { anonymousObject:
+      \r → AnonymousObject r.fullyQualifiedName r.properties
     , array: Array
     , intersection: Intersection
     , primitive: case _ of
         "any" → Any
         "boolean" → Boolean
+        "null" → Null
         "number" → Number
         "string" → String
+        "undefined" → Undefined
         x → UnknownTypeNode ("Unknown primitive type:" <> x)
     , tuple: Tuple
     , typeParameter:
@@ -251,8 +258,8 @@ visit =
     _typeParametersL ∷ ∀ a b r. Lens { typeParameters ∷ a | r } { typeParameters ∷ b | r } a b
     _typeParametersL = prop (SProxy ∷ SProxy "typeParameters")
 
-build ∷ ReadDTS.File → Effect (Either (Array String) (Array (TypeConstructor Application')))
-build file = do
+build ∷ CompilerOptions → ReadDTS.File → Effect (Either (Array String) (Array (TypeConstructor Application')))
+build compilerOptions file = do
   readDTS compilerOptions visit file >>= case _ of
     Right { readDeclaration, topLevel } → do
       let

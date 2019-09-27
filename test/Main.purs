@@ -14,10 +14,10 @@ import Effect.Console (log)
 import Global.Unsafe (unsafeStringify)
 import Matryoshka (cata)
 import ReadDTS (File) as ReadDTS
-import ReadDTS (FullyQualifiedName, OnDeclaration, OnType, TsDeclaration, compilerOptions, readDTS, unsafeTsStringToString)
+import ReadDTS (FullyQualifiedName, OnDeclaration, OnType, TsDeclaration, fqnToString, readDTS, unsafeTsStringToString)
 import ReadDTS.AST (Application', TypeConstructor)
 import ReadDTS.AST (build) as AST
-import ReadDTS.Instantiation (instantiate)
+import ReadDTS.Instantiation (instantiate, isObjectLiteral)
 import ReadDTS.Instantiation (pprint) as Instantiation
 import Text.Pretty (render)
 
@@ -84,11 +84,11 @@ noDeclarations repr = { repr, tsDeclarations: [] }
 
 stringOnType ∷ OnType DeclarationRepr TypeRepr
 stringOnType =
-  { anonymousObject: \props →
+  { anonymousObject: \{ properties: props, fullyQualifiedName: fqn } →
       let
         onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
       in
-        { repr: "{" <> (joinWith " , " (map onMember props)) <> "}"
+        { repr: "<" <> fqnToString fqn <> ">" <> "{" <> (joinWith " , " (map onMember props)) <> "}"
         , tsDeclarations: foldMap _.type.tsDeclarations props
         }
   , array: \t → { repr: "Array: " <> t.repr, tsDeclarations: t.tsDeclarations }
@@ -130,27 +130,46 @@ stringOnType =
   , unknown: noDeclarations <<< append "unknown: " <<< show
   }
 
-file ∷ ReadDTS.File
+-- file ∷ ReadDTS.File
 -- fileName = "test/simple.d.ts"
 -- file =
 --   { path: "node_modules/@material-ui/core/Fab/Fab.d.ts"
 --   , source: Nothing
 --   }
 
-file =
-  { path: "test.module.d.ts"
-  , source: Just $ joinWith "\n"
-      [ "export interface MyNewType {"
-      , "  x: number,"
-      , "  y: string"
-      , "}"
-      ]
+source = """
+// import { FabProps } from "@material-ui/core/Fab/Fab";
 
+// export type FabInstance = FabProps;
+
+export interface New<x = number> {
+  z?: 8
+  // t: {} | string | 8 | undefined | null
+  // s: null
+  // u: undefined
+  // x: x | boolean
+  // y: true | 8
+  // z: boolean | null
+}
+
+export type X = 8 | null | string | boolean;
+
+export type Y = {};
+
+// export type NewInstance = New;
+"""
+
+file =
+  { path: "test/test.module.d.ts"
+  , source: Just source
   }
+
 main ∷ Effect Unit
 main = do
   let
     constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
+    compilerOptions = { strictNullChecks: true }
+
   readDTS compilerOptions constructors file >>= case _ of
     Right { topLevel, readDeclaration } → do
       pure unit
@@ -182,10 +201,12 @@ main = do
       log "Ts compiler reported errors related to given source file:"
       for_ err log
 
-  AST.build file >>= case _ of
+  AST.build compilerOptions file >>= case _ of
     Right (result ∷ Array (TypeConstructor Application')) → do
       for_ result $ flip instantiate [] >>> runExcept >>> case _ of
-        Right t → log $ render $ cata Instantiation.pprint t
+        Right t → do
+          log $ Instantiation.pprint t
+          log $ show $ isObjectLiteral t
         Left e → log $ "Instantiation error:" <> e
     Left err → do
       log "Ts compiler reported errors related to given source file:"
