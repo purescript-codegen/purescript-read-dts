@@ -5,21 +5,17 @@ import Prelude
 import Control.Monad.Except (Except, throwError)
 import Data.Array as Array
 import Data.Either (Either)
-import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldrDefault, intercalate, length)
+import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldrDefault, length)
 import Data.Functor.Mu (Mu(..), roll)
-import Data.List (List(..)) as List
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (Tuple(..)) as Tuple
 import Matryoshka (Algebra, cata)
 import ReadDTS (FullyQualifiedName, fqnToString)
 import ReadDTS.AST (Application(..), Application', TypeConstructor(..), TypeNode)
 import ReadDTS.AST as AST
-import Text.Pretty (Columns(..), Doc, Stack(..), hcat, render, text)
-import Text.Pretty (Stack(..), beside, empty, width) as Pretty
 
 type Property a = { type ∷ a, optional ∷ Boolean }
 
@@ -157,57 +153,7 @@ instantiate tc args = instantiateApplication application mempty
     , typeConstructor: map (cata instantiateApplication) tc
     }
 
-inline ∷ String → Columns
-inline = Columns <<< text
-
-joinWithDoc ∷ Doc → Array Doc → Maybe Int → Doc
-joinWithDoc sep elems (Just w) = case Array.uncons elems of
-  Nothing → Pretty.empty 0 0
-  Just { head, tail } →  doc
-    where
-      step { row, rows } curr = if Pretty.width row + Pretty.width sep + Pretty.width curr > w
-        then { row: curr, rows: List.Cons row rows }
-        else { row: row `Pretty.beside` sep `Pretty.beside` curr, rows }
-      { row, rows } = foldl step { row: head, rows: List.Nil } tail
-      doc = unwrap $ foldl (\rows curr → rows <> Pretty.Stack (sep `Pretty.beside` curr)) (Pretty.Stack row) $ rows
-
-joinWithDoc sep elems Nothing =
-  unwrap $ intercalate (Columns sep) (map Columns elems)
-
 isObjectLiteral ∷ Type → Boolean
 isObjectLiteral (In (Object _ members)) = length members == 0
 isObjectLiteral _ = false
 
-pprint ∷ Type → String
-pprint = render <<< cata alg
-  where
-  alg ∷ Algebra TypeF Doc
-  alg Any = text "any"
-  alg (Array t) = hcat [ text "[", t, text "]" ]
-  alg Boolean = text "boolean"
-  alg (Intersection t1 t2) = hcat [ t1, text " & ", t2 ]
-  alg Null = text "null"
-  alg Number = text "number"
-  alg (Object _ props) | length props == 0 = text "{}"
-  alg (Object fqn props) = objDoc
-    where
-      sep = text ":  "
-      sepOpt = text "?: "
-      step (Tuple.Tuple n { type: t, optional }) =
-        Stack $ hcat [ text n, (if optional then sepOpt else sep), t ]
-      nameCol = Columns $ text $ "<" <> fqn <> ">: "
-      propsCol
-        = Columns
-        <<< unwrap
-        <<< foldMap step
-        $ (Map.toUnfoldable props ∷ Array _)
-      objDoc = unwrap $ nameCol <> propsCol
-  alg String = text "string"
-  alg (Tuple ts) =
-    hcat [ text "(", joinWithDoc (text ", ") ts (Just 80), text ")" ]
-  alg (BooleanLiteral b) = text $ "@" <> show b
-  alg (StringLiteral s) = text $ "@" <> show s
-  alg (NumberLiteral n) = text $ "@" <> show n
-  alg Undefined = text "undefined"
-  alg (Union ts) = joinWithDoc (text " | ") ts (Just 80)
-  alg (Unknown s) = text $ "unknown: " <> s <> ""

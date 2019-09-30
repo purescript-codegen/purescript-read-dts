@@ -3,7 +3,7 @@
 
 ## History
 
-This library has started as an fork and attempt to fix some bugs in `purescript-readts`. Beacause @doolse (the readts author) is not responsive at the moment and we wanted to have something working quickly we had decided to rewrite the whole thing.
+This library has started as an attempt to fix some bugs in `purescript-readts`. Beacause @doolse (the readts author) is not responsive at the moment and we wanted to have something working quickly we had decided to rewrite the whole thing.
 
 ## Goals
 

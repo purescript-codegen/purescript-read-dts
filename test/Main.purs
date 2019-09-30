@@ -12,14 +12,11 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
 import Global.Unsafe (unsafeStringify)
-import Matryoshka (cata)
-import ReadDTS (File) as ReadDTS
 import ReadDTS (FullyQualifiedName, OnDeclaration, OnType, TsDeclaration, fqnToString, readDTS, unsafeTsStringToString)
 import ReadDTS.AST (Application', TypeConstructor)
 import ReadDTS.AST (build) as AST
 import ReadDTS.Instantiation (instantiate, isObjectLiteral)
-import ReadDTS.Instantiation (pprint) as Instantiation
-import Text.Pretty (render)
+import ReadDTS.Instantiation.Pretty (pprint) as Instantiation.Pretty
 
 type TsDeclarationRef =
   { fullyQualifiedName ∷ FullyQualifiedName
@@ -205,7 +202,7 @@ main = do
     Right (result ∷ Array (TypeConstructor Application')) → do
       for_ result $ flip instantiate [] >>> runExcept >>> case _ of
         Right t → do
-          log $ Instantiation.pprint t
+          log $ Instantiation.Pretty.pprint t
           log $ show $ isObjectLiteral t
         Left e → log $ "Instantiation error:" <> e
     Left err → do
