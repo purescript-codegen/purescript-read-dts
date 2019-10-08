@@ -17,6 +17,7 @@ You can edit this file as you like.
     , "profunctor"
     , "profunctor-lenses"
     , "psci-support"
+    , "test-unit"
     , "variant"
     ]
 , packages =

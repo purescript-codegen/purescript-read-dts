@@ -3,10 +3,14 @@ module ReadDTS.Instantiation where
 import Prelude
 
 import Control.Monad.Except (Except, throwError)
+import Data.Array (filter)
 import Data.Array as Array
 import Data.Either (Either)
+import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldrDefault, length)
 import Data.Functor.Mu (Mu(..), roll)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -41,6 +45,30 @@ data TypeF a
   | Union (Array a)
   | Unknown String
 derive instance functorTypeF ∷ Functor TypeF
+derive instance genericTypeF ∷ Generic (TypeF a) _
+derive instance eqTypeF ∷ Eq a ⇒ Eq (TypeF a)
+instance showTypeF ∷ Show a ⇒ Show (TypeF a) where
+  show = genericShow
+
+-- | XXX: Really literal and naive instance which was required
+-- | for testing. I'm not sure if we should provide it here.
+instance eq1TypeF ∷ Eq1 TypeF where
+  eq1 Any Any = true
+  eq1 (Array a1) (Array a2) = eq a1 a2
+  eq1 Boolean Boolean = true
+  eq1 (BooleanLiteral b1) (BooleanLiteral b2) = b1 == b2
+  eq1 (Intersection n1 a1) (Intersection n2 a2) = n1 == n2 && a1 == a2
+  eq1 Null Null = true
+  eq1 Number Number = true
+  eq1 (NumberLiteral n1) (NumberLiteral n2) = n1 == n2
+  eq1 (Object n1 props1) (Object n2 props2) = n1 == n2 && props1 == props2
+  eq1 String String = true
+  eq1 (StringLiteral s1) (StringLiteral s2) = s1 == s2
+  eq1 (Tuple arr1) (Tuple arr2) = arr1 == arr2
+  eq1 Undefined Undefined = true
+  eq1 (Union arr1) (Union arr2) = arr1 == arr2
+  eq1 (Unknown s1) (Unknown s2) = s1 == s2
+  eq1 _ _ = false
 
 instance foldableTypeF ∷ Foldable TypeF where
   foldMap _ Any = mempty
@@ -103,6 +131,30 @@ instantiateApplication (Application { typeArguments, typeConstructor }) =
       ("Unknown type constructor: " <> show r.fullyQualifiedName)
 
 intersection ∷ Type → Type → Type
+intersection (In (Union ms1)) (In (Union ms2)) = roll $ Union (filter (_ `Array.elem` ms2) ms1)
+intersection (In (Union ms)) (In String) = roll $ Union (filter step ms)
+  where
+    step = case _ of
+      In (StringLiteral _) → true
+      otherwise → false
+intersection s@(In String) u@(In (Union ms)) = intersection u s
+intersection s@(In String) (In String) = s
+intersection (In (Union ms)) (In Number) = roll $ Union (filter step ms)
+  where
+    step = case _ of
+      In (NumberLiteral _) → true
+      otherwise → false
+intersection n@(In Number) u@(In (Union _)) = intersection u n
+intersection n@(In Number) (In Number) = n
+intersection (In (Union ms)) (In Boolean) = roll $ Union (filter step ms)
+  where
+    step = case _ of
+      In (BooleanLiteral _) → true
+      otherwise → false
+intersection b@(In Boolean) u@(In (Union _)) = intersection u b
+intersection b@(In Boolean) (In Boolean) = b
+intersection n@(In Null) (In Null) = n
+intersection u@(In Undefined) (In Undefined) = u
 intersection (In (Object fqn1 o1)) (In (Object fqn2 o2)) = roll $ Object (fqn1 <> " & " <> fqn2) $
   Map.unionWith step o1 o2
   where

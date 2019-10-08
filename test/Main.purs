@@ -17,6 +17,8 @@ import ReadDTS.AST (Application', TypeConstructor)
 import ReadDTS.AST (build) as AST
 import ReadDTS.Instantiation (instantiate, isObjectLiteral)
 import ReadDTS.Instantiation.Pretty (pprint) as Instantiation.Pretty
+import Test.ReadDTS.Instantiation (suite) as Test.ReadDTS.Instantiation
+import Test.Unit.Main (runTest) as Test
 
 type TsDeclarationRef =
   { fullyQualifiedName ∷ FullyQualifiedName
@@ -163,49 +165,50 @@ file =
 
 main ∷ Effect Unit
 main = do
-  let
-    constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
-    compilerOptions = { strictNullChecks: true }
+  -- let
+  --   constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
+  --   compilerOptions = { strictNullChecks: true }
 
-  readDTS compilerOptions constructors file >>= case _ of
-    Right { topLevel, readDeclaration } → do
-      pure unit
-      -- for_ topLevel \(DeclarationRepr r) → do
-      --    log r.repr
-      --    log "\n"
+  -- readDTS compilerOptions constructors file >>= case _ of
+  --   Right { topLevel, readDeclaration } → do
+  --     pure unit
+  --     -- for_ topLevel \(DeclarationRepr r) → do
+  --     --    log r.repr
+  --     --    log "\n"
 
-      -- -- | Single pass of loading... We should test exhaustive loading too.
-      -- let
-      --   initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
-      --     d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
-      --     otherwise → Nothing
-      --   cache = initCache topLevel
+  --     -- -- | Single pass of loading... We should test exhaustive loading too.
+  --     -- let
+  --     --   initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
+  --     --     d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
+  --     --     otherwise → Nothing
+  --     --   cache = initCache topLevel
 
-      --   step c { fullyQualifiedName, tsDeclaration } = case fullyQualifiedName `Map.lookup` c of
-      --     Nothing → readDeclaration tsDeclaration >>= flip (Map.insert fullyQualifiedName) c >>> pure
-      --     Just _ → pure c
+  --     --   step c { fullyQualifiedName, tsDeclaration } = case fullyQualifiedName `Map.lookup` c of
+  --     --     Nothing → readDeclaration tsDeclaration >>= flip (Map.insert fullyQualifiedName) c >>> pure
+  --     --     Just _ → pure c
 
-      -- log "Single pass of loading declarations...\n\n"
+  --     -- log "Single pass of loading declarations...\n\n"
 
-      -- cache' ← foldM step cache (foldMap (unwrap >>> _.tsDeclarations) topLevel)
+  --     -- cache' ← foldM step cache (foldMap (unwrap >>> _.tsDeclarations) topLevel)
 
-      -- log "Collected declarations:\n\n"
+  --     -- log "Collected declarations:\n\n"
 
-      -- for_ cache' \(DeclarationRepr r) → do
-      --    log r.repr
-      --    log "\n"
-    Left err → do
-      log "Ts compiler reported errors related to given source file:"
-      for_ err log
+  --     -- for_ cache' \(DeclarationRepr r) → do
+  --     --    log r.repr
+  --     --    log "\n"
+  --   Left err → do
+  --     log "Ts compiler reported errors related to given source file:"
+  --     for_ err log
 
-  AST.build compilerOptions file >>= case _ of
-    Right (result ∷ Array (TypeConstructor Application')) → do
-      for_ result $ flip instantiate [] >>> runExcept >>> case _ of
-        Right t → do
-          log $ Instantiation.Pretty.pprint t
-          log $ show $ isObjectLiteral t
-        Left e → log $ "Instantiation error:" <> e
-    Left err → do
-      log "Ts compiler reported errors related to given source file:"
-      for_ err log
+  -- AST.build compilerOptions file >>= case _ of
+  --   Right (result ∷ Array (TypeConstructor Application')) → do
+  --     for_ result $ flip instantiate [] >>> runExcept >>> case _ of
+  --       Right t → do
+  --         log $ Instantiation.Pretty.pprint t
+  --         log $ show $ isObjectLiteral t
+  --       Left e → log $ "Instantiation error:" <> e
+  --   Left err → do
+  --     log "Ts compiler reported errors related to given source file:"
+  --     for_ err log
 
+  Test.runTest Test.ReadDTS.Instantiation.suite

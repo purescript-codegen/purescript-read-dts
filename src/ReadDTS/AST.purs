@@ -6,6 +6,7 @@ import Data.Array (fold)
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Mu (Mu)
+import Data.Generic.Rep (class Generic)
 import Data.Lens (Lens, over, traversed)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
@@ -52,6 +53,7 @@ newtype Application ref = Application
   , typeConstructor ∷ TypeConstructor ref
   }
 derive instance functorApplication ∷ Functor Application
+derive instance genericApplication ∷ Generic (Application ref) _
 
 instance foldableApplication ∷ Foldable Application where
   foldMap f (Application d)
@@ -85,6 +87,7 @@ data TypeConstructor ref =
     , msg ∷ String
     }
 derive instance functorTypeConstructor ∷ Functor TypeConstructor
+derive instance genericTypeConstructor ∷ Generic (TypeConstructor ref) _
 
 instance foldableTypeConstructor ∷ Foldable TypeConstructor where
   foldMap f (Interface i)
@@ -114,13 +117,13 @@ data TypeNode ref
       FullyQualifiedName
       (Array (Property ref))
   | Any
+  | ApplicationWithRef ref
   | Array (TypeNode ref)
   | Boolean
   | Intersection (Array (TypeNode ref))
   | Number
   | String
   | Tuple (Array (TypeNode ref))
-  | ApplicationWithRef ref
   | TypeParameter (TypeParameter ref)
   -- | In typescript this type level is
   -- | mixed up with value level in declarations.
@@ -137,6 +140,7 @@ data TypeNode ref
   | UnknownTypeNode String
 
 derive instance functorTypeNode ∷ Functor TypeNode
+derive instance genericTypeNode ∷ Generic (TypeNode ref) _
 
 instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (AnonymousObject _ ts) = foldMap (foldMap f <<< _.type) ts
