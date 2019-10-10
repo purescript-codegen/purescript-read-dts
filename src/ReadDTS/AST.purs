@@ -206,7 +206,7 @@ type Application' = Mu Application
 -- * How to detect recurssion in the case of type aliases?
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
 coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedName, typeArguments }) } =
-  if level < 5
+  if level < 10
   then do
     d ← readDeclaration tsRef
     pure $ Application

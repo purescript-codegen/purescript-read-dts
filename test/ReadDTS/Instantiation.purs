@@ -3,6 +3,7 @@ module Test.ReadDTS.Instantiation where
 import Prelude
 
 import Control.Monad.Except (runExcept)
+import Data.Array (filter) as Array
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, intercalate)
 import Data.Functor.Mu (Mu(..)) as Mu
@@ -10,8 +11,11 @@ import Data.Functor.Mu (roll)
 import Data.Map (fromFoldable, singleton) as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..)) as Tuple
+import Debug.Trace (traceM)
 import Effect.Class (liftEffect)
-import ReadDTS.AST (build) as AST
+import Global.Unsafe (unsafeStringify)
+import ReadDTS.AST (TypeConstructor(..), build) as AST
+import ReadDTS.AST (TypeNode)
 import ReadDTS.Instantiation (TypeF(..), instantiate)
 import Test.Unit (TestSuite)
 import Test.Unit (failure, suite, test) as Test
@@ -22,6 +26,58 @@ lines = intercalate "\n"
 
 suite :: TestSuite
 suite = Test.suite "ReadDTS.Instantiation" $ do
+  Test.test "Mapped Record build up" do
+    let
+      source = lines
+        [ "export type X = Record<'a' | 'b' | 'c', number>;" ]
+      file =
+        { path: "test/test.module.d.ts"
+        , source: Just source
+        }
+      compilerOptions = { strictNullChecks: false }
+      expected = Object "__type" $ Map.fromFoldable
+        [ Tuple.Tuple "a" { type: roll Number, optional: false }
+        , Tuple.Tuple "b" { type: roll Number, optional: false }
+        , Tuple.Tuple "c" { type: roll Number, optional: false }
+        ]
+    liftEffect (AST.build compilerOptions file) >>= case _ of
+      Right [tc] → runExcept (instantiate tc []) # case _ of
+        Right (Mu.In obj@(Object n o)) → do
+          Assert.equal expected  obj
+        Right _ → Test.failure "Expecting an object"
+        Left err → Test.failure err
+      Right ts → Test.failure $ "Expecting a single constructor" <> unsafeStringify ts
+      Left err → Test.failure $ lines err
+
+  Test.test "Dynamic Record build up" do
+    let
+      source = lines
+        [ "interface Props<ClassKey extends string = string> {"
+        , " classes?: Record<ClassKey, string>;"
+        , "}"
+        , ""
+        , "interface X extends Props<'a' | 'b' | 'c'> {}"
+        ]
+      file =
+        { path: "test/test.module.d.ts"
+        , source: Just source
+        }
+      compilerOptions = { strictNullChecks: false }
+      typeName (AST.Interface { name }) = Just name
+      typeName (AST.TypeAlias { name }) = Just name
+      typeName _ = Nothing
+    liftEffect (AST.build compilerOptions file) >>= map (Array.filter (eq (Just "X") <<< typeName)) >>> case _ of
+      Right [tc] → do
+        traceM tc
+        runExcept (instantiate tc []) # case _ of
+          Right (Mu.In obj@(Object n o)) → do
+            Assert.equal (Object "__type & __type & __type" mempty) obj
+          Right _ → Test.failure "Expecting an object"
+          Left err → Test.failure err
+      Right ts → Test.failure $ "Expecting a single constructor" <> unsafeStringify ts
+      Left err → Test.failure $ lines err
+
+
   Test.test "Non overlapping intersection of objects" do
     let
       source = "export type X = {s: string} & { n: number } & { b: boolean }"

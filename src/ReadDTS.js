@@ -63,7 +63,7 @@ function _readDTS(options, visit, file, either) {
     });
     function property(sym, dec) {
         var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
-        var memType = checker.getTypeOfSymbolAtLocation(sym, dec);
+        var memType = dec ? checker.getTypeOfSymbolAtLocation(sym, dec) : checker.getDeclaredTypeOfSymbol(sym);
         var t = getTSType(memType);
         return { name: sym.name, type: t, optional: optional };
     }
@@ -184,11 +184,12 @@ function _readDTS(options, visit, file, either) {
             if (memObjectType.isClassOrInterface()) {
                 return onInterfaceReference(memObjectType, []);
             }
-            // This __seems__ to work in case of Pick<..>
+            // This __seems__ to work in case of Pick<..> and Record<..>
             if ((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
                 (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
+                var objDeclarations_1 = memObjectType.symbol.getDeclarations();
                 var props = memObjectType.getProperties().map(function (sym) {
-                    return property(sym, sym.declarations ? sym.declarations[0] : sym.valueDeclaration);
+                    return property(sym, objDeclarations_1 ? objDeclarations_1[0] : sym.declarations ? sym.declarations[1] : sym.valueDeclaration);
                 });
                 var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
                 return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName: fullyQualifiedName });

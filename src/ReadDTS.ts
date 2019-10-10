@@ -121,9 +121,10 @@ export function _readDTS<d, t, either>(
     name?: ts.Identifier;
   }
 
-  function property(sym: ts.Symbol, dec: ts.Declaration): Property<t> {
+  function property(sym: ts.Symbol, dec?: ts.Declaration): Property<t> {
     let optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
-    let memType = checker.getTypeOfSymbolAtLocation(sym, dec);
+    let memType = dec?checker.getTypeOfSymbolAtLocation(sym, dec):checker.getDeclaredTypeOfSymbol(sym);
+
     let t = getTSType(memType);
     return { name: sym.name, type: t, optional }
   }
@@ -243,12 +244,13 @@ export function _readDTS<d, t, either>(
       if(memObjectType.isClassOrInterface()) {
         return onInterfaceReference(memObjectType, []);
       }
-      // This __seems__ to work in case of Pick<..>
+      // This __seems__ to work in case of Pick<..> and Record<..>
       if((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
          (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
-        let props = memObjectType.getProperties().map((sym: ts.Symbol) => 
-          property(sym, sym.declarations?sym.declarations[0]:sym.valueDeclaration)
-        );
+        let objDeclarations = memObjectType.symbol.getDeclarations();
+        let props = memObjectType.getProperties().map((sym: ts.Symbol) =>
+          property(sym, objDeclarations?objDeclarations[0]:sym.declarations?sym.declarations[1]:sym.valueDeclaration)
+        )
         let fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
         return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName });
       }
