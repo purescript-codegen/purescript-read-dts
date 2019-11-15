@@ -15,7 +15,6 @@ import Debug.Trace (traceM)
 import Effect.Class (liftEffect)
 import Global.Unsafe (unsafeStringify)
 import ReadDTS.AST (TypeConstructor(..), build) as AST
-import ReadDTS.AST (TypeNode)
 import ReadDTS.Instantiation (TypeF(..), instantiate)
 import Test.Unit (TestSuite)
 import Test.Unit (failure, suite, test) as Test

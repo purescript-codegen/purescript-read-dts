@@ -135,27 +135,50 @@ stringOnType =
 --   { path: "node_modules/@material-ui/core/Fab/Fab.d.ts"
 --   , source: Nothing
 --   }
+-- source = """
+-- // import { FabProps } from "@material-ui/core/Fab/Fab";
+-- 
+-- // export type FabInstance = FabProps;
+-- 
+-- export interface New<x = number> {
+--   z?: 8
+--   // t: {} | string | 8 | undefined | null
+--   // s: null
+--   // u: undefined
+--   // x: x | boolean
+--   // y: true | 8
+--   // z: boolean | null
+-- }
+-- 
+-- export type X = 8 | null | string | boolean;
+-- 
+-- export type Y = {};
+-- 
+-- // export type NewInstance = New;
+-- """
 
 source = """
-// import { FabProps } from "@material-ui/core/Fab/Fab";
-
-// export type FabInstance = FabProps;
-
-export interface New<x = number> {
-  z?: 8
-  // t: {} | string | 8 | undefined | null
-  // s: null
-  // u: undefined
-  // x: x | boolean
-  // y: true | 8
-  // z: boolean | null
-}
-
-export type X = 8 | null | string | boolean;
-
-export type Y = {};
-
-// export type NewInstance = New;
+  // declare module 'system' {
+  interface MemoryPressureMonitor
+    extends EventTarget<{
+      memorypressurechange: Event;
+    }> {
+    onmemorypressurechange: (event: Event) => void;
+    readonly pressure: 'normal' | 'high' | 'critical';
+  }
+  interface MemoryUsage {
+    readonly peak: number;
+    readonly total: number;
+    readonly used: number;
+  }
+  interface Memory {
+    readonly js: MemoryUsage;
+    readonly monitor: MemoryPressureMonitor;
+    readonly native: MemoryUsage;
+  }
+  const memory: Memory;
+  function launchApp(uuid: string, launchArguments?: any): void;
+  // }
 """
 
 file =
@@ -163,11 +186,12 @@ file =
   , source: Just source
   }
 
+
 main ∷ Effect Unit
 main = do
-  -- let
+  let
+    compilerOptions = { strictNullChecks: true }
   --   constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
-  --   compilerOptions = { strictNullChecks: true }
 
   -- readDTS compilerOptions constructors file >>= case _ of
   --   Right { topLevel, readDeclaration } → do
@@ -200,15 +224,15 @@ main = do
   --     log "Ts compiler reported errors related to given source file:"
   --     for_ err log
 
-  -- AST.build compilerOptions file >>= case _ of
-  --   Right (result ∷ Array (TypeConstructor Application')) → do
-  --     for_ result $ flip instantiate [] >>> runExcept >>> case _ of
-  --       Right t → do
-  --         log $ Instantiation.Pretty.pprint t
-  --         log $ show $ isObjectLiteral t
-  --       Left e → log $ "Instantiation error:" <> e
-  --   Left err → do
-  --     log "Ts compiler reported errors related to given source file:"
-  --     for_ err log
+  AST.build compilerOptions file >>= case _ of
+    Right (result ∷ Array (TypeConstructor Application')) → do
+      for_ result $ flip instantiate [] >>> runExcept >>> case _ of
+        Right t → do
+          log $ Instantiation.Pretty.pprint t
+          log $ show $ isObjectLiteral t
+        Left e → log $ "Instantiation error:" <> e
+    Left err → do
+      log "Ts compiler reported errors related to given source file:"
+      for_ err log
 
-  Test.runTest Test.ReadDTS.Instantiation.suite
+  -- Test.runTest Test.ReadDTS.Instantiation.suite
