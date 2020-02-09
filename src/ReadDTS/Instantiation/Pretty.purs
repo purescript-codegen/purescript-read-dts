@@ -35,6 +35,13 @@ pprint = render <<< cata alg
   alg Any = text "any"
   alg (Array t) = hcat [ text "[", t, text "]" ]
   alg Boolean = text "boolean"
+  alg (Function { fullyQualifiedName, parameters, returnType }) = hcat
+    [ text "function "
+    , text fullyQualifiedName
+    , joinWithDoc (text ", ") (map (text <<< _.name) parameters) (Just 80)
+    , text ") : "
+    , returnType
+    ]
   alg (Intersection t1 t2) = hcat [ t1, text " & ", t2 ]
   alg Null = text "null"
   alg Number = text "number"
@@ -61,11 +68,13 @@ pprint = render <<< cata alg
   alg Undefined = text "undefined"
   alg (Union ts) = joinWithDoc (text " | ") ts (Just 80)
   alg (Unknown s) = text $ "unknown: " <> s <> ""
+  alg Void = text "void"
 
 pprintTypeName ∷ TypeF String → String
 pprintTypeName Any = "any"
 pprintTypeName (Array t) = "[ " <> t <> "]"
 pprintTypeName (Boolean) = "boolean"
+pprintTypeName (Function r) = "function:" <> r.fullyQualifiedName
 pprintTypeName (Intersection t1 t2) = "intersection: " <> t1 <> " & " <> t2
 pprintTypeName Null = "null"
 pprintTypeName Number = "number"
@@ -79,4 +88,5 @@ pprintTypeName (BooleanLiteral b) = "@" <> show b
 pprintTypeName (StringLiteral s) = "@" <> s
 pprintTypeName Undefined = "undefined"
 pprintTypeName (Unknown s) = "unkown:" <> s
+pprintTypeName Void = "void"
 

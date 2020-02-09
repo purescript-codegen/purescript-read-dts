@@ -19,6 +19,7 @@ import ReadDTS.Instantiation (instantiate, isObjectLiteral)
 import ReadDTS.Instantiation.Pretty (pprint) as Instantiation.Pretty
 import Test.ReadDTS.Instantiation (suite) as Test.ReadDTS.Instantiation
 import Test.Unit.Main (runTest) as Test
+import Unsafe.Coerce (unsafeCoerce)
 
 type TsDeclarationRef =
   { fullyQualifiedName ∷ FullyQualifiedName
@@ -39,7 +40,14 @@ derive instance newtypeDeclarationRepr ∷ Newtype DeclarationRepr _
 
 stringOnDeclaration ∷ OnDeclaration DeclarationRepr TypeRepr
 stringOnDeclaration =
-  { interface: \i → DeclarationRepr
+  -- | FIX: I'm handling `function` as unknown for now
+  -- | Provide proper handling.
+  { function: \u → DeclarationRepr
+      { repr: "function"
+      , fullyQualifiedName: Just (unsafeCoerce u.fullyQualifiedName)
+      , tsDeclarations: []
+      }
+  , interface: \i → DeclarationRepr
       { fullyQualifiedName: Just i.fullyQualifiedName
       , repr: serInterface i
       , tsDeclarations:
@@ -235,4 +243,4 @@ main = do
       log "Ts compiler reported errors related to given source file:"
       for_ err log
 
-  -- Test.runTest Test.ReadDTS.Instantiation.suite
+  Test.runTest Test.ReadDTS.Instantiation.suite

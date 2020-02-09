@@ -33,6 +33,11 @@ data TypeF a
   | Array a
   | Boolean
   | BooleanLiteral Boolean
+  | Function
+    { fullyQualifiedName ∷ String
+    , parameters ∷ Array { name ∷ String, type ∷ a }
+    , returnType ∷ a
+    }
   | Intersection a a
   | Null
   | Number
@@ -44,6 +49,7 @@ data TypeF a
   | Undefined
   | Union (Array a)
   | Unknown String
+  | Void
 derive instance functorTypeF ∷ Functor TypeF
 derive instance genericTypeF ∷ Generic (TypeF a) _
 derive instance eqTypeF ∷ Eq a ⇒ Eq (TypeF a)
@@ -68,6 +74,7 @@ instance eq1TypeF ∷ Eq1 TypeF where
   eq1 Undefined Undefined = true
   eq1 (Union arr1) (Union arr2) = arr1 == arr2
   eq1 (Unknown s1) (Unknown s2) = s1 == s2
+  eq1 Void Void = true
   eq1 _ _ = false
 
 instance foldableTypeF ∷ Foldable TypeF where
@@ -75,6 +82,7 @@ instance foldableTypeF ∷ Foldable TypeF where
   foldMap f (Array t) = f t
   foldMap _ Boolean = mempty
   foldMap _ (BooleanLiteral _) = mempty
+  foldMap f (Function r) = foldMap (f <<< _.type) r.parameters <> f r.returnType
   foldMap f (Intersection t1 t2) = f t1 <> f t2
   foldMap _ Null = mempty
   foldMap f Number = mempty
@@ -86,6 +94,7 @@ instance foldableTypeF ∷ Foldable TypeF where
   foldMap _ Undefined = mempty
   foldMap f (Union ts) = foldMap f ts
   foldMap f (Unknown _)= mempty
+  foldMap _ Void = mempty
 
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
@@ -95,17 +104,25 @@ instance traversableTypeF ∷ Traversable TypeF where
   sequence (Array t) = Array <$> t
   sequence Boolean = pure Boolean
   sequence (BooleanLiteral b) = pure (BooleanLiteral b)
+  sequence (Function r@{ fullyQualifiedName })
+    = map Function
+    $ { fullyQualifiedName, parameters: _, returnType: _ }
+    <$> traverse sequenceParameter r.parameters
+    <*> r.returnType
+    where
+      sequenceParameter { name, type: t } = { name, type: _ } <$> t
   sequence (Intersection t1 t2) = Intersection <$> t1 <*> t2
   sequence Null = pure Null
   sequence Number = pure $ Number
   sequence (NumberLiteral n) = pure $ NumberLiteral n
-  sequence (Object n ts) = Object n <$> (sequence <<< map sequenceProperty) ts
+  sequence (Object n ts) = Object n <$> (traverse sequenceProperty) ts
   sequence String = pure $ String
   sequence (StringLiteral s) = pure $ (StringLiteral s)
   sequence (Tuple ts) = Tuple <$> (sequence ts)
   sequence Undefined = pure Undefined
   sequence (Union ts) = Union <$> (sequence ts)
   sequence (Unknown msg) = pure $ Unknown msg
+  sequence Void = pure Void
 
   traverse = traverseDefault
 
@@ -116,6 +133,10 @@ type Instantiate = Map String Type → Except String Type
 instantiateApplication ∷ Algebra Application Instantiate
 instantiateApplication (Application { typeArguments, typeConstructor }) =
   case typeConstructor of
+    FunctionSignature fd@{ fullyQualifiedName } → \ctx → do
+      parameters ← traverse (\r@{ name } → { name, type: _ } <$> instantiateTypeNode r.type ctx) fd.parameters
+      returnType ← instantiateTypeNode fd.returnType ctx
+      pure $ roll $ Function { fullyQualifiedName, parameters, returnType }
     Interface { fullyQualifiedName, properties, typeParameters } → \ctx → do
       typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
@@ -155,6 +176,7 @@ intersection b@(In Boolean) u@(In (Union _)) = intersection u b
 intersection b@(In Boolean) (In Boolean) = b
 intersection n@(In Null) (In Null) = n
 intersection u@(In Undefined) (In Undefined) = u
+intersection u@(In Void) (In Void) = u
 intersection (In (Object fqn1 o1)) (In (Object fqn2 o2)) = roll $ Object (fqn1 <> " & " <> fqn2) $
   Map.unionWith step o1 o2
   where
@@ -193,6 +215,7 @@ instantiateTypeNode typeNode ctx = case typeNode of
   AST.Undefined → pure $ roll Undefined
   AST.Union ts → roll <$> Union <$> traverse (flip instantiateTypeNode ctx) ts
   AST.UnknownTypeNode s → pure $ roll $ Unknown s
+  AST.Void → pure $ roll Void
 
 instantiate
    ∷ TypeConstructor (Application')

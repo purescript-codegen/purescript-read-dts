@@ -47,7 +47,13 @@ type TypeParameter nullable t =
 -- | but preserving typechecking on typescript side and drop this
 -- | `nullable` parameter?
 type OnDeclarationBase (nullable ∷ Type → Type) d t =
-  { interface ∷
+  { function ∷
+      { fullyQualifiedName ∷ String
+      , parameters ∷ Array { name ∷ String, "type" ∷ t }
+      , returnType ∷ t
+      }
+      → d
+  , interface ∷
       { name ∷ String
       , fullyQualifiedName ∷ FullyQualifiedName
       , typeParameters ∷ Array (TypeParameter nullable t)

@@ -70,8 +70,13 @@ instance traversableApplication ∷ Traversable Application where
   traverse = traverseDefault
 
 
-data TypeConstructor ref =
-  Interface
+data TypeConstructor ref
+  = FunctionSignature
+    { fullyQualifiedName ∷ String
+    , parameters ∷ Array { name ∷ String, type ∷ TypeNode ref }
+    , returnType ∷ TypeNode ref
+    }
+  | Interface
     { fullyQualifiedName ∷ FullyQualifiedName
     , name ∷ String
     , properties ∷ Array (Property ref)
@@ -90,6 +95,9 @@ derive instance functorTypeConstructor ∷ Functor TypeConstructor
 derive instance genericTypeConstructor ∷ Generic (TypeConstructor ref) _
 
 instance foldableTypeConstructor ∷ Foldable TypeConstructor where
+  foldMap f (FunctionSignature r)
+    = foldMap (foldMap f <<< _.type) r.parameters
+    <> foldMap f r.returnType
   foldMap f (Interface i)
     = foldMap (foldMap f <<< _.type) i.properties
     <> foldMap (foldMap (foldMap f) <<< _.default) i.typeParameters
@@ -102,6 +110,12 @@ instance foldableTypeConstructor ∷ Foldable TypeConstructor where
   foldl f t = foldlDefault f t
 
 instance traversableTypeConstructor ∷ Traversable TypeConstructor where
+  sequence (FunctionSignature r@{ fullyQualifiedName }) = map FunctionSignature
+    $ { fullyQualifiedName, parameters: _, returnType: _ }
+    <$> traverse sequenceParameter r.parameters
+    <*> sequence r.returnType
+    where
+      sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
   sequence (Interface i) = map Interface
     $ (\ms tp → i { properties = ms, typeParameters = tp })
     <$> (sequence <<< map sequenceProperty) i.properties
@@ -138,6 +152,7 @@ data TypeNode ref
   | Undefined
   | Union (Array (TypeNode ref))
   | UnknownTypeNode String
+  | Void
 
 derive instance functorTypeNode ∷ Functor TypeNode
 derive instance genericTypeNode ∷ Generic (TypeNode ref) _
@@ -160,6 +175,8 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap _ Undefined = mempty
   foldMap f (Union ts) = fold (map (foldMap f) ts)
   foldMap f (UnknownTypeNode _) = mempty
+  foldMap f Void = mempty
+
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
@@ -182,6 +199,7 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence Undefined = pure Undefined
   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
+  sequence Void = pure Void
   traverse = traverseDefault
 
 -- | We need this `newtype` here because
@@ -226,7 +244,8 @@ coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedNa
 visit ∷ Visit (TypeConstructor ApplicationRef) (TypeNode ApplicationRef)
 visit =
   { onDeclaration:
-    { interface: Interface <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
+    { function: FunctionSignature
+    , interface: Interface <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
     , typeAlias: TypeAlias <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
     , unknown: UnknownTypeConstructor
     }
@@ -242,6 +261,7 @@ visit =
         "number" → Number
         "string" → String
         "undefined" → Undefined
+        "void" → Void
         x → UnknownTypeNode ("Unknown primitive type:" <> x)
     , tuple: Tuple
     , typeParameter:

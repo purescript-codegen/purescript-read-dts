@@ -30,6 +30,8 @@ export function _readDTS<d, t, either>(
           typeParameters: TypeParameter<t>[]
         }) => d
       typeAlias: (x: { name: string, type: t, typeParameters: TypeParameter<t>[] }) => d
+      // can we return fqn
+      function: (x: { fullyQualifiedName: string | undefined, returnType: t, parameters: { type: t, name: string }[] }) => d
       unknown: (u: { fullyQualifiedName: Nullable<string>, msg: string }) => d
     },
     onTypeNode: {
@@ -157,13 +159,27 @@ export function _readDTS<d, t, either>(
       };
       return onDeclaration.typeAlias(x);
     }
+    else if (ts.isFunctionDeclaration(node)) {
+      let functionType = checker.getTypeAtLocation(node)
+      let signature = checker.getSignatureFromDeclaration(node);
+      if(signature) {
+        return onDeclaration.function({
+          fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
+          parameters: signature.parameters.map((parameterSymbol) => { return {
+            name: parameterSymbol.getName(),
+            type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol?.valueDeclaration))
+          };}),
+          returnType: getTSType(signature.getReturnType())
+        })
+      }
+    }
+
     let nodeType = checker.getTypeAtLocation(node);
     let fullyQualifiedName = null;
     try {
       fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol)
     } catch(e) {
     }
-
     return onDeclaration.unknown({ fullyQualifiedName, msg: "Unknown declaration node"})
   }
 

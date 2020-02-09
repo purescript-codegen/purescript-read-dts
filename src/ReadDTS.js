@@ -95,6 +95,23 @@ function _readDTS(options, visit, file, either) {
             };
             return onDeclaration.typeAlias(x);
         }
+        else if (ts.isFunctionDeclaration(node)) {
+            var functionType = checker.getTypeAtLocation(node);
+            var signature = checker.getSignatureFromDeclaration(node);
+            if (signature) {
+                return onDeclaration.function({
+                    fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
+                    parameters: signature.parameters.map(function (parameterSymbol) {
+                        var _a;
+                        return {
+                            name: parameterSymbol.getName(),
+                            type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, (_a = parameterSymbol) === null || _a === void 0 ? void 0 : _a.valueDeclaration))
+                        };
+                    }),
+                    returnType: getTSType(signature.getReturnType())
+                });
+            }
+        }
         var nodeType = checker.getTypeAtLocation(node);
         var fullyQualifiedName = null;
         try {

@@ -147,6 +147,32 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
       Right _ → Test.failure $ "Expecting single constructor"
       Left err → Test.failure $ lines err
 
+  Test.test "Simple function" do
+    let
+      source = "export function greet(): void;"
+
+      expected = Function
+        { fullyQualifiedName: "\"test/test.module\".greet"
+        , parameters: []
+        , returnType: roll Void
+        }
+
+      file =
+        { path: "test/test.module.d.ts"
+        , source: Just source
+        }
+      compilerOptions = { strictNullChecks: true }
+
+    liftEffect (AST.build compilerOptions file) >>= case _ of
+      Right [tc] → runExcept (instantiate tc []) # case _ of
+        Right (Mu.In fun@(Function r)) → do
+          Assert.equal expected fun
+        Right r → Test.failure ("Expecting an function but got" <> unsafeStringify r)
+        Left err → Test.failure err
+      Right _ → Test.failure $ "Expecting single function declaration"
+      Left err → Test.failure $ lines err
+
+
   Test.test "Overlapping intersection of non overlapping objects" do
     let
       source = "export type X = { o: { s: string }} & { o: { n: number }}"
