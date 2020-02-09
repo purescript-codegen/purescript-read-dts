@@ -11,7 +11,6 @@ import Data.Functor.Mu (roll)
 import Data.Map (fromFoldable, singleton) as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..)) as Tuple
-import Debug.Trace (traceM)
 import Effect.Class (liftEffect)
 import Global.Unsafe (unsafeStringify)
 import ReadDTS.AST (TypeConstructor(..), build) as AST
@@ -65,12 +64,23 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
       typeName (AST.Interface { name }) = Just name
       typeName (AST.TypeAlias { name }) = Just name
       typeName _ = Nothing
+
+      expected  = Object "X" $ Map.fromFoldable
+        [ Tuple.Tuple
+          "classes"
+          { optional: true
+          , type: roll $ Object "__type" $ Map.fromFoldable
+                [ Tuple.Tuple "a" { optional: false, type: roll String }
+                , Tuple.Tuple "b" { optional: false, type: roll String }
+                , Tuple.Tuple "c" { optional: false, type: roll String }
+                ]
+          }
+        ]
     liftEffect (AST.build compilerOptions file) >>= map (Array.filter (eq (Just "X") <<< typeName)) >>> case _ of
       Right [tc] → do
-        traceM tc
         runExcept (instantiate tc []) # case _ of
           Right (Mu.In obj@(Object n o)) → do
-            Assert.equal (Object "__type & __type & __type" mempty) obj
+            Assert.equal expected obj
           Right _ → Test.failure "Expecting an object"
           Left err → Test.failure err
       Right ts → Test.failure $ "Expecting a single constructor" <> unsafeStringify ts
@@ -149,11 +159,14 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
 
   Test.test "Simple function" do
     let
-      source = "export function greet(): void;"
+      source = "export function greet(x : number, y: string): void"
 
       expected = Function
         { fullyQualifiedName: "\"test/test.module\".greet"
-        , parameters: []
+        , parameters:
+          [ { "name": "x", type: roll Number }
+          , { "name": "y", type: roll String }
+          ]
         , returnType: roll Void
         }
 
