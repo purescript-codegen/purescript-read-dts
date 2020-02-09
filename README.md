@@ -28,3 +28,11 @@ API of this library consists of three layers.
 
 This is directed and acyclical dependency graph of modules so you can use any previous layer without bothering about our ASTs design.
 
+
+## Testing
+
+Currently we are runnig only `test/ReadDTS/Instantiation.purs` as a part of main suite.
+
+```
+$ spago test
+```
