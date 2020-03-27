@@ -4,12 +4,12 @@ Provide a way to work with TypeScript types declarations.
 
 ## History
 
-This library has started as an attempt to fix some bugs in `purescript-readts`. It has diverged into a separate lib and till its full maturation we want to keep it separate and not propse any merges.
+This library has started as an attempt to fix some bugs in `purescript-readts`. It has diverged into a separate lib and till its full maturation we want to keep it separate and not propose any merges.
 
 
 ## Status
 
-Currently we are in a somewhat uncosistent state. On one hand this codebase is rough in many places and it is developed thanks to live experimenatation direct source browsing of ts compiler. On the other hand we are using it and testing it against quite large codegen.
+Currently we are in a somewhat inconsistent state. On one hand this codebase is rough in many places and it is developed thanks to live experimentation by direct source browsing of the typescript compiler. On the other hand we are using it and testing it against quite large codegen.
 
 As a main battlefield we have choosen `purescript-react-basic-mui` and it has already prooven to be quite successful approach but on quite limited subset of Typescript constructs.
 There are for sure multiple pieces there which should be incorporated back here. You can look there for some inspiration how this lib can be used:
