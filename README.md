@@ -4,7 +4,7 @@ Provide a way to work with TypeScript types declarations.
 
 ## History
 
-This library has started as an attempt to fix some bugs in `purescript-readts`. It has diverged into a separate lib and till its full maturation we want to keep it separate and not propse any merges.
+This library has started as an attempt to fix some bugs in `purescript-readts`. It has diverged into a separate lib and till its full maturation we want to keep it separate and not propose any merges.
 
 
 ## Status
