@@ -26,7 +26,7 @@ API of this library consists of three layers.
 
   * Finally we have `ReadDTS/Instantiation.purs` module which provides an AST for an instantiated type from a given type declaration.
 
-This is directed and acyclical dependency graph of modules so you can use any previous layer without bothering about our ASTs design.
+This is directed and acyclical dependency graph of modules so you can use any previous layer without bothering about the next step ASTs design.
 
 
 ## Testing
