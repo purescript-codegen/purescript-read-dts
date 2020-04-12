@@ -8,8 +8,7 @@ Provide a way to work with TypeScript types declarations.
 
 Currently we are in a somewhat inconsistent state. On the one hand this codebase is very rough in a many places and it is developed thanks to the live experimentation and direct source browsing of the typescript compiler. On the other hand we successfully test and use it against quite a large codegen projects.
 
-As a main battlefield we have choosen `purescript-react-basic-mui` so please check this project for an extended example. Please consider also [Test.ReadDTS.Instantiation](
-https://github.com/purescript-codegen/purescript-read-dts/blob/master/test/ReadDTS/Instantiation.purs) as a form of current documentation.
+As a main battlefield we have choosen `purescript-react-basic-mui` so please check this project for an extended example. 
 
 API of this library consists of three layers.
 
@@ -20,6 +19,9 @@ API of this library consists of three layers.
   * Finally we have `ReadDTS/Instantiation.purs` module which provides an AST for an instantiated type from a given type declaration.
 
 This is directed and acyclical dependency graph of modules so you can use any previous layer without bothering about the next step ASTs design.
+
+Please, consider [Test.ReadDTS.Instantiation](
+https://github.com/purescript-codegen/purescript-read-dts/blob/master/test/ReadDTS/Instantiation.purs) as a form of a short guide for the top layer of this lib.
 
 
 ## Testing
