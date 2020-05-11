@@ -27,7 +27,7 @@ declare module 'vscode' {
   // /**
   //  * The version of the editor.
   //  */
-  export const version: string;
+  // export const version: string;
 
   // /**
   //  * Represents a reference to a command. Provides a title which
