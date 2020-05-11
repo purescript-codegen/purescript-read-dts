@@ -1,6 +1,6 @@
 # purescript-read-dts
 
-Provide a way to work with TypeScript types declarations.
+Provide a way to work with TypeScript [types declarations](https://stackoverflow.com/questions/21247278/about-d-ts-in-typescript).
 
 
 
