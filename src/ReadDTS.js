@@ -127,11 +127,15 @@ function _readDTS(options, visit, file, either) {
         else if (ts.isModuleDeclaration(node)) {
             var moduleType = checker.getTypeAtLocation(node);
             var declarations_1 = [];
+            // let m = checker.getSymbolAtLocation(moduleType);
             ts.forEachChild(node, function (d) {
-                // XXX: isNodeExported fails in case of ambient modules - why?
-                // if (isNodeExported(checker, d)) {
-                console.log(d);
-                declarations_1.push(visitDeclaration(d));
+                if (ts.isModuleBlock(d)) {
+                    d.statements.forEach(function (s) {
+                        // XXX: isNodeExported fails in case of ambient modules - why?
+                        // if (isNodeExported(checker, d)) {
+                        declarations_1.push(visitDeclaration(s));
+                    });
+                }
             });
             return onDeclaration.module({
                 fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),

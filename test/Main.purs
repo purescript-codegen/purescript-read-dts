@@ -24,9 +24,6 @@ import Test.Unit.Main (runTest) as Test
 source = """
 declare module 'vscode' {
 
-  // /**
-  //  * The version of the editor.
-  //  */
   // export const version: string;
 
   // /**
@@ -35,29 +32,29 @@ declare module 'vscode' {
   //  * an array of arguments which will be passed to the command handler
   //  * function when invoked.
   //  */
-  // export interface Command {
-  //   /**
-  //    * Title of the command, like `save`.
-  //    */
-  //   title: string;
+  export interface Command {
+    /**
+     * Title of the command, like `save`.
+     */
+    title: string;
 
-  //   /**
-  //    * The identifier of the actual command handler.
-  //    * @see [commands.registerCommand](#commands.registerCommand).
-  //    */
-  //   command: string;
+    /**
+     * The identifier of the actual command handler.
+     * @see [commands.registerCommand](#commands.registerCommand).
+     */
+    command: string;
 
-  //   /**
-  //    * A tooltip for the command, when represented in the UI.
-  //    */
-  //   tooltip?: string;
+    /**
+     * A tooltip for the command, when represented in the UI.
+     */
+    tooltip?: string;
 
-  //   /**
-  //    * Arguments that the command handler should be
-  //    * invoked with.
-  //    */
-  //   arguments?: any[];
-  // }
+    /**
+     * Arguments that the command handler should be
+     * invoked with.
+     */
+    arguments?: any[];
+  }
 }
 """
 
