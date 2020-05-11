@@ -22,6 +22,8 @@ export function _readDTS<d, t, either>(
   options: { strictNullChecks: boolean },
   visit: {
     onDeclaration: {
+      // can we return fqn
+      function: (x: { fullyQualifiedName: string | undefined, returnType: t, parameters: { type: t, name: string }[] }) => d
       interface: (x:
         {
           name: string,
@@ -29,9 +31,8 @@ export function _readDTS<d, t, either>(
           properties: Property<t>[]
           typeParameters: TypeParameter<t>[]
         }) => d
+      module: (x: { fullyQualifiedName: string, declarations: d[] }) => d
       typeAlias: (x: { name: string, type: t, typeParameters: TypeParameter<t>[] }) => d
-      // can we return fqn
-      function: (x: { fullyQualifiedName: string | undefined, returnType: t, parameters: { type: t, name: string }[] }) => d
       unknown: (u: { fullyQualifiedName: Nullable<string>, msg: string }) => d
     },
     onTypeNode: {
@@ -172,6 +173,19 @@ export function _readDTS<d, t, either>(
           returnType: getTSType(signature.getReturnType())
         })
       }
+    } else if(ts.isModuleDeclaration(node)) {
+      let moduleType = checker.getTypeAtLocation(node)
+      let declarations:d[] = [];
+      ts.forEachChild(node, function(d) {
+        // XXX: isNodeExported fails in case of ambient modules - why?
+        // if (isNodeExported(checker, d)) {
+        console.log(d);
+        declarations.push(visitDeclaration(d));
+      });
+      return onDeclaration.module({
+          fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),
+          declarations: declarations
+      });
     }
 
     let nodeType = checker.getTypeAtLocation(node);

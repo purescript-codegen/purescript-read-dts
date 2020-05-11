@@ -54,6 +54,12 @@ stringOnDeclaration =
           (foldMap (foldMap _.tsDeclarations <<< _.default)) i.typeParameters
           <> foldMap _.type.tsDeclarations i.properties
       }
+  -- | TODO: Fix printing of module here
+  , module: \i → DeclarationRepr
+      { fullyQualifiedName: Nothing -- Just i.fullyQualifiedName
+      , repr: serModule i
+      , tsDeclarations: []
+      }
   -- | It seems that type aliases don't introduce names so they don't
   -- | have fullyQualifiedName... but of course I can be wrong.
   , typeAlias: \r@{ type: t, typeParameters } → DeclarationRepr
@@ -77,6 +83,10 @@ serTypeAlias r
   <> r.name
   <> " <" <> joinWith ", " (map (unsafeTsStringToString <<< _.name) r.typeParameters) <> "> : "
   <> r.type.repr
+
+serModule { fullyQualifiedName }
+  = "module "
+  <> show fullyQualifiedName
 
 serInterface { name, fullyQualifiedName, properties, typeParameters }
   = "interface "

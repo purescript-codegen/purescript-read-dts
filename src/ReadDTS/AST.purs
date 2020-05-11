@@ -14,8 +14,8 @@ import Data.Newtype (class Newtype)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Effect (Effect)
 import Matryoshka (CoalgebraM, anaM)
+import ReadDTS (CompilerOptions, FullyQualifiedName, TsDeclaration, Visit, readDTS, unsafeTsStringToString)
 import ReadDTS (File, unsafeTsStringToString) as ReadDTS
-import ReadDTS (FullyQualifiedName, TsDeclaration, Visit, CompilerOptions, readDTS, unsafeTsStringToString)
 import Type.Prelude (SProxy(..))
 
 type Property ref =
@@ -82,6 +82,10 @@ data TypeConstructor ref
     , properties ∷ Array (Property ref)
     , typeParameters ∷ Array (TypeParameter ref)
     }
+  | Module
+    { declarations ∷ Array (TypeConstructor ref)
+    , fullyQualifiedName ∷ FullyQualifiedName
+    }
   | TypeAlias
     { name ∷ String
     , type ∷ TypeNode ref
@@ -101,6 +105,7 @@ instance foldableTypeConstructor ∷ Foldable TypeConstructor where
   foldMap f (Interface i)
     = foldMap (foldMap f <<< _.type) i.properties
     <> foldMap (foldMap (foldMap f) <<< _.default) i.typeParameters
+  foldMap f (Module m) = foldMap (foldMap f) m.declarations
   foldMap f (TypeAlias ta)
     = foldMap f ta.type
     <> foldMap (foldMap (foldMap f) <<< _.default) ta.typeParameters
@@ -120,6 +125,8 @@ instance traversableTypeConstructor ∷ Traversable TypeConstructor where
     $ (\ms tp → i { properties = ms, typeParameters = tp })
     <$> (sequence <<< map sequenceProperty) i.properties
     <*> (sequence <<< map sequenceTypeParameter) i.typeParameters
+  sequence (Module { declarations, fullyQualifiedName}) =
+    Module <<< { declarations: _, fullyQualifiedName } <$> sequence (map sequence declarations)
   sequence (TypeAlias ta) = map TypeAlias $ { type: _, typeParameters: _, name: ta.name }
     <$> sequence ta.type
     <*> (sequence <<< map sequenceTypeParameter) ta.typeParameters
@@ -246,6 +253,7 @@ visit =
   { onDeclaration:
     { function: FunctionSignature
     , interface: Interface <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
+    , module: Module
     , typeAlias: TypeAlias <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
     , unknown: UnknownTypeConstructor
     }
