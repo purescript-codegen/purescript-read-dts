@@ -60,6 +60,11 @@ type OnDeclarationBase (nullable ∷ Type → Type) d t =
       , properties ∷ Array (Property t)
       }
       → d
+  , module ∷
+      { fullyQualifiedName ∷ FullyQualifiedName
+      , declarations ∷ Array d
+      }
+      → d
   , typeAlias ∷
       { name ∷ String
       , typeParameters ∷ Array (TypeParameter nullable t)

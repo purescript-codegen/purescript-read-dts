@@ -124,6 +124,20 @@ function _readDTS(options, visit, file, either) {
                 });
             }
         }
+        else if (ts.isModuleDeclaration(node)) {
+            var moduleType = checker.getTypeAtLocation(node);
+            var declarations_1 = [];
+            ts.forEachChild(node, function (d) {
+                // XXX: isNodeExported fails in case of ambient modules - why?
+                // if (isNodeExported(checker, d)) {
+                console.log(d);
+                declarations_1.push(visitDeclaration(d));
+            });
+            return onDeclaration.module({
+                fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),
+                declarations: declarations_1
+            });
+        }
         var nodeType = checker.getTypeAtLocation(node);
         var fullyQualifiedName = null;
         try {

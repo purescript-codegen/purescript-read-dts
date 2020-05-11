@@ -18,7 +18,7 @@ import Data.Traversable (class Traversable, for, sequence, traverse, traverseDef
 import Data.Tuple (Tuple(..)) as Tuple
 import Matryoshka (Algebra, cata)
 import ReadDTS (FullyQualifiedName, fqnToString)
-import ReadDTS.AST (Application(..), Application', TypeConstructor(..), TypeNode)
+import ReadDTS.AST (Application(..), Application', TypeConstructor, TypeNode)
 import ReadDTS.AST as AST
 
 type Property a = { type ∷ a, optional ∷ Boolean }
@@ -42,6 +42,10 @@ data TypeF a
   | Null
   | Number
   | NumberLiteral Number
+  | Module
+    { fullyQualifiedName ∷ String
+    , types ∷ Array a
+    }
   | Object String (Map String (Property a))
   | String
   | StringLiteral String
@@ -67,6 +71,7 @@ instance eq1TypeF ∷ Eq1 TypeF where
   eq1 Null Null = true
   eq1 Number Number = true
   eq1 (NumberLiteral n1) (NumberLiteral n2) = n1 == n2
+  eq1 (Module m1) (Module m2) = m1.fullyQualifiedName == m2.fullyQualifiedName
   eq1 (Object n1 props1) (Object n2 props2) = n1 == n2 && props1 == props2
   eq1 String String = true
   eq1 (StringLiteral s1) (StringLiteral s2) = s1 == s2
@@ -84,6 +89,7 @@ instance foldableTypeF ∷ Foldable TypeF where
   foldMap _ (BooleanLiteral _) = mempty
   foldMap f (Function r) = foldMap (f <<< _.type) r.parameters <> f r.returnType
   foldMap f (Intersection t1 t2) = f t1 <> f t2
+  foldMap f (Module m) = foldMap f m.types
   foldMap _ Null = mempty
   foldMap f Number = mempty
   foldMap _ (NumberLiteral _) = mempty
@@ -112,6 +118,8 @@ instance traversableTypeF ∷ Traversable TypeF where
     where
       sequenceParameter { name, type: t } = { name, type: _ } <$> t
   sequence (Intersection t1 t2) = Intersection <$> t1 <*> t2
+  sequence (Module { fullyQualifiedName, types }) =
+    Module <<< { types: _, fullyQualifiedName } <$> sequence types
   sequence Null = pure Null
   sequence Number = pure $ Number
   sequence (NumberLiteral n) = pure $ NumberLiteral n
@@ -133,22 +141,25 @@ type Instantiate = Map String Type → Except String Type
 instantiateApplication ∷ Algebra Application Instantiate
 instantiateApplication (Application { typeArguments, typeConstructor }) =
   case typeConstructor of
-    FunctionSignature fd@{ fullyQualifiedName } → \ctx → do
+    AST.FunctionSignature fd@{ fullyQualifiedName } → \ctx → do
       parameters ← traverse (\r@{ name } → { name, type: _ } <$> instantiateTypeNode r.type ctx) fd.parameters
       returnType ← instantiateTypeNode fd.returnType ctx
       pure $ roll $ Function { fullyQualifiedName, parameters, returnType }
-    Interface { fullyQualifiedName, properties, typeParameters } → \ctx → do
+    AST.Interface { fullyQualifiedName, properties, typeParameters } → \ctx → do
       typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
       roll <$> Object (fqnToString fullyQualifiedName) <<< Map.fromFoldable <$> for properties \{ name, type: t, optional } →
         (Tuple.Tuple name <<< { type: _, optional }) <$> instantiateTypeNode t ctx'
-    TypeAlias { type: t, typeParameters } → \ctx → do
+    AST.Module { declarations, fullyQualifiedName } → \ctx → do
+      roll <<< Module <<< { fullyQualifiedName: fqnToString fullyQualifiedName, types: _ } <$> for declarations \tc → do
+        instantiateApplication (Application { typeArguments: [], typeConstructor: tc }) ctx
+    AST.TypeAlias { type: t, typeParameters } → \ctx → do
       typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
       instantiateTypeNode t ctx'
-    UnknownTypeConstructor r → const $ pure $ roll $ Unknown
+    AST.UnknownTypeConstructor r → const $ pure $ roll $ Unknown
       ("Unknown type constructor: " <> show r.fullyQualifiedName)
 
 intersection ∷ Type → Type → Type

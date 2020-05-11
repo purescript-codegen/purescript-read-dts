@@ -43,6 +43,7 @@ pprint = render <<< cata alg
     , returnType
     ]
   alg (Intersection t1 t2) = hcat [ t1, text " & ", t2 ]
+  alg (Module m) = hcat $ [ text "Module", text m.fullyQualifiedName ] <> m.types
   alg Null = text "null"
   alg Number = text "number"
   alg (Object _ props) | length props == 0 = text "{}"
@@ -76,6 +77,7 @@ pprintTypeName (Array t) = "[ " <> t <> "]"
 pprintTypeName (Boolean) = "boolean"
 pprintTypeName (Function r) = "function:" <> r.fullyQualifiedName
 pprintTypeName (Intersection t1 t2) = "intersection: " <> t1 <> " & " <> t2
+pprintTypeName (Module m) = "module" <> m.fullyQualifiedName
 pprintTypeName Null = "null"
 pprintTypeName Number = "number"
 pprintTypeName (NumberLiteral n) = "@" <> show n
