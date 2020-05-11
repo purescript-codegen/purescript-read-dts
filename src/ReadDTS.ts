@@ -176,12 +176,16 @@ export function _readDTS<d, t, either>(
     } else if(ts.isModuleDeclaration(node)) {
       let moduleType = checker.getTypeAtLocation(node)
       let declarations:d[] = [];
-      ts.forEachChild(node, function(d) {
-        // XXX: isNodeExported fails in case of ambient modules - why?
-        // if (isNodeExported(checker, d)) {
-        console.log(d);
-        declarations.push(visitDeclaration(d));
-      });
+      // let m = checker.getSymbolAtLocation(moduleType);
+      ts.forEachChild(node, function(d){
+        if(ts.isModuleBlock(d)) {
+          d.statements.forEach(function(s) {
+            // XXX: isNodeExported fails in case of ambient modules - why?
+            // if (isNodeExported(checker, d)) {
+            declarations.push(visitDeclaration(s));
+          });
+        }
+      })
       return onDeclaration.module({
           fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),
           declarations: declarations
