@@ -7,15 +7,16 @@ import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, fold)
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
-import Data.Lens (Lens, over, traversed)
+import Data.Generic.Rep.Show (genericShow)
+import Data.Lens (Lens)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Effect (Effect)
 import Matryoshka (CoalgebraM, anaM)
-import ReadDTS (CompilerOptions, FullyQualifiedName, TsDeclaration, Visit, readDTS, unsafeTsStringToString)
-import ReadDTS (File, unsafeTsStringToString) as ReadDTS
+import ReadDTS (Class, File, Interface, Module, TypeAlias) as ReadDTS
+import ReadDTS (FullyQualifiedName, Options, TsDeclaration, Visit, readDTS)
 import Type.Prelude (SProxy(..))
 
 type Property ref =
@@ -71,37 +72,24 @@ instance traversableApplication ∷ Traversable Application where
 
 
 data TypeConstructor ref
-  = FunctionSignature
-    { fullyQualifiedName ∷ String
-    , parameters ∷ Array { name ∷ String, type ∷ TypeNode ref }
-    , returnType ∷ TypeNode ref
-    }
-  | Interface
-    { fullyQualifiedName ∷ FullyQualifiedName
-    , name ∷ String
-    , properties ∷ Array (Property ref)
-    , typeParameters ∷ Array (TypeParameter ref)
-    }
-  | Module
-    { declarations ∷ Array (TypeConstructor ref)
-    , fullyQualifiedName ∷ FullyQualifiedName
-    }
-  | TypeAlias
-    { name ∷ String
-    , type ∷ TypeNode ref
-    , typeParameters ∷ Array (TypeParameter ref)
-    }
+  = Class (ReadDTS.Class Maybe (TypeNode ref))
+  | Interface (ReadDTS.Interface Maybe (TypeNode ref))
+  | Module (ReadDTS.Module (TypeConstructor ref))
+  | TypeAlias (ReadDTS.TypeAlias Maybe (TypeNode ref))
   | UnknownTypeConstructor
     { fullyQualifiedName ∷ Maybe FullyQualifiedName
     , msg ∷ String
     }
 derive instance functorTypeConstructor ∷ Functor TypeConstructor
+derive instance eqTypeConstructor ∷ (Eq ref, Eq (TypeNode ref)) ⇒ Eq (TypeConstructor ref)
 derive instance genericTypeConstructor ∷ Generic (TypeConstructor ref) _
+instance showTypeConstructor ∷ (Show ref) ⇒ Show (TypeConstructor ref) where
+  show s = genericShow s
 
 instance foldableTypeConstructor ∷ Foldable TypeConstructor where
-  foldMap f (FunctionSignature r)
-    = foldMap (foldMap f <<< _.type) r.parameters
-    <> foldMap f r.returnType
+  foldMap f (Class i)
+    = foldMap (foldMap f <<< _.type) i.properties
+    <> foldMap (foldMap (foldMap f) <<< _.default) i.typeParameters
   foldMap f (Interface i)
     = foldMap (foldMap f <<< _.type) i.properties
     <> foldMap (foldMap (foldMap f) <<< _.default) i.typeParameters
@@ -115,12 +103,10 @@ instance foldableTypeConstructor ∷ Foldable TypeConstructor where
   foldl f t = foldlDefault f t
 
 instance traversableTypeConstructor ∷ Traversable TypeConstructor where
-  sequence (FunctionSignature r@{ fullyQualifiedName }) = map FunctionSignature
-    $ { fullyQualifiedName, parameters: _, returnType: _ }
-    <$> traverse sequenceParameter r.parameters
-    <*> sequence r.returnType
-    where
-      sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
+  sequence (Class i) = map Class
+    $ (\ms tp → i { properties = ms, typeParameters = tp })
+    <$> (sequence <<< map sequenceProperty) i.properties
+    <*> (sequence <<< map sequenceTypeParameter) i.typeParameters
   sequence (Interface i) = map Interface
     $ (\ms tp → i { properties = ms, typeParameters = tp })
     <$> (sequence <<< map sequenceProperty) i.properties
@@ -141,11 +127,6 @@ data TypeNode ref
   | ApplicationWithRef ref
   | Array (TypeNode ref)
   | Boolean
-  | Intersection (Array (TypeNode ref))
-  | Number
-  | String
-  | Tuple (Array (TypeNode ref))
-  | TypeParameter (TypeParameter ref)
   -- | In typescript this type level is
   -- | mixed up with value level in declarations.
   -- | For example this ts union:
@@ -153,22 +134,38 @@ data TypeNode ref
   -- | is going to be read as:
   -- | `Union [StringLiteral "a", StringLiteral "b", NumberLiteral 8]`
   | BooleanLiteral Boolean
-  | StringLiteral String
-  | NumberLiteral Number
+  | Function
+    { parameters ∷ Array { name ∷ String, type ∷ TypeNode ref }
+    , returnType ∷ TypeNode ref
+    }
+  | Intersection (Array (TypeNode ref))
   | Null
+  | Number
+  | NumberLiteral Number
+  | String
+  | StringLiteral String
+  | Tuple (Array (TypeNode ref))
+  | TypeParameter (TypeParameter ref)
   | Undefined
   | Union (Array (TypeNode ref))
   | UnknownTypeNode String
   | Void
 
 derive instance functorTypeNode ∷ Functor TypeNode
+derive instance eqTypeNode ∷ (Eq ref) ⇒ Eq (TypeNode ref)
 derive instance genericTypeNode ∷ Generic (TypeNode ref) _
+instance showTypeNode ∷ (Show ref) ⇒ Show (TypeNode ref) where
+  show s = genericShow s
 
 instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap f (AnonymousObject _ ts) = foldMap (foldMap f <<< _.type) ts
   foldMap _ Any = mempty
   foldMap f (Array t) = foldMap f t
   foldMap _ Boolean = mempty
+  foldMap f (Function r)
+    = foldMap (foldMap f <<< _.type) r.parameters
+    <> foldMap f r.returnType
+  -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f (Intersection ts) = A.fold (map (foldMap f) ts)
   foldMap f Number = mempty
   foldMap f String = mempty
@@ -194,6 +191,12 @@ instance traversableTypeNode ∷ Traversable TypeNode where
   sequence (Array t) = Array <$> sequence t
   sequence Boolean = pure Boolean
   sequence (BooleanLiteral n) = pure $ BooleanLiteral n
+  sequence (Function r) = map Function
+    $ { parameters: _, returnType: _ }
+    <$> traverse sequenceParameter r.parameters
+    <*> sequence r.returnType
+    where
+      sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
   sequence Null = pure Null
   sequence Number = pure $ Number
@@ -231,7 +234,7 @@ type Application' = Mu Application
 -- * How to detect recurssion in the case of type aliases?
 coalgebra ∷ ReadDeclaration → CoalgebraM Effect Application Seed
 coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedName, typeArguments }) } =
-  if level < 10
+  if level < 3
   then do
     d ← readDeclaration tsRef
     pure $ Application
@@ -251,16 +254,17 @@ coalgebra readDeclaration { level, ref: tsRef@(ApplicationRef { fullyQualifiedNa
 visit ∷ Visit (TypeConstructor ApplicationRef) (TypeNode ApplicationRef)
 visit =
   { onDeclaration:
-    { function: FunctionSignature
-    , interface: Interface <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
-    , module: Module
-    , typeAlias: TypeAlias <<< over (_typeParametersL <<< traversed <<< _nameL) unsafeTsStringToString
+    { class_: Class
+    , interface: Interface
+    , module_: Module
+    , typeAlias: TypeAlias
     , unknown: UnknownTypeConstructor
     }
   , onTypeNode:
     { anonymousObject:
       \r → AnonymousObject r.fullyQualifiedName r.properties
     , array: Array
+    , function: Function
     , intersection: Intersection
     , primitive: case _ of
         "any" → Any
@@ -272,9 +276,7 @@ visit =
         "void" → Void
         x → UnknownTypeNode ("Unknown primitive type:" <> x)
     , tuple: Tuple
-    , typeParameter:
-        let _name = prop (SProxy ∷ SProxy "name") in
-        TypeParameter <<< over _name ReadDTS.unsafeTsStringToString
+    , typeParameter: TypeParameter
     , typeReference: ApplicationWithRef <<< ApplicationRef
     , booleanLiteral: BooleanLiteral
     , numberLiteral: NumberLiteral
@@ -290,7 +292,7 @@ visit =
     _typeParametersL ∷ ∀ a b r. Lens { typeParameters ∷ a | r } { typeParameters ∷ b | r } a b
     _typeParametersL = prop (SProxy ∷ SProxy "typeParameters")
 
-build ∷ CompilerOptions → ReadDTS.File → Effect (Either (Array String) (Array (TypeConstructor Application')))
+build ∷ Options → ReadDTS.File → Effect (Either (Array String) (Array (TypeConstructor Application')))
 build compilerOptions file = do
   readDTS compilerOptions visit file >>= case _ of
     Right { readDeclaration, topLevel } → do

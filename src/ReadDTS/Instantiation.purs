@@ -34,8 +34,7 @@ data TypeF a
   | Boolean
   | BooleanLiteral Boolean
   | Function
-    { fullyQualifiedName ∷ String
-    , parameters ∷ Array { name ∷ String, type ∷ a }
+    { parameters ∷ Array { name ∷ String, type ∷ a }
     , returnType ∷ a
     }
   | Intersection a a
@@ -110,9 +109,9 @@ instance traversableTypeF ∷ Traversable TypeF where
   sequence (Array t) = Array <$> t
   sequence Boolean = pure Boolean
   sequence (BooleanLiteral b) = pure (BooleanLiteral b)
-  sequence (Function r@{ fullyQualifiedName })
+  sequence (Function r)
     = map Function
-    $ { fullyQualifiedName, parameters: _, returnType: _ }
+    $ { parameters: _, returnType: _ }
     <$> traverse sequenceParameter r.parameters
     <*> r.returnType
     where
@@ -141,10 +140,6 @@ type Instantiate = Map String Type → Except String Type
 instantiateApplication ∷ Algebra Application Instantiate
 instantiateApplication (Application { typeArguments, typeConstructor }) =
   case typeConstructor of
-    AST.FunctionSignature fd@{ fullyQualifiedName } → \ctx → do
-      parameters ← traverse (\r@{ name } → { name, type: _ } <$> instantiateTypeNode r.type ctx) fd.parameters
-      returnType ← instantiateTypeNode fd.returnType ctx
-      pure $ roll $ Function { fullyQualifiedName, parameters, returnType }
     AST.Interface { fullyQualifiedName, properties, typeParameters } → \ctx → do
       typeArguments' ← traverse (flip instantiateTypeNode ctx) typeArguments
       let
@@ -159,6 +154,7 @@ instantiateApplication (Application { typeArguments, typeConstructor }) =
       let
         ctx' = Map.fromFoldable (Array.zip (map _.name typeParameters) typeArguments')
       instantiateTypeNode t ctx'
+    AST.Class c → const $ pure $ roll $ Unknown ("Class specialization not implemented yet")
     AST.UnknownTypeConstructor r → const $ pure $ roll $ Unknown
       ("Unknown type constructor: " <> show r.fullyQualifiedName)
 
@@ -207,6 +203,10 @@ instantiateTypeNode typeNode ctx = case typeNode of
   AST.Array t → roll <$> Array <$> instantiateTypeNode t ctx
   AST.Boolean → pure $ roll Boolean
   AST.BooleanLiteral b → pure $ roll $ BooleanLiteral b
+  AST.Function fd → do
+    parameters ← traverse (\r@{ name } → { name, type: _ } <$> instantiateTypeNode r.type ctx) fd.parameters
+    returnType ← instantiateTypeNode fd.returnType ctx
+    pure $ roll $ Function { parameters, returnType }
   AST.Intersection ts →
     traverse (flip instantiateTypeNode ctx) ts >>= Array.reverse >>> Array.uncons >>> case _ of
       Nothing → throwError "Empty intersection"

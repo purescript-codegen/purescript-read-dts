@@ -13,6 +13,8 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..)) as Tuple
 import Effect.Class (liftEffect)
 import Simple.JSON (unsafeStringify)
+import ReadDTS (FullyQualifiedName(..))
+import ReadDTS (defaults) as ReadDTS
 import ReadDTS.AST (TypeConstructor(..), build) as AST
 import ReadDTS.Instantiation (TypeF(..), instantiate)
 import Test.Unit (TestSuite)
@@ -32,7 +34,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: false }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = false }
       expected = Object "__type" $ Map.fromFoldable
         [ Tuple.Tuple "a" { type: roll Number, optional: false }
         , Tuple.Tuple "b" { type: roll Number, optional: false }
@@ -60,7 +62,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: false }
+      compilerOptions = ReadDTS.defaults
       typeName (AST.Interface { name }) = Just name
       typeName (AST.TypeAlias { name }) = Just name
       typeName _ = Nothing
@@ -100,7 +102,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: true }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = true }
 
     liftEffect (AST.build compilerOptions file) >>= case _ of
       Right [tc] → runExcept (instantiate tc []) # case _ of
@@ -119,7 +121,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: true }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = true }
       colorProperty = { optional: false, "type": _ } $ roll $ Union $
         [ roll $ StringLiteral "red"
         , roll $ StringLiteral "green"
@@ -146,7 +148,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: true }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = true }
 
     liftEffect (AST.build compilerOptions file) >>= case _ of
       Right [tc] → runExcept (instantiate tc []) # case _ of
@@ -162,8 +164,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
       source = "export function greet(x : number, y: string): void"
 
       expected = Function
-        { fullyQualifiedName: "\"test/test.module\".greet"
-        , parameters:
+        { parameters:
           [ { "name": "x", type: roll Number }
           , { "name": "y", type: roll String }
           ]
@@ -174,7 +175,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: true }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = true }
 
     liftEffect (AST.build compilerOptions file) >>= case _ of
       Right [tc] → runExcept (instantiate tc []) # case _ of
@@ -200,7 +201,7 @@ suite = Test.suite "ReadDTS.Instantiation" $ do
         { path: "test/test.module.d.ts"
         , source: Just source
         }
-      compilerOptions = { strictNullChecks: true }
+      compilerOptions = ReadDTS.defaults { strictNullChecks = true }
 
     liftEffect (AST.build compilerOptions file) >>= case _ of
       Right [tc] → runExcept (instantiate tc []) # case _ of

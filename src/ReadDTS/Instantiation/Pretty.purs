@@ -35,9 +35,8 @@ pprint = render <<< cata alg
   alg Any = text "any"
   alg (Array t) = hcat [ text "[", t, text "]" ]
   alg Boolean = text "boolean"
-  alg (Function { fullyQualifiedName, parameters, returnType }) = hcat
+  alg (Function { parameters, returnType }) = hcat
     [ text "function "
-    , text fullyQualifiedName
     , joinWithDoc (text ", ") (map (text <<< _.name) parameters) (Just 80)
     , text ") : "
     , returnType
@@ -75,7 +74,7 @@ pprintTypeName ∷ TypeF String → String
 pprintTypeName Any = "any"
 pprintTypeName (Array t) = "[ " <> t <> "]"
 pprintTypeName (Boolean) = "boolean"
-pprintTypeName (Function r) = "function:" <> r.fullyQualifiedName
+pprintTypeName (Function r) = "function"
 pprintTypeName (Intersection t1 t2) = "intersection: " <> t1 <> " & " <> t2
 pprintTypeName (Module m) = "module" <> m.fullyQualifiedName
 pprintTypeName Null = "null"

@@ -16,14 +16,25 @@ type Effect<a> = () => a;
 type Nullable<a> = a | null;
 type TypeParameter<t> = { name: ts.__String, default: Nullable<t> };
 type Property<t> = { name: string, type: t, optional: boolean }
+type Function<t> = { returnType: t, parameters: { type: t, name: string }[] }
 type Result<d> = { topLevel: d[], readDeclaration: (v: ts.Declaration) => Effect<d> }
 
 export function _readDTS<d, t, either>(
-  options: { strictNullChecks: boolean },
+  options: {
+    compile: boolean,
+    debug: boolean,
+    strictNullChecks: boolean
+  },
   visit: {
     onDeclaration: {
       // can we return fqn
-      function: (x: { fullyQualifiedName: string | undefined, returnType: t, parameters: { type: t, name: string }[] }) => d
+      class_: (x: {
+        fullyQualifiedName: string,
+        name: string,
+        properties: Property<t>[], 
+        typeParameters: TypeParameter<t>[]
+      }) => d,
+      // function: (x: { fullyQualifiedName: string | undefined, returnType: t, parameters: { type: t, name: string }[] }) => d
       interface: (x:
         {
           name: string,
@@ -31,13 +42,14 @@ export function _readDTS<d, t, either>(
           properties: Property<t>[]
           typeParameters: TypeParameter<t>[]
         }) => d
-      module: (x: { fullyQualifiedName: string, declarations: d[] }) => d
+      module_: (x: { fullyQualifiedName: string, declarations: d[] }) => d
       typeAlias: (x: { name: string, type: t, typeParameters: TypeParameter<t>[] }) => d
       unknown: (u: { fullyQualifiedName: Nullable<string>, msg: string }) => d
     },
     onTypeNode: {
       anonymousObject: (properties: ({ fullyQualifiedName: string, properties: Property<t>[] })) => t,
       array: (type: t) => t,
+      function: (x: Function<t>) => t, 
       intersection: (types: t[]) => t,
       primitive: (name: string) => t,
       tuple: (types: t[]) => t,
@@ -68,13 +80,30 @@ export function _readDTS<d, t, either>(
   let onTypeNode = visit.onTypeNode;
   let declarations:d[] = [];
 
+  let log = options.debug?function(msg:any) { console.log(msg); }:function() {};
+
+  if(options.compile) {
+    let emitResult = program.emit();
+    if(emitResult.emitSkipped) {
+      let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
+      let errors:any[] = [];
+      allDiagnostics.forEach(function(d) {
+        if(d.category === ts.DiagnosticCategory.Error) {
+          errors.push(ts.formatDiagnostic(d, formatHost));
+        }
+      })
+      if(errors.length > 0) {
+        return either.left(errors);
+      }
+    }
+  }
   for (const sf of program.getSourceFiles()) {
     if (sf.isDeclarationFile && sf.fileName === file.path) {
       sourceFile = sf;
     }
   }
   if(sourceFile !== undefined) {
-    if(sourceFile !== undefined) {
+    if(!options.compile && sourceFile !== undefined) {
       let x = program.getSyntacticDiagnostics(sourceFile);
       let errors:any[] = [];
       x.forEach(function(d) {
@@ -86,10 +115,13 @@ export function _readDTS<d, t, either>(
         return either.left(errors);
       }
     }
+    log("Starting iteration")
     ts.forEachChild(sourceFile, function(d) {
+      log("Another declaration")
       if (isNodeExported(checker, d))
         declarations.push(visitDeclaration(d));
     });
+    log("Ending iteration")
   } else {
     return either.left(["Source file not found"])
   }
@@ -128,6 +160,7 @@ export function _readDTS<d, t, either>(
     let optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
     let memType = dec?checker.getTypeOfSymbolAtLocation(sym, dec):checker.getDeclaredTypeOfSymbol(sym);
 
+    log("PROPERTY" + sym.name);
     let t = getTSType(memType);
     return { name: sym.name, type: t, optional }
   }
@@ -139,59 +172,90 @@ export function _readDTS<d, t, either>(
         return { name: p.name.escapedText, default: d };
       })
     }
-    if(ts.isInterfaceDeclaration(node)) {
-      let nodeType = checker.getTypeAtLocation(node);
-      let properties = nodeType.getProperties().map((sym: ts.Symbol) => property(sym, node));
-      let fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol);
-      let i = {
-        name: node.name.text,
-        fullyQualifiedName,
-        properties,
-        typeParameters: processTypeParameters(node.typeParameters)
-      };
-      return onDeclaration.interface(i);
-    }
-    else if (ts.isTypeAliasDeclaration(node)) {
-      let nodeType = checker.getTypeAtLocation(node);
-      let x = {
-        name: node.name.text,
-        type: getTSType(nodeType),
-        typeParameters: processTypeParameters(node.typeParameters)
-      };
-      return onDeclaration.typeAlias(x);
-    }
-    else if (ts.isFunctionDeclaration(node)) {
-      let functionType = checker.getTypeAtLocation(node)
-      let signature = checker.getSignatureFromDeclaration(node);
-      if(signature) {
-        return onDeclaration.function({
-          fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
-          parameters: signature.parameters.map((parameterSymbol) => { return {
-            name: parameterSymbol.getName(),
-            type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol?.valueDeclaration))
-          };}),
-          returnType: getTSType(signature.getReturnType())
-        })
-      }
-    } else if(ts.isModuleDeclaration(node)) {
-      let moduleType = checker.getTypeAtLocation(node)
-      let declarations:d[] = [];
-      // let m = checker.getSymbolAtLocation(moduleType);
-      ts.forEachChild(node, function(d){
-        if(ts.isModuleBlock(d)) {
-          d.statements.forEach(function(s) {
-            // XXX: isNodeExported fails in case of ambient modules - why?
-            // if (isNodeExported(checker, d)) {
-            declarations.push(visitDeclaration(s));
-          });
-        }
-      })
-      return onDeclaration.module({
-          fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),
-          declarations: declarations
-      });
-    }
+    let symbol = node.name?checker.getSymbolAtLocation(node.name):undefined;
+    if(symbol) {
+      let fullyQualifiedName = checker.getFullyQualifiedName(symbol);
+      let nodeType = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration);
+      if(ts.isInterfaceDeclaration(node)) {
+        // let typeSignatures = checker.getSignaturesOfType(node, ts.SignatureKind.C);
+        // let s = typeSignatures[0]
+        // if(s) {
+        //   console.log(s.typeParameters);
+        //   checker.getReturnTypeOfSignature(s);
+        // } else {
+        //   console.log("EMPTY signature")
 
+        // }
+
+        let properties = nodeType.getProperties().map((sym: ts.Symbol) => property(sym, node));
+        let i = {
+          name: symbol.getName(),
+          fullyQualifiedName,
+          properties,
+          typeParameters: processTypeParameters(node.typeParameters)
+        };
+        return onDeclaration.interface(i);
+      } else if(ts.isClassDeclaration(node)) {
+        // let properties = nodeType.getProperties().map((sym: ts.Symbol) => property(sym, node));
+        let properties = checker.getPropertiesOfType(nodeType).map((sym: ts.Symbol) => property(sym, node));
+        let i = {
+          // TODO: Extract class name
+          name: nodeType.symbol.getName(),
+          fullyQualifiedName,
+          properties,
+          typeParameters: processTypeParameters(node.typeParameters)
+        };
+        return onDeclaration.class_(i);
+
+      } else if (ts.isTypeAliasDeclaration(node)) {
+        log("TYPE ALIAS")
+        let nodeType = checker.getTypeAtLocation(node);
+        let x = {
+          name: node.name.text,
+          type: getTSType(nodeType),
+          typeParameters: processTypeParameters(node.typeParameters)
+        };
+        return onDeclaration.typeAlias(x);
+      //} else if(ts.isMethodDeclaration(node)) {
+      //  // let signature = checker.getSignatureFromDeclaration(node);
+      //  log("METHOD Declaration")
+      //  log(node.name.toString())
+      // } else if(ts.isMethodSignature(node)) {
+      //  // let signature = checker.getSignatureFromDeclaration(node);
+      //  log("METHOD SIGNATURE")
+      //  log(node.name.toString())
+      // } else if (ts.isFunctionDeclaration(node)) {
+      //   log("Function Declaration - commented out. I'm not sure if I should handle it as typeAlias?")
+      //   // let functionType = checker.getTypeAtLocation(node)
+      //   // let signature = checker.getSignatureFromDeclaration(node);
+      //   // if(signature) {
+      //     // return onDeclaration.function({
+      //       // fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
+      //       // ...functionSignature(signature)
+      //     // })
+      //   // }
+      } else if(ts.isModuleDeclaration(node)) {
+        log("Module declaration found:" + node.name);
+        // let moduleType = checker.getTypeAtLocation(node.name)
+        let declarations:d[] = [];
+        // let m = checker.getSymbolAtLocation(moduleType);
+        console.log("Iterating module: " + node.name)
+        ts.forEachChild(node, function(d){
+          if(ts.isModuleBlock(d)) {
+            d.statements.forEach(function(s) {
+              // XXX: isNodeExported fails in case of ambient modules - why?
+              // if (isNodeExported(checker, d)) {
+              console.log("")
+              declarations.push(visitDeclaration(s));
+            });
+          }
+        })
+        return onDeclaration.module_({
+            fullyQualifiedName,
+            declarations
+        });
+      }
+    }
     let nodeType = checker.getTypeAtLocation(node);
     let fullyQualifiedName = null;
     try {
@@ -236,6 +300,7 @@ export function _readDTS<d, t, either>(
       return onTypeNode.intersection(types);
     }
     else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
+      log("Possible object / non primitive type")
       let memObjectType = <ts.ObjectType>memType;
       let onInterfaceReference = function(target: ts.InterfaceType, typeArguments: t[]) {
         let ref = (target.symbol && target.symbol.valueDeclaration)
@@ -249,6 +314,7 @@ export function _readDTS<d, t, either>(
           :onTypeNode.unknown("Unable to get type declaration for:" + fullyQualifiedName + "<" + typeArguments + ">")
       }
       if(memObjectType.objectFlags & ts.ObjectFlags.Reference) {
+        log("REFERENCE")
         let reference = <ts.TypeReference>memObjectType;
         if(checker.isArrayType(reference)) {
           let elem = checker.getElementTypeOfArrayType(reference);
@@ -281,6 +347,7 @@ export function _readDTS<d, t, either>(
       // This __seems__ to work in case of Pick<..> and Record<..>
       if((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
          (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
+
         let objDeclarations = memObjectType.symbol.getDeclarations();
         let props = memObjectType.getProperties().map((sym: ts.Symbol) =>
           property(sym, objDeclarations?objDeclarations[0]:sym.declarations?sym.declarations[1]:sym.valueDeclaration)
@@ -289,8 +356,25 @@ export function _readDTS<d, t, either>(
         return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName });
       }
       if(memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
-        let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.valueDeclaration));
+        // TODO: Currently any object which is "callable" is interpreted
+        // as a plain function
+        let signature = memObjectType.getCallSignatures()[0];
+        if(signature) {
+          log("Treating this as function: " + memObjectType.symbol.getName());
+          let functionType = {
+            parameters: signature.parameters.map((parameterSymbol) => {
+              return {
+                name: parameterSymbol.getName(),
+                type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol?.valueDeclaration))
+              };
+            }),
+            returnType: getTSType(signature.getReturnType())
+          };
+          log("Returning funciton type:" + functionType);
+          return onTypeNode.function(functionType);
+        }
 
+        let props = memObjectType.getProperties().map((sym: ts.Symbol) => property(sym, sym.valueDeclaration));
         let fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
         return onTypeNode.anonymousObject({ fullyQualifiedName,  properties: props });
       }

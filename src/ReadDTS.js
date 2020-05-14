@@ -43,17 +43,13 @@ function _readDTS(options, visit, file, either) {
     var onDeclaration = visit.onDeclaration;
     var onTypeNode = visit.onTypeNode;
     var declarations = [];
-    for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
-        var sf = _a[_i];
-        if (sf.isDeclarationFile && sf.fileName === file.path) {
-            sourceFile = sf;
-        }
-    }
-    if (sourceFile !== undefined) {
-        if (sourceFile !== undefined) {
-            var x = program.getSyntacticDiagnostics(sourceFile);
+    var log = options.debug ? function (msg) { console.log(msg); } : function () { };
+    if (options.compile) {
+        var emitResult = program.emit();
+        if (emitResult.emitSkipped) {
+            var allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
             var errors_1 = [];
-            x.forEach(function (d) {
+            allDiagnostics.forEach(function (d) {
                 if (d.category === ts.DiagnosticCategory.Error) {
                     errors_1.push(ts.formatDiagnostic(d, formatHost));
                 }
@@ -62,10 +58,33 @@ function _readDTS(options, visit, file, either) {
                 return either.left(errors_1);
             }
         }
+    }
+    for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
+        var sf = _a[_i];
+        if (sf.isDeclarationFile && sf.fileName === file.path) {
+            sourceFile = sf;
+        }
+    }
+    if (sourceFile !== undefined) {
+        if (!options.compile && sourceFile !== undefined) {
+            var x = program.getSyntacticDiagnostics(sourceFile);
+            var errors_2 = [];
+            x.forEach(function (d) {
+                if (d.category === ts.DiagnosticCategory.Error) {
+                    errors_2.push(ts.formatDiagnostic(d, formatHost));
+                }
+            });
+            if (errors_2.length > 0) {
+                return either.left(errors_2);
+            }
+        }
+        log("Starting iteration");
         ts.forEachChild(sourceFile, function (d) {
+            log("Another declaration");
             if (isNodeExported(checker, d))
                 declarations.push(visitDeclaration(d));
         });
+        log("Ending iteration");
     }
     else {
         return either.left(["Source file not found"]);
@@ -77,6 +96,7 @@ function _readDTS(options, visit, file, either) {
     function property(sym, dec) {
         var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
         var memType = dec ? checker.getTypeOfSymbolAtLocation(sym, dec) : checker.getDeclaredTypeOfSymbol(sym);
+        log("PROPERTY" + sym.name);
         var t = getTSType(memType);
         return { name: sym.name, type: t, optional: optional };
     }
@@ -87,60 +107,90 @@ function _readDTS(options, visit, file, either) {
                 return { name: p.name.escapedText, default: d };
             });
         };
-        if (ts.isInterfaceDeclaration(node)) {
-            var nodeType_1 = checker.getTypeAtLocation(node);
-            var properties = nodeType_1.getProperties().map(function (sym) { return property(sym, node); });
-            var fullyQualifiedName_1 = checker.getFullyQualifiedName(nodeType_1.symbol);
-            var i = {
-                name: node.name.text,
-                fullyQualifiedName: fullyQualifiedName_1,
-                properties: properties,
-                typeParameters: processTypeParameters(node.typeParameters)
-            };
-            return onDeclaration.interface(i);
-        }
-        else if (ts.isTypeAliasDeclaration(node)) {
-            var nodeType_2 = checker.getTypeAtLocation(node);
-            var x = {
-                name: node.name.text,
-                type: getTSType(nodeType_2),
-                typeParameters: processTypeParameters(node.typeParameters)
-            };
-            return onDeclaration.typeAlias(x);
-        }
-        else if (ts.isFunctionDeclaration(node)) {
-            var functionType = checker.getTypeAtLocation(node);
-            var signature = checker.getSignatureFromDeclaration(node);
-            if (signature) {
-                return onDeclaration.function({
-                    fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
-                    parameters: signature.parameters.map(function (parameterSymbol) {
-                        return {
-                            name: parameterSymbol.getName(),
-                            type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol === null || parameterSymbol === void 0 ? void 0 : parameterSymbol.valueDeclaration))
-                        };
-                    }),
-                    returnType: getTSType(signature.getReturnType())
+        var symbol = node.name ? checker.getSymbolAtLocation(node.name) : undefined;
+        if (symbol) {
+            var fullyQualifiedName_1 = checker.getFullyQualifiedName(symbol);
+            var nodeType_1 = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration);
+            if (ts.isInterfaceDeclaration(node)) {
+                var typeSignatures = checker.getSignaturesOfType(nodeType_1, ts.SignatureKind.Call);
+                var s = typeSignatures[0];
+                if (s) {
+                    console.log(s.typeParameters);
+                    checker.getReturnTypeOfSignature(s);
+                }
+                else {
+                    console.log("EMPTY signature");
+                }
+                var properties = nodeType_1.getProperties().map(function (sym) { return property(sym, node); });
+                var i = {
+                    name: symbol.getName(),
+                    fullyQualifiedName: fullyQualifiedName_1,
+                    properties: properties,
+                    typeParameters: processTypeParameters(node.typeParameters)
+                };
+                return onDeclaration.interface(i);
+            }
+            else if (ts.isClassDeclaration(node)) {
+                // let properties = nodeType.getProperties().map((sym: ts.Symbol) => property(sym, node));
+                var properties = checker.getPropertiesOfType(nodeType_1).map(function (sym) { return property(sym, node); });
+                var i = {
+                    // TODO: Extract class name
+                    name: nodeType_1.symbol.getName(),
+                    fullyQualifiedName: fullyQualifiedName_1,
+                    properties: properties,
+                    typeParameters: processTypeParameters(node.typeParameters)
+                };
+                return onDeclaration.class_(i);
+            }
+            else if (ts.isTypeAliasDeclaration(node)) {
+                log("TYPE ALIAS");
+                var nodeType_2 = checker.getTypeAtLocation(node);
+                var x = {
+                    name: node.name.text,
+                    type: getTSType(nodeType_2),
+                    typeParameters: processTypeParameters(node.typeParameters)
+                };
+                return onDeclaration.typeAlias(x);
+                //} else if(ts.isMethodDeclaration(node)) {
+                //  // let signature = checker.getSignatureFromDeclaration(node);
+                //  log("METHOD Declaration")
+                //  log(node.name.toString())
+                // } else if(ts.isMethodSignature(node)) {
+                //  // let signature = checker.getSignatureFromDeclaration(node);
+                //  log("METHOD SIGNATURE")
+                //  log(node.name.toString())
+                // } else if (ts.isFunctionDeclaration(node)) {
+                //   log("Function Declaration - commented out. I'm not sure if I should handle it as typeAlias?")
+                //   // let functionType = checker.getTypeAtLocation(node)
+                //   // let signature = checker.getSignatureFromDeclaration(node);
+                //   // if(signature) {
+                //     // return onDeclaration.function({
+                //       // fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
+                //       // ...functionSignature(signature)
+                //     // })
+                //   // }
+            }
+            else if (ts.isModuleDeclaration(node)) {
+                log("Module declaration found:" + node.name);
+                // let moduleType = checker.getTypeAtLocation(node.name)
+                var declarations_1 = [];
+                // let m = checker.getSymbolAtLocation(moduleType);
+                console.log("Iterating module: " + node.name);
+                ts.forEachChild(node, function (d) {
+                    if (ts.isModuleBlock(d)) {
+                        d.statements.forEach(function (s) {
+                            // XXX: isNodeExported fails in case of ambient modules - why?
+                            // if (isNodeExported(checker, d)) {
+                            console.log("");
+                            declarations_1.push(visitDeclaration(s));
+                        });
+                    }
+                });
+                return onDeclaration.module_({
+                    fullyQualifiedName: fullyQualifiedName_1,
+                    declarations: declarations_1
                 });
             }
-        }
-        else if (ts.isModuleDeclaration(node)) {
-            var moduleType = checker.getTypeAtLocation(node);
-            var declarations_1 = [];
-            // let m = checker.getSymbolAtLocation(moduleType);
-            ts.forEachChild(node, function (d) {
-                if (ts.isModuleBlock(d)) {
-                    d.statements.forEach(function (s) {
-                        // XXX: isNodeExported fails in case of ambient modules - why?
-                        // if (isNodeExported(checker, d)) {
-                        declarations_1.push(visitDeclaration(s));
-                    });
-                }
-            });
-            return onDeclaration.module({
-                fullyQualifiedName: checker.getFullyQualifiedName(moduleType.symbol),
-                declarations: declarations_1
-            });
         }
         var nodeType = checker.getTypeAtLocation(node);
         var fullyQualifiedName = null;
@@ -187,6 +237,7 @@ function _readDTS(options, visit, file, either) {
             return onTypeNode.intersection(types);
         }
         else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
+            log("Possible object / non primitive type");
             var memObjectType = memType;
             var onInterfaceReference = function (target, typeArguments) {
                 var ref = (target.symbol && target.symbol.valueDeclaration)
@@ -200,6 +251,7 @@ function _readDTS(options, visit, file, either) {
                     : onTypeNode.unknown("Unable to get type declaration for:" + fullyQualifiedName + "<" + typeArguments + ">");
             };
             if (memObjectType.objectFlags & ts.ObjectFlags.Reference) {
+                log("REFERENCE");
                 var reference = memObjectType;
                 if (checker.isArrayType(reference)) {
                     var elem = checker.getElementTypeOfArrayType(reference);
@@ -242,6 +294,24 @@ function _readDTS(options, visit, file, either) {
                 return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName: fullyQualifiedName });
             }
             if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
+                // TODO: Currently any object which is "callable" is interpreted
+                // as a plain function
+                var signature = memObjectType.getCallSignatures()[0];
+                if (signature) {
+                    log("Treating this as function: " + memObjectType.symbol.getName());
+                    var functionType = {
+                        parameters: signature.parameters.map(function (parameterSymbol) {
+                            var _a;
+                            return {
+                                name: parameterSymbol.getName(),
+                                type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, (_a = parameterSymbol) === null || _a === void 0 ? void 0 : _a.valueDeclaration))
+                            };
+                        }),
+                        returnType: getTSType(signature.getReturnType())
+                    };
+                    log("Returning funciton type:" + functionType);
+                    return onTypeNode.function(functionType);
+                }
                 var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
                 var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
                 return onTypeNode.anonymousObject({ fullyQualifiedName: fullyQualifiedName, properties: props });

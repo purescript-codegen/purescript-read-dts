@@ -16,14 +16,6 @@ import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data TsDeclaration ∷ Type
 
-foreign import data TsString ∷ Type
-foreign import eqIdentifierImpl ∷ TsString → TsString → Boolean
-instance eqIdentifier ∷ Eq TsString where
-  eq = eqIdentifierImpl
-
-unsafeTsStringToString ∷ TsString → String
-unsafeTsStringToString = unsafeCoerce
-
 newtype FullyQualifiedName = FullyQualifiedName String
 derive instance eqFullyQualifiedName ∷ Eq FullyQualifiedName
 derive instance ordFullyQualifiedName ∷ Ord FullyQualifiedName
@@ -39,38 +31,50 @@ type Property t =
   }
 
 type TypeParameter nullable t =
-  { name ∷ TsString
+  { name ∷ String
   , default ∷ nullable t
+  }
+
+type Function t =
+  { parameters ∷ Array { name ∷ String, "type" ∷ t }
+  , returnType ∷ t
+  }
+
+type Class nullable t =
+  { fullyQualifiedName ∷ FullyQualifiedName
+  -- , constructor ∷ Array (Function t)
+  -- , methods ∷ Array { name ∷ string, signature ∷ Function t }
+  , name ∷ String
+  , properties ∷ Array (Property t)
+  , typeParameters ∷ Array (TypeParameter nullable t)
+  }
+
+type Interface nullable t =
+  { name ∷ String
+  , fullyQualifiedName ∷ FullyQualifiedName
+  , typeParameters ∷ Array (TypeParameter nullable t)
+  , properties ∷ Array (Property t)
+  }
+
+type Module d =
+  { fullyQualifiedName ∷ FullyQualifiedName
+  , declarations ∷ Array d
+  }
+
+type TypeAlias nullable t =
+  { name ∷ String
+  , typeParameters ∷ Array (TypeParameter nullable t)
+  , "type" ∷ t
   }
 
 -- | XXX: Is there a way to pass `Maybe` constructors to FFI
 -- | but preserving typechecking on typescript side and drop this
 -- | `nullable` parameter?
 type OnDeclarationBase (nullable ∷ Type → Type) d t =
-  { function ∷
-      { fullyQualifiedName ∷ String
-      , parameters ∷ Array { name ∷ String, "type" ∷ t }
-      , returnType ∷ t
-      }
-      → d
-  , interface ∷
-      { name ∷ String
-      , fullyQualifiedName ∷ FullyQualifiedName
-      , typeParameters ∷ Array (TypeParameter nullable t)
-      , properties ∷ Array (Property t)
-      }
-      → d
-  , module ∷
-      { fullyQualifiedName ∷ FullyQualifiedName
-      , declarations ∷ Array d
-      }
-      → d
-  , typeAlias ∷
-      { name ∷ String
-      , typeParameters ∷ Array (TypeParameter nullable t)
-      , "type" ∷ t
-      }
-      → d
+  { class_ ∷ Class nullable t → d
+  , interface ∷ Interface nullable t → d
+  , module_ ∷ Module d → d
+  , typeAlias ∷ TypeAlias nullable t → d
   , unknown ∷
       { fullyQualifiedName ∷ nullable FullyQualifiedName
       , msg ∷ String
@@ -100,6 +104,11 @@ type OnTypeBase (nullable ∷ Type → Type) d t =
       }
     → t
   , array ∷ t → t
+  , function ∷
+      { parameters ∷ Array { name ∷ String, "type" ∷ t }
+      , returnType ∷ t
+      }
+      → t
   , intersection ∷ Array t → t
   , primitive ∷ String → t
   , tuple ∷ Array t → t
@@ -121,15 +130,24 @@ type VisitBase nullable d t =
   , onDeclaration ∷ OnDeclarationBase nullable d t
   }
 
--- | XXX: We need to extend this option set
--- | but we have to check at first what
--- | kind of impact we can get from
--- | different setups.
--- |
--- | Using strict mode has somewhat surprising
+-- | `strictNullChecks` - this mode has somewhat surprising
 -- | results as every type of an optional field of
 -- | an object is turned into a union with `undefined`.
-type CompilerOptions = { strictNullChecks ∷ Boolean }
+-- |
+-- | `compile` - runs full compiler checks so it caches
+-- | all possible errors in the ts code
+type Options =
+  { compile ∷ Boolean
+  , debug ∷ Boolean
+  , strictNullChecks ∷ Boolean
+  }
+
+defaults ∷ Options
+defaults =
+  { compile: true
+  , debug: true
+  , strictNullChecks: false
+  }
 
 type Visit d t = VisitBase Maybe d t
 
@@ -147,7 +165,7 @@ type File = FileBase Maybe
 
 readDTS
   ∷ ∀ d t
-  . CompilerOptions
+  . Options
   → Visit d t
   → File
   → Effect (Either (Array String) (Declarations d))
@@ -160,6 +178,7 @@ readDTS opts visit file =
     visit'
       = over (_onTypeNodeL <<< _typeParameterL) (lcmap (over _defaultL toMaybe))
       <<< over (_onDeclarationL <<< _unknownL) (lcmap  (over _fullyQualifiedNameL toMaybe))
+      <<< over (_onDeclarationL <<< _classL) (lcmap (over (_typeParametersL <<< traversed <<< _defaultL) toMaybe))
       <<< over (_onDeclarationL <<< _interfaceL) (lcmap (over (_typeParametersL <<< traversed <<< _defaultL) toMaybe))
       <<< over (_onDeclarationL <<< _typeAliasL) (lcmap (over (_typeParametersL <<< traversed <<< _defaultL) toMaybe))
       $ visit
@@ -183,6 +202,7 @@ readDTS opts visit file =
     _typeReferenceL = prop (SProxy ∷ SProxy "typeReference")
     _fullyQualifiedNameL = prop (SProxy ∷ SProxy "fullyQualifiedName")
     _unknownL = prop (SProxy ∷ SProxy "unknown")
+    _classL = prop (SProxy ∷ SProxy "class_")
     _interfaceL = prop (SProxy ∷ SProxy "interface")
     _typeAliasL = prop (SProxy ∷ SProxy "typeAlias")
 
@@ -193,7 +213,7 @@ type EitherConstructors =
 foreign import _readDTS
   ∷ ∀ d t
   . EffectFn4
-      CompilerOptions
+      Options
       (VisitBase Nullable d t)
       (FileBase Nullable)
       EitherConstructors
