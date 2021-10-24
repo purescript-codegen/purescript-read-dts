@@ -14,7 +14,7 @@ API of this library consists of three layers.
 
   * We have an opinionated minimal AST which represents TypeScript types declarations. You can find it in `ReadDTS/AST.purs`. Initially this AST contains unresolved refreneces to other types which are filled during unfolding done by effectfull `AST.coalgebra`.
 
-  * Finally we have `ReadDTS/Instantiation.purs` module which provides an AST for an instantiated type from a given type declaration.
+  * Finally we have `ReadDTS/Instantiation.purs` module (it [should be renamed to](/purescript-codegen/purescript-read-dts/issues/7) `Specialization.purs`) which provides an AST for an instantiated type from a given type declaration.
 
 This is directed and acyclical dependency graph of modules so you can use any previous layer without bothering about the next step ASTs design.
 
