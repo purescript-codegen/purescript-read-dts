@@ -11,7 +11,7 @@ import Data.Newtype (class Newtype)
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
-import Global.Unsafe (unsafeStringify)
+import Simple.JSON (unsafeStringify)
 import ReadDTS (FullyQualifiedName, OnDeclaration, OnType, TsDeclaration, fqnToString, readDTS, unsafeTsStringToString)
 import ReadDTS.AST (Application', TypeConstructor)
 import ReadDTS.AST (build) as AST
@@ -145,9 +145,9 @@ stringOnType =
 --   }
 -- source = """
 -- // import { FabProps } from "@material-ui/core/Fab/Fab";
--- 
+--
 -- // export type FabInstance = FabProps;
--- 
+--
 -- export interface New<x = number> {
 --   z?: 8
 --   // t: {} | string | 8 | undefined | null
@@ -157,11 +157,11 @@ stringOnType =
 --   // y: true | 8
 --   // z: boolean | null
 -- }
--- 
+--
 -- export type X = 8 | null | string | boolean;
--- 
+--
 -- export type Y = {};
--- 
+--
 -- // export type NewInstance = New;
 -- """
 
@@ -202,7 +202,7 @@ main ∷ Effect Unit
 main = do
   let
     compilerOptions = { strictNullChecks: true }
-  --   constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
+  --   constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType }
 
   -- readDTS compilerOptions constructors file >>= case _ of
   --   Right { topLevel, readDeclaration } → do
