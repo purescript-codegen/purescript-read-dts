@@ -10,7 +10,7 @@ import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldrDefault, length)
 import Data.Functor.Mu (Mu(..), roll)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Show.Generic (genericShow)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -221,7 +221,7 @@ instantiate
    ∷ TypeConstructor (Application')
    → Array Type
    → Except String Type
-instantiate tc args = instantiateApplication application mempty
+instantiate tc args = instantiateApplication application Map.empty
   where
   application = Application
     { typeArguments: map (AST.ApplicationWithRef <<< const <<< pure) args

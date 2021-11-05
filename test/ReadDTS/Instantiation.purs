@@ -12,7 +12,7 @@ import Data.Map (fromFoldable, singleton) as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..)) as Tuple
 import Effect.Class (liftEffect)
-import Global.Unsafe (unsafeStringify)
+import Simple.JSON (unsafeStringify)
 import ReadDTS.AST (TypeConstructor(..), build) as AST
 import ReadDTS.Instantiation (TypeF(..), instantiate)
 import Test.Unit (TestSuite)

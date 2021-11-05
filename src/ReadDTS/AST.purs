@@ -2,9 +2,9 @@ module ReadDTS.AST where
 
 import Prelude
 
-import Data.Array (fold)
+import Data.Array as A
 import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, fold)
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
 import Data.Lens (Lens, over, traversed)
@@ -162,10 +162,10 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap _ Any = mempty
   foldMap f (Array t) = foldMap f t
   foldMap _ Boolean = mempty
-  foldMap f (Intersection ts) = fold (map (foldMap f) ts)
+  foldMap f (Intersection ts) = A.fold (map (foldMap f) ts)
   foldMap f Number = mempty
   foldMap f String = mempty
-  foldMap f (Tuple ts) = fold (map (foldMap f) ts)
+  foldMap f (Tuple ts) = A.fold (map (foldMap f) ts)
   foldMap f (ApplicationWithRef ref) = f ref
   foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap _ (BooleanLiteral _) = mempty
@@ -173,7 +173,7 @@ instance foldableTypeNode ∷ Foldable TypeNode where
   foldMap _ Null = mempty
   foldMap _ (StringLiteral _) = mempty
   foldMap _ Undefined = mempty
-  foldMap f (Union ts) = fold (map (foldMap f) ts)
+  foldMap f (Union ts) = A.fold (map (foldMap f) ts)
   foldMap f (UnknownTypeNode _) = mempty
   foldMap f Void = mempty
 
