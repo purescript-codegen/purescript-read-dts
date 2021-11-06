@@ -6,19 +6,14 @@ You can edit this file as you like.
 , dependencies =
   [ "arrays"
   , "console"
-  , "debug"
   , "effect"
   , "either"
   , "fixed-points"
   , "foldable-traversable"
-  , "foreign"
-  , "foreign-object"
-  , "freet"
   , "lists"
   , "matryoshka"
   , "maybe"
   , "newtype"
-  , "node-fs-aff"
   , "node-path"
   , "nullable"
   , "ordered-collections"
@@ -34,7 +29,6 @@ You can edit this file as you like.
   , "tuples"
   , "typelevel-prelude"
   , "unsafe-coerce"
-  , "variant"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
