@@ -1,0 +1,2 @@
+module TypeScript.Class where
+

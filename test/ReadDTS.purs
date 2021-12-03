@@ -2,352 +2,412 @@ module Test.ReadDTS where
 
 import Prelude
 
-import Control.Monad.Except (runExcept)
-import Data.Array ((:))
+import Control.Monad.Except (runExcept, runExceptT)
 import Data.Either (Either(..))
-import Data.Foldable (foldMap, for_)
+import Data.Foldable (fold, foldMap, for_)
+import Data.List ((:))
+import Data.List (List(..), singleton) as List
+import Data.Map (empty, fromFoldable, singleton, values) as Map
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, un)
+import Data.Set (fromFoldable) as Set
 import Data.String (joinWith)
 import Data.String (joinWith) as String
-import Debug.Trace (traceM)
+import Data.Tuple (fst, snd)
+import Data.Tuple.Nested ((/\), type (/\))
+import Data.Undefined.NoProblem (undefined)
+import Data.Undefined.NoProblem.Closed (coerce) as NoProblem
+import Debug (traceM)
 import Effect (Effect)
 import Effect.Aff (Aff, throwError)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (throw)
-import Global.Unsafe (unsafeStringify)
-import ReadDTS (Declarations, File, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, Visit, fqnToString)
-import ReadDTS (FullyQualifiedName(..), defaults, readDTS) as ReadDTS
-import ReadDTS.AST (ApplicationRef(..), TypeConstructor(..), TypeNode(..)) as AST
-import ReadDTS.AST (visit) as ReadDTS.AST
+import JS.Unsafe.Stringify (unsafeStringify)
+import Matryoshka (cata)
+import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, Visit, fqnToString, readRootsDeclarations)
+import ReadDTS (FullyQualifiedName(..), defaults) as ReadDTS
+import ReadDTS.AST (KnownDeclarations) as AST
+import ReadDTS.TypeScript.Testing (handleMemoryFiles, inMemoryCompilerHost) as Testing
 import Test.Unit (failure, suite, test) as Test
 import Test.Unit.Assert (equal) as Assert
+import TypeScript.Class.Compiler.Program (createCompilerHost, createProgram)
+import TypeScript.Compiler.Types (CompilerOptions, scriptTarget)
 import Unsafe.Coerce (unsafeCoerce)
 
-dts source =
-  { path: "inMemory.d.ts"
-  , source: Just source
+file name source =
+  { path: name
+  , source: source
   }
 
-dts' = dts <<< String.joinWith "\n"
+file' name = file name <<< String.joinWith "\n"
 
-readTopLevel ∷ File → Aff (Array (AST.TypeConstructor Unit))
-readTopLevel file = do
-  liftEffect (ReadDTS.readDTS ReadDTS.defaults ReadDTS.AST.visit file) >>= case _ of
-    Right { topLevel } → pure $ (map $ const unit) <$> topLevel
-    Left errs → do
-      Test.failure ("Compilation failed: " <> String.joinWith "\n" errs)
-      pure []
+type RootModule = String
 
-suite = do
-  Test.suite "Exposed symbols" do
-    Test.test "Single declaration" do
+-- readTopLevel ∷ CompilerHost → RootModule → Array ReadDTS.InMemoryFile → Aff _ -- (Array _ /\ AST.KnownDeclarations)
+-- readTopLevel host root files = do
+--   liftEffect (ReadDTS.AST.visit (ReadDTS.defaults { debug = false }) [root] files host) >>= case _ of
+--     Right result → do
+--       pure result
+--     Left errs → do
+--       Test.failure ("Compilation failed: " <> String.joinWith "\n" errs)
+--       pure { topLevel: [], declarations: Map.empty }
+
+-- https://www.typescriptlang.org/docs/handbook/declaration-files/templates/module-d-ts.html
+suite compilerHost = do
+  Test.suite "Simple types" do
+    Test.test "export type X = {};\nexport type Y = number;" do
       let
-        file = dts "export interface SomeInterface {}"
-        expected = AST.Interface
-          { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".SomeInterface"
-          , name: "SomeInterface"
-          , properties: []
-          , typeParameters: []
+        opts :: CompilerOptions
+        opts = NoProblem.coerce { module: undefined, target: scriptTarget."ES5", strictNullChecks: true }
+        rootName = "Root.ts"
+        rootFile = file rootName "export type X = number"
+        visit =
+          { onDeclarationNode: \_ _ -> unit
+          , onTyp:
+              { any: "any"
+              , object: \_ -> "object"
+              }
           }
-      readTopLevel file >>= Assert.equal [ expected ]
-    Test.suite "Declaration merge" $ do
-      Test.test "two monomorhic interfaces" do
-        let
-          file = dts'
-            [ "export interface SomeInterface { y: string }"
-            , "export interface SomeInterface { x: number }"
-            ]
-          expected = AST.Interface
-            { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".SomeInterface"
-            , name: "SomeInterface"
-            , properties:
-                [{ name: "x", optional: false, type: AST.String }
-                ,{ name: "y", optional: false, type: AST.Number }
-                ]
-            , typeParameters: []
-            }
-        readTopLevel file >>= Assert.equal [ expected ]
+      res <- liftEffect $ do
+        host <- Testing.inMemoryCompilerHost [ rootFile ]
+        program <- createProgram [ rootName ] opts (Just host)
 
-      Test.test "two polymorphic interfaces" do
-        let
-          file = dts'
-            [ "export interface SomeInterface<x, z> { y: x }"
-            , "export interface SomeInterface<x, z> { x: x }"
-            ]
-          expected = AST.Interface
-            { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".SomeInterface"
-            , name: "SomeInterface"
-            , properties:
-                [ { name: "y"
-                  , optional: false
-                  , type: (AST.TypeParameter { default: Nothing, name: "x" })
-                  }
-                , { name: "x"
-                  , optional: false
-                  , type: (AST.TypeParameter { default: Nothing, name: "x" })
-                  }
-                ]
-            , typeParameters:
-                [ { default: Nothing
-                  , name: "x"
-                  }
-                , { default: Nothing
-                  , name: "z"
-                  }
-                ]
-            }
-        readTopLevel file >>= Assert.equal [ expected ]
+        runExceptT $ readRootsDeclarations program visit
+      traceM res
+      pure unit
 
-
--- type TsDeclarationRef =
---   { fullyQualifiedName ∷ FullyQualifiedName
---   , tsDeclaration ∷ TsDeclaration
---   }
--- 
--- type TypeRepr =
---   { repr ∷ String
---   , tsDeclarations ∷ Array TsDeclarationRef
---   }
--- 
--- newtype DeclarationRepr = DeclarationRepr
---   { fullyQualifiedName ∷ Maybe FullyQualifiedName
---   , repr ∷ String
---   , tsDeclarations ∷ Array TsDeclarationRef
---   }
--- derive instance newtypeDeclarationRepr ∷ Newtype DeclarationRepr _
--- 
--- stringOnDeclaration ∷ OnDeclaration DeclarationRepr TypeRepr
--- stringOnDeclaration =
---   -- | FIX: I'm handling `function` as unknown for now
---   -- | Provide proper handling.
---   { class_: \i → DeclarationRepr
---       { fullyQualifiedName: Just i.fullyQualifiedName
---       , repr: serClass i
---       , tsDeclarations:
---           (foldMap (foldMap _.tsDeclarations <<< _.default)) i.typeParameters
---           <> foldMap _.type.tsDeclarations i.properties
---       }
---   , interface: \i → DeclarationRepr
---       { fullyQualifiedName: Just i.fullyQualifiedName
---       , repr: serInterface i
---       , tsDeclarations:
---           (foldMap (foldMap _.tsDeclarations <<< _.default)) i.typeParameters
---           <> foldMap _.type.tsDeclarations i.properties
---       }
---   -- | TODO: Fix printing of module here
---   , module_: \i → DeclarationRepr
---       { fullyQualifiedName: Nothing -- Just i.fullyQualifiedName
---       , repr: serModule i
---       , tsDeclarations: []
---       }
---   -- | It seems that type aliases don't introduce names so they don't
---   -- | have fullyQualifiedName... but of course I can be wrong.
---   , typeAlias: \r@{ type: t, typeParameters } → DeclarationRepr
---       { fullyQualifiedName: Nothing
---       , repr: serTypeAlias r
---       , tsDeclarations: t.tsDeclarations <>
---           (foldMap (foldMap _.tsDeclarations <<< _.default)) typeParameters
---       }
---   , unknown: \u → DeclarationRepr
---       { repr: serUnknown u
---       , fullyQualifiedName: u.fullyQualifiedName
---       , tsDeclarations: []
---       }
---   }
--- 
--- serUnknown ∷ { fullyQualifiedName ∷ Maybe FullyQualifiedName, msg ∷ String } → String
--- serUnknown r = "unkownDeclaration " <> show r.fullyQualifiedName <> ": " <> r.msg
--- 
--- serTypeAlias r
---   = "typeAlias "
---   <> r.name
---   <> " <" <> joinWith ", " (map (unsafeTsStringToString <<< _.name) r.typeParameters) <> "> : "
---   <> r.type.repr
--- 
--- serModule { fullyQualifiedName }
---   = "module "
---   <> show fullyQualifiedName
--- 
--- serClass { name, fullyQualifiedName, properties, typeParameters }
---   = "class "
---   <> show fullyQualifiedName
---   <> " <" <> joinWith ", " (map (\{ name, default } → unsafeTsStringToString name <> " = " <> foldMap _.repr default) typeParameters) <> "> : \n\t"
---   <> joinWith ";\n\t" (map onMember properties)
---   where
---     onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
--- 
--- serInterface { name, fullyQualifiedName, properties, typeParameters }
---   = "interface "
---   <> show fullyQualifiedName
---   <> " <" <> joinWith ", " (map (\{ name, default } → unsafeTsStringToString name <> " = " <> foldMap _.repr default) typeParameters) <> "> : \n\t"
---   <> joinWith ";\n\t" (map onMember properties)
---   where
---     onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
--- 
--- noDeclarations ∷ String → TypeRepr
--- noDeclarations repr = { repr, tsDeclarations: [] }
--- 
--- stringOnType ∷ OnType DeclarationRepr TypeRepr
--- stringOnType =
---   { anonymousObject: \{ properties: props, fullyQualifiedName: fqn } →
---       let
---         onMember r = joinWith " " [r.name, if r.optional then "?:" else ":", r.type.repr ]
---       in
---         { repr: "<" <> fqnToString fqn <> ">" <> "{" <> (joinWith " , " (map onMember props)) <> "}"
---         , tsDeclarations: foldMap _.type.tsDeclarations props
---         }
---   , array: \t → { repr: "Array: " <> t.repr, tsDeclarations: t.tsDeclarations }
---   , function: \u →
---       { repr: "function TO BE FIXED"
---       , tsDeclarations: []
---       }
---   , intersection: \ts →
---       { repr: append "intersection: " <<< joinWith " & " <<< map _.repr $ ts
---       , tsDeclarations: foldMap _.tsDeclarations ts
---       }
---   , primitive: noDeclarations <<< show
---   , tuple: \ts →
---       { repr: "(" <> (joinWith ", " $ map _.repr ts) <> ")"
---       , tsDeclarations: foldMap _.tsDeclarations ts
---       }
---   , typeParameter: case _ of
---       { default: Nothing, name } → noDeclarations $ unsafeStringify name
---       { default: Just d, name } →
---           { repr: unsafeStringify name <> " = " <> d.repr
---           , tsDeclarations: d.tsDeclarations
---           }
---   , typeReference: \{ fullyQualifiedName, ref, typeArguments } →
---       { repr: "typeReference: " <> show fullyQualifiedName <> "<" <> joinWith ", " (map _.repr typeArguments) <> ">"
---       , tsDeclarations: { fullyQualifiedName, tsDeclaration: ref } :foldMap _.tsDeclarations typeArguments
---       }
---   , booleanLiteral: \b →
---       { repr: "booleanLiteral: " <> show b
---       , tsDeclarations: []
---       }
---   , numberLiteral: \n →
---       { repr: "numberLiteral: " <> show n
---       , tsDeclarations: []
---       }
---   , stringLiteral: \s →
---       { repr: "stringLiteral: " <> show s
---       , tsDeclarations: []
---       }
---   , union: \ts →
---       { repr: append "union: " <<< joinWith " | " <<< map _.repr $ ts
---       , tsDeclarations: foldMap _.tsDeclarations ts
---       }
---   , unknown: noDeclarations <<< append "unknown: " <<< show
---   }
--- 
--- -- file ∷ ReadDTS.File
--- -- fileName = "test/simple.d.ts"
--- -- file =
--- --   { path: "node_modules/@material-ui/core/Fab/Fab.d.ts"
--- --   , source: Nothing
--- --   }
--- -- source = """
--- -- // import { FabProps } from "@material-ui/core/Fab/Fab";
--- -- 
--- -- // export type FabInstance = FabProps;
--- -- 
--- -- export interface New<x = number> {
--- --   z?: 8
--- --   // t: {} | string | 8 | undefined | null
--- --   // s: null
--- --   // u: undefined
--- --   // x: x | boolean
--- --   // y: true | 8
--- --   // z: boolean | null
--- -- }
--- -- 
--- -- export type X = 8 | null | string | boolean;
--- -- 
--- -- export type Y = {};
--- -- 
--- -- // export type NewInstance = New;
--- -- """
--- 
--- source = """
---   // declare module 'system' {
---   interface MemoryPressureMonitor
---     extends EventTarget<{
---       memorypressurechange: Event;
---     }> {
---     onmemorypressurechange: (event: Event) ⇒ void;
---     readonly pressure: 'normal' | 'high' | 'critical';
---   }
---   interface MemoryUsage {
---     readonly peak: number;
---     readonly total: number;
---     readonly used: number;
---   }
---   interface Memory {
---     readonly js: MemoryUsage;
---     readonly monitor: MemoryPressureMonitor;
---     readonly native: MemoryUsage;
---   }
---   const memory: Memory;
---   function launchApp(uuid: string, launchArguments?: any): void;
---   // }
--- """
--- 
--- file =
---   { path: "test/test.module.d.ts"
---   , source: Just source
---   }
--- 
--- 
--- -- | XXX:
--- -- | * These test are currently not run as a part of test suite.
--- -- | * Turn this into a proper suite and call this from test/Main.purs
--- main ∷ Effect Unit
--- main = do
 --   let
---     compilerOptions = ReadDTS.defaults { strictNullChecks = true }
---   --   constructors = { onDeclaration: stringOnDeclaration, onTypeNode: stringOnType } 
+--     readTopLevel' = readTopLevel compilerHost
+--   Test.suite "Simple types" do
+--     Test.test "type X = any" do
+--       let
+--         root = file "Root.ts" "export type X = any"
+--         fullyQualifiedName = ReadDTS.FullyQualifiedName "\"Root\".X"
+--         expected = Map.singleton fullyQualifiedName $ AST.TypeDeclaration
+--           { fullyQualifiedName
+--           , type: AST.Any
+--           }
+--       { topLevel, declarations } ← readTopLevel' "Root.ts" [root]
+--       Assert.equal expected declarations
+--       Assert.equal [ fullyQualifiedName ] topLevel
 -- 
---   -- readDTS compilerOptions constructors file >>= case _ of
---   --   Right { topLevel, readDeclaration } → do
---   --     pure unit
---   --     -- for_ topLevel \(DeclarationRepr r) → do
---   --     --    log r.repr
---   --     --    log "\n"
+--    Test.test "interface X {}" do
+--      let
+--        root = file "Root.ts" "export interface X {}"
+--        expected = List.singleton $ AST.Interface
+--          { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"Root\".X"
+--          , props: []
+--          }
+--      readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+--     Test.test "single non empty declaration" do
+--       let
+--         file = dts "export interface NonEmpty { x : string }"
+--         expected = List.singleton $ AST.Interface
+--           { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".NonEmpty"
+--           , name: "NonEmpty"
+--           , properties: [{ name: "x", optional: false, type: AST.String }]
+--           , typeParameters: []
+--           }
+--       readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+--
+--    Test.test "type X = Y" do
+--      let
+--        root = file'
+--          "Root.ts"
+--          [ "export type Y = any"
+--          , "export type X = External.Y"
+--          ]
+--        fullyQualifiedName = ReadDTS.FullyQualifiedName "\"Root\".X"
+--        expected = Map.singleton fullyQualifiedName $ AST.TypeDeclaration
+--          { fullyQualifiedName
+--          , type: AST.Any
+--          }
+--      { topLevel, declarations } ← readTopLevel' "Root.ts" [root]
+--      Assert.equal expected declarations
+--      Assert.equal [ fullyQualifiedName ] topLevel
+--
+--    Test.test "type X = External.Y" do
+--      let
+--        ext = file "External.ts" "export type Y = any"
+--        root = file'
+--          "Root.ts"
+--          [ "import * as External from External"
+--          , "type X = External.Y"
+--          ]
+--        xFqn = ReadDTS.FullyQualifiedName "\"Root\".X"
+--        yFqn = ReadDTS.FullyQualifiedName "\"Root\".Y"
+--        expected = Map.fromFoldable
+--          $ (xFqn /\ AST.TypeDeclaration { fullyQualifiedName: xFqn, type: AST.Any })
+--          : (yFqn /\ AST.TypeDeclaration { fullyQualifiedName: yFqn, type: AST.Any })
+--          : List.Nil
+--
+--      { topLevel, declarations } ← readTopLevel' "Root.ts" [root, ext]
+--      Assert.equal expected declarations
+--      Assert.equal [ xFqn, yFqn ] topLevel
+--
+--  Test.suite "Exported symbol" do
+--    Test.suite "is a type alias declaration" $ do
+--      Test.test "of empty object type" do
+--        let
+--          file = dts "export type Empty = {}"
+--          fullyQualifiedName = ReadDTS.FullyQualifiedName "\"inMemory\".Empty"
+--          decl = AST.TypeAlias
+--            { fullyQualifiedName
+--            , name: "Empty"
+--            , type: AST.AnonymousObject []
+--            , typeParameters: []
+--            }
+--        topLevel /\ declarations ← readTopLevel' file
+--        Assert.equal topLevel [ fullyQualifiedName ]
+--        Assert.equal declarations $ Map.singleton fullyQualifiedName decl
+--
+--       Test.test "of not empty object type" do
+--         let
+--           file = dts'
+--             [ "export type Point ="
+--             , " { x: number"
+--             , " , y: number"
+--             , " }"
+--             ]
+--           fullyQualifiedName = ReadDTS.FullyQualifiedName "\"inMemory\".Point"
+--           expected = List.singleton $ AST.TypeAlias
+--             { fullyQualifiedName
+--             , name: "Point"
+--             , type: AST.AnonymousObject
+--                 [ { name: "x", optional: false, type: AST.Number }
+--                 , { name: "y", optional: false, type: AST.Number }
+--                 ]
+--             , typeParameters: []
+--             }
+--         readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+--       Test.test "of union of pritive types" do
+--         let
+--           file = dts "export type U = string | number"
+--           fullyQualifiedName = ReadDTS.FullyQualifiedName "\"inMemory\".U"
+--           expected = List.singleton $ AST.TypeAlias
+--             { name: "U"
+--             , fullyQualifiedName
+--             , type: AST.Union [AST.String, AST.Number]
+--             , typeParameters: []
+--             }
+--         readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
 -- 
---   --     -- -- | Single pass of loading... We should test exhaustive loading too.
---   --     -- let
---   --     --   initCache = Map.fromFoldable <<< catMaybes <<< map case _ of
---   --     --     d@(DeclarationRepr { fullyQualifiedName: Just fullyQualifiedName }) → Just (Tuple fullyQualifiedName d)
---   --     --     otherwise → Nothing
---   --     --   cache = initCache topLevel
+--       Test.test "of union of pritive types and object" do
+--         let
+--           file = dts "export type U = string | number | { x: number }"
+--           fullyQualifiedName = ReadDTS.FullyQualifiedName "\"inMemory\".U"
+--           expected = List.singleton $ AST.TypeAlias
+--             { name: "U"
+--             , fullyQualifiedName
+--             , type: AST.Union
+--                 [ AST.String
+--                 , AST.Number
+--                 , AST.AnonymousObject
+--                   [{ name: "x", optional: false, type: AST.Number }]
+--                 ]
+--             , typeParameters: []
+--             }
+--         readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
 -- 
---   --     --   step c { fullyQualifiedName, tsDeclaration } = case fullyQualifiedName `Map.lookup` c of
---   --     --     Nothing → readDeclaration tsDeclaration >>= flip (Map.insert fullyQualifiedName) c >>> pure
---   --     --     Just _ → pure c
+--       Test.test "of union of type literals" do
+--         let
+--           fullyQualifiedName = ReadDTS.FullyQualifiedName "\"inMemory\".U"
+--           file = dts """export type U = "stringLiteral" | 8"""
+--           expected = List.singleton $ AST.TypeAlias
+--             { name: "U"
+--             , fullyQualifiedName
+--             , type: AST.Union
+--                 [ AST.StringLiteral "stringLiteral"
+--                 , AST.NumberLiteral 8.0
+--                 ]
+--             , typeParameters: []
+--             }
+--         readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
 -- 
---   --     -- log "Single pass of loading declarations...\n\n"
+--       Test.test "of union containing direct type recursion" do
+--         let
+--           file = dts "export type A = { self: A, x: number }"
+--           expected
+--             = Set.fromFoldable
+--             $ ( AST.TypeAlias
+--                 { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
+--                 , name: "A"
+--                 , type: AST.AnonymousObject
+--                   [ { name: "self"
+--                     , optional: false
+--                     , type: AST.Application
+--                       { constructor: FullyQualifiedName "\"inMemory\".A"
+--                       , params: []
+--                       }
+--                     }
+--                   , { name: "x"
+--                     , optional: false
+--                     , type: AST.Number
+--                     }
+--                   ]
+--                 , typeParameters: []
+--                 }
+--               )
+--             : List.Nil
 -- 
---   --     -- cache' ← foldM step cache (foldMap (unwrap >>> _.tsDeclarations) topLevel)
+--         readTopLevel' file >>= snd >>> Map.values >>> Set.fromFoldable >>> Assert.equal expected
 -- 
---   --     -- log "Collected declarations:\n\n"
+--       Test.test "of union with type alias reference" do
+--         let
+--           file = dts $ String.joinWith "\n"
+--             [ "export type A = { x: number }"
+--             , "export type B = A | number"
+--             ]
+--           expected
+--             = Set.fromFoldable
+--             $ ( AST.TypeAlias
+--                 { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
+--                 , name: "A"
+--                 , type: AST.AnonymousObject [{ name: "x", optional: false, type: AST.Number }]
+--                 , typeParameters: []
+--                 }
+--               )
+--             : ( AST.TypeAlias
+--                 { fullyQualifiedName: FullyQualifiedName "\"inMemory\".B"
+--                 , name: "B"
+--                 , type: AST.Union [ AST.Number, AST.Application { constructor: FullyQualifiedName "\"inMemory\".A", params: [] }]
+--                 , typeParameters: []
+--                 }
+--               )
+--             : List.Nil
 -- 
---   --     -- for_ cache' \(DeclarationRepr r) → do
---   --     --    log r.repr
---   --     --    log "\n"
---   --   Left err → do
---   --     log "Ts compiler reported errors related to given source file:"
---   --     for_ err log
+--         readTopLevel' file >>= snd >>> Map.values >>> Set.fromFoldable >>> Assert.equal expected
 -- 
---   AST.build compilerOptions file >>= case _ of
---     Right (result ∷ Array (TypeConstructor Application')) → do
---       for_ result $ flip instantiate [] >>> runExcept >>> case _ of
---         Right t → do
---           log $ Instantiation.Pretty.pprint t
---           log $ show $ isObjectLiteral t
---         Left e → log $ "Instantiation error:" <> e
---     Left err → do
---       log "Ts compiler reported errors related to given source file:"
---       for_ err log
+--       Test.test "of union with parametric type alias reference" do
+--         let
+--           file = dts $ String.joinWith "\n"
+--             [ "export type A<X> = { x: X }"
+--             , "export type B = A<string> | number"
+--             ]
+--           expected = Set.fromFoldable
+--             [ AST.TypeAlias
+--               { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
+--               , name: "A"
+--               , type: AST.AnonymousObject
+--                 [{ name: "x", optional: false, type: AST.TypeParameter { default: Nothing, name: "X" } }]
+--               , typeParameters: [{ default: Nothing, name: "X" }]
+--               }
+--             , AST.TypeAlias
+--               { fullyQualifiedName: FullyQualifiedName "\"inMemory\".B"
+--               , name: "B"
+--               , type: AST.Union
+--                 [ AST.Number
+--                 , AST.Application
+--                   { constructor: FullyQualifiedName "\"inMemory\".A"
+--                   , params: [ AST.String ]
+--                   }
+--                 ]
+--               , typeParameters: []
+--               }
+--             ]
 -- 
---   Test.runTest Test.ReadDTS.Instantiation.suite
+-- 
+--         readTopLevel' file >>= snd >>> Map.values >>> Set.fromFoldable >>> Assert.equal expected
+-- 
+-- 
+--        -- | TODO: We should "somehow" handle type reference in this test
+--        -- | so it makes more sens.
+--       Test.test "of union of self recursive monomorphic type" do
+--         let
+--          treeFqn = ReadDTS.FullyQualifiedName "\"inMemory\".Tree"
+--          file = dts "export type Tree = { left: Tree, right: Tree } | number"
+--          expected
+--           = AST.TypeAlias
+--             { fullyQualifiedName: treeFqn
+--             , name: "Tree"
+--             , type: AST.Union
+--               [ AST.Number
+--               , AST.AnonymousObject
+--                 [ { name: "left"
+--                   , optional: false
+--                   , type: AST.Application
+--                     { constructor: treeFqn, params: [] }
+--                   }
+--                 , { name: "right"
+--                   , optional: false
+--                   , type: AST.Application
+--                     { constructor: treeFqn, params: [] }
+--                   }
+--                 ]
+--               ]
+--             , typeParameters: []
+--             }
+--           : List.Nil
+-- 
+--         readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+-- 
+--   Test.suite "Class declaration" $ do
+--     Test.test "which is empty" do
+--       let
+--         file = dts "export class Empty {}"
+--         expected = List.singleton $ AST.Class
+--           { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".Empty"
+--           , name: "Empty"
+--           , properties: []
+--           , typeParameters: []
+--           }
+--       readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+--     Test.test "which is non empty" do
+--       let
+--         file = dts "export class NonEmpty { x : string }"
+--         expected = List.singleton $ AST.Class
+--           { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".NonEmpty"
+--           , name: "NonEmpty"
+--           , properties: [{ name: "x", optional: false, type: AST.String }]
+--           , typeParameters: []
+--           }
+--       readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
+-- 
+--   Test.suite "Interface" $ do
+-- -- --    Test.test "merge of two non empty declarations" do
+-- -- --      let
+-- -- --        file = dts'
+-- -- --          [ "export interface SomeInterface { y: string }"
+-- -- --          , "export interface SomeInterface { x: number }"
+-- -- --          ]
+-- -- --        expected = AST.Interface
+-- -- --          { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".SomeInterface"
+-- -- --          , name: "SomeInterface"
+-- -- --          , properties:
+-- -- --              [{ name: "x", optional: false, type: AST.String }
+-- -- --              ,{ name: "y", optional: false, type: AST.Number }
+-- -- --              ]
+-- -- --          , typeParameters: []
+-- -- --          }
+-- -- --      readTopLevel' file >>= Assert.equal [ expected ]
+-- -- -- 
+-- -- --       Test.test "two polymorphic interfaces" do
+-- -- --         let
+-- -- --           file = dts'
+-- -- --             [ "export interface SomeInterface<x, z> { y: x }"
+-- -- --             , "export interface SomeInterface<x, z> { x: x }"
+-- -- --             ]
+-- -- --           expected = AST.Interface
+-- -- --             { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".SomeInterface"
+-- -- --             , name: "SomeInterface"
+-- -- --             , properties:
+-- -- --                 [ { name: "y"
+-- -- --                   , optional: false
+-- -- --                   , type: (AST.TypeParameter { default: Nothing, name: "x" })
+-- -- --                   }
+-- -- --                 , { name: "x"
+-- -- --                   , optional: false
+-- -- --                   , type: (AST.TypeParameter { default: Nothing, name: "x" })
+-- -- --                   }
+-- -- --                 ]
+-- -- --             , typeParameters:
+-- -- --                 [ { default: Nothing
+-- -- --                   , name: "x"
+-- -- --                   }
+-- -- --                 , { default: Nothing
+-- -- --                   , name: "z"
+-- -- --                   }
+-- -- --                 ]
+-- -- --             }
+-- -- --         readTopLevel' file >>= Assert.equal [ expected ]
