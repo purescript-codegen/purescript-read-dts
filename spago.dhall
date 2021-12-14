@@ -20,6 +20,8 @@ You can edit this file as you like.
   , "matryoshka"
   , "maybe"
   , "newtype"
+  , "node-buffer"
+  , "node-fs"
   , "node-path"
   , "nullable"
   , "ordered-collections"

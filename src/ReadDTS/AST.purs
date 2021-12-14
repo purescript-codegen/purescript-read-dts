@@ -24,89 +24,99 @@ import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Matryoshka (CoalgebraM, anaM)
-import ReadDTS (FullyQualifiedName(..), Options, TsDeclaration, Visit)
+import ReadDTS (Options, TsDeclaration, Visit)
 import ReadDTS (Param, Prop, Props, sequenceProp) as ReadDTS
 import Type.Prelude (SProxy(..))
+import TypeScript.Compiler.Types (FullyQualifiedName(..))
 import TypeScript.Compiler.Types (Typ) as TS
+import Unsafe.Reference (unsafeRefEq)
 
-type Prop decl ref = ReadDTS.Prop (TypeNode decl ref)
+type Prop decl ref = ReadDTS.Prop (TsType decl ref)
 
-type Param decl ref = ReadDTS.Param Maybe (TypeNode decl ref)
+type Param decl ref = ReadDTS.Param Maybe (TsType decl ref)
 
-data TypeNode decl ref
-  = Any
+-- | We want this wrapper so we are able to provide basic instances
+-- | for it.
+-- | Some of them are just required for testing purposes.
+newtype TSTyp = TSTyp (TS.Typ ())
+instance Show TSTyp where
+  show (TSTyp _) = "TSTyp"
+instance Eq TSTyp where
+  eq (TSTyp t1) (TSTyp t2) = unsafeRefEq t1 t2
+
+data TsType decl ref
+  = TsAny
   -- | Application (ReadDTS.Application ref)
-  -- | Array ref
-  -- | Boolean
+  | TsArray ref
+  | TsBoolean
+  | TsBooleanLiteral Boolean
   -- -- | In typescript this type level is
   -- -- | mixed up with value level in declarations.
   -- -- | For example this ts union:
   -- -- | `'a' | 'b' | 8`
   -- -- | is going to be read as:
-  -- -- | `Union [StringLiteral "a", StringLiteral "b", NumberLiteral 8]`
-  -- | BooleanLiteral Boolean
+  -- -- | `Union [StringLiteral "a", StringLiteral "b", TsNumberLiteral 8]`
   -- | Class (ReadDTS.Props ref)
   -- | Function (ReadDTS.Function ref)
   -- | Interface (Array (ReadDTS.Prop ref))
   -- | Intersection (Array ref)
-  -- | Null
-  -- | Number
-  -- | NumberLiteral Number
-  | Object (Array (ReadDTS.Prop ref))
-  -- | String
-  -- | StringLiteral String
-  -- | Tuple (Array (TypeNode ref))
+  | TsNull
+  | TsNumber
+  | TsNumberLiteral Number
+  | TsObject (Array (ReadDTS.Prop ref))
+  | TsString
+  | TsStringLiteral String
+  -- | Tuple (Array (TsType ref))
   -- | TypeParameter (TypeParameter ref)
-  | TypeRef decl
-
--- | Undefined
--- | Union (Array (TypeNode ref))
--- | UnknownTypeNode String
+  | TsTypeRef decl
+  | TsUndefined
+  | TsUnknown TSTyp
+-- | Union (Array (TsType ref))
 -- | Void
 
-derive instance functorTypeNode :: Functor (TypeNode decl)
-derive instance eqTypeNode :: (Eq decl, Eq ref) => Eq (TypeNode decl ref)
-derive instance (Ord decl, Ord ref) => Ord (TypeNode decl ref)
-derive instance genericTypeNode :: Generic (TypeNode decl ref) _
-instance showTypeNode :: (Show decl, Show ref) => Show (TypeNode decl ref) where
+derive instance functorTsType :: Functor (TsType decl)
+derive instance eqTsType :: (Eq decl, Eq ref) => Eq (TsType decl ref)
+-- derive instance (Ord decl, Ord ref) => Ord (TsType decl ref)
+derive instance genericTsType :: Generic (TsType decl ref) _
+instance showTsType :: (Show decl, Show ref) => Show (TsType decl ref) where
   show s = genericShow s
 
-instance foldableTypeNode :: Foldable (TypeNode decl) where
-  foldMap _ Any = mempty
-  -- foldMap f (Array t) = foldMap f t
-  -- foldMap _ Boolean = mempty
+instance Foldable (TsType decl) where
+  foldMap _ TsAny = mempty
+  foldMap f (TsArray t) = f t
+  foldMap _ TsBoolean = mempty
+  foldMap _ (TsBooleanLiteral _) = mempty
   -- foldMap f (Function r)
   --   = foldMap (foldMap f <<< _.type) r.parameters
   --   <> foldMap f r.returnType
   -- -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   -- foldMap f (Intersection ts) = A.fold (map (foldMap f) ts)
   -- foldMap f (Interface ts) = foldMap (foldMap f <<< _.type) ts
-  -- foldMap _ Number = mempty
-  -- foldMap _ String = mempty
   -- foldMap f (Tuple ts) = A.fold (map (foldMap f) ts)
   -- foldMap f (Application { constructor, params }) = f constructor <> foldMap (foldMap f) params
   -- foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
-  -- foldMap _ (BooleanLiteral _) = mempty
-  -- foldMap _ (NumberLiteral _) = mempty
-  foldMap f (Object ts) = foldMap (f <<< _.type) ts
-  -- foldMap _ Null = mempty
-  -- foldMap _ (StringLiteral _) = mempty
-  foldMap _ (TypeRef _) = mempty
-  -- foldMap _ Undefined = mempty
+  foldMap _ TsNull = mempty
+  foldMap _ TsNumber = mempty
+  foldMap _ (TsNumberLiteral _) = mempty
+  foldMap f (TsObject ts) = foldMap (f <<< _.type) ts
+  foldMap _ TsString = mempty
+  foldMap _ (TsStringLiteral _) = mempty
+  foldMap _ (TsTypeRef _) = mempty
+  foldMap _ TsUndefined = mempty
   -- foldMap f (Union ts) = A.fold (map (foldMap f) ts)
-  -- foldMap _ (UnknownTypeNode _) = mempty
+  foldMap _ (TsUnknown _) = mempty
   -- foldMap _ Void = mempty
 
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
-instance traversableTypeNode :: Traversable (TypeNode decl) where
-  sequence Any = pure Any
+instance Traversable (TsType decl) where
+  sequence TsAny = pure TsAny
   --   sequence (Application { constructor, params }) =
   --     map Application $ { constructor: _, params: _ } <$> constructor <*> sequence (map sequence params)
-  --   sequence (Array t) = Array <$> sequence t
-  --   sequence Boolean = pure Boolean
-  --   sequence (BooleanLiteral n) = pure $ BooleanLiteral n
+  sequence (TsArray t) = TsArray <$> t
+  sequence TsBoolean = pure TsBoolean
+  sequence (TsBooleanLiteral b) = pure $ TsBooleanLiteral b
   --   sequence (Function r) = map Function
   --     $ { parameters: _, returnType: _ }
   --     <$> traverse sequenceParameter r.parameters
@@ -115,25 +125,25 @@ instance traversableTypeNode :: Traversable (TypeNode decl) where
   --       sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
   --   sequence (Interface ts) = Interface <$> (sequence <<< map ReadDTS.sequenceProp) ts
   --   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
-  --   sequence Null = pure Null
-  --   sequence Number = pure $ Number
-  --   sequence (NumberLiteral n) = pure $ NumberLiteral n
-  sequence (Object props) = map Object $ sequence $ map ReadDTS.sequenceProp props
-  --   sequence String = pure $ String
+  sequence TsNull = pure TsNull
+  sequence TsNumber = pure $ TsNumber
+  sequence (TsNumberLiteral n) = pure $ TsNumberLiteral n
+  sequence (TsObject props) = map TsObject $ sequence $ map ReadDTS.sequenceProp props
   --   sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   --   sequence (TypeParameter { name, default }) =
   --     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
-  --   sequence (StringLiteral s) = pure $ StringLiteral s
-  sequence (TypeRef fqn) = pure $ TypeRef fqn
-  --   sequence Undefined = pure Undefined
+  sequence TsString = pure $ TsString
+  sequence (TsStringLiteral s) = pure $ TsStringLiteral s
+  sequence (TsTypeRef fqn) = pure $ TsTypeRef fqn
+  sequence TsUndefined = pure TsUndefined
   --   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
-  --   sequence (UnknownTypeNode s) = pure $ UnknownTypeNode s
+  sequence (TsUnknown t) = pure $ TsUnknown t
   --   sequence Void = pure Void
   traverse = traverseDefault
 
 -- newtype TypeDeclaration ref = TypeDeclaration
 --   { fullyQualifiedName ∷ FullyQualifiedName
---   , "type" ∷ TypeNode FullyQualifiedName ref
+--   , "type" ∷ TsType FullyQualifiedName ref
 --   }
 -- 
 -- derive instance functorTypeDeclaration ∷ Functor TypeDeclaration
@@ -153,7 +163,7 @@ instance traversableTypeNode :: Traversable (TypeNode decl) where
 --     TypeDeclaration <<< { fullyQualifiedName, type: _ } <$> sequence t
 --   traverse = traverseDefault
 
-type KnownDeclarations decl = Map FullyQualifiedName (Mu (TypeNode decl))
+type KnownDeclarations decl = Map FullyQualifiedName (Mu (TsType decl))
 
 type TsRef =
   { ref :: TsDeclaration
@@ -162,14 +172,14 @@ type TsRef =
 
 type VisitMonad a = ExceptT (Array String) Effect a
 
-type ReadTsTypeNode = TS.Typ () -> VisitMonad (TypeNode TsRef (TS.Typ ()))
+type ReadTsTsType = TS.Typ () -> VisitMonad (TsType TsRef (TS.Typ ()))
 
 type Seed = { level :: Int, ref :: TS.Typ () }
 
-coalgebra :: ReadTsTypeNode -> CoalgebraM VisitMonad (TypeNode TsRef) Seed
-coalgebra readTsTypeNode { level, ref } =
+coalgebra :: ReadTsTsType -> CoalgebraM VisitMonad (TsType TsRef) Seed
+coalgebra readTsTsType { level, ref } =
   if level < 10 then do
-    td <- readTsTypeNode ref
+    td <- readTsTsType ref
     pure $ map seed td
   else
     throwError [ "Maximum recursion depth in ReadDTS.AST.visitor coalgebra" ]
@@ -182,34 +192,34 @@ coalgebra readTsTypeNode { level, ref } =
 -- 
 -- 
 -- -- -- | TODO: rename to `visitor`
--- -- visitor ∷ Visit (TypeDeclaration TsTypeNode) (TypeNode TsTypeNode)
+-- -- visitor ∷ Visit (TypeDeclaration TsTsType) (TsType TsTsType)
 -- -- visitor =
 -- --   { onDeclaration: \fqn t → TypeDeclaration { fullyQualifiedName: fqn, type: t }
--- --   , onTypeNode:
--- --     { any: Any
+-- --   , onTsType:
+-- --     { any: TsAny
 -- --     -- , array: Array
 -- --     -- , function: Function
 -- --     -- , intersection: Intersection
 -- --     -- , interface: Interface
 -- --     -- , primitive: case _ of
--- --     --     "any" → Any
+-- --     --     "any" → TsAny
 -- --     --     "boolean" → Boolean
--- --     --     "null" → Null
--- --     --     "number" → Number
+-- --     --     "null" → TsNull
+-- --     --     "number" → TsNumber
 -- --     --     "string" → String
--- --     --     "undefined" → Undefined
+-- --     --     "undefined" → TsUndefined
 -- --     --     "void" → Void
--- --     --     x → UnknownTypeNode ("Unknown primitive type:" <> x)
+-- --     --     x → TsUnknownTsType ("TsUnknown primitive type:" <> x)
 -- --     -- , tuple: Tuple
 -- --     -- , typeParameter: TypeParameter
 -- --     -- , typeReference: \{ fullyQualifiedName, ref, typeArguments } →
 -- --     --     Application { constructor: { fullyQualifiedName, ref }, params: typeArguments }
 -- --     -- , booleanLiteral: BooleanLiteral
--- --     -- , numberLiteral: NumberLiteral
--- --     , object: Object
+-- --     -- , numberLiteral: TsNumberLiteral
+-- --     , object: TsObject
 -- --     -- , stringLiteral: StringLiteral
 -- --     -- , union: Union
--- --     -- , unknown: UnknownTypeNode
+-- --     -- , unknown: TsUnknownTsType
 -- --     }
 -- --   }
 -- --   where

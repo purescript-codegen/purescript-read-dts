@@ -19,10 +19,31 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.asTypeReferenceImpl = void 0;
+exports.asTypeReferenceImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
+var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
+exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
+var asObjectTypeImpl = function (t) {
+    if (!(t.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)))
+        return null;
+    if (t.isClassOrInterface())
+        return null;
+    var ot = t;
+    return ot;
+    if ((ot.objectFlags & ts.ObjectFlags.Mapped) && (ot.objectFlags & ts.ObjectFlags.Instantiated))
+        return ot;
+    //   let objDeclarations = memObjectType.symbol.getDeclarations();
+    //   let props = memObjectType.getProperties().map((sym: ts.Symbol) =>
+    //     property(sym, objDeclarations?objDeclarations[0]:sym.declarations?sym.declarations[1]:sym.valueDeclaration)
+    //   );
+    //   return onTypeNode.object(props);
+    return null;
+};
+exports.asObjectTypeImpl = asObjectTypeImpl;
+var asStringLiteralTypeImpl = function (t) { return t.isStringLiteral() ? t : null; };
+exports.asStringLiteralTypeImpl = asStringLiteralTypeImpl;
 var asTypeReferenceImpl = function (t) {
-    // There is no sens at the moment to expose ObjectType casting I think...
+    // There is no sens at the moment to expose ObjectType casting I think to the PS side...
     var isObjectType = function (t) {
         var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
         var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;

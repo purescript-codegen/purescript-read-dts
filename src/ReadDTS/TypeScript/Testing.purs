@@ -2,15 +2,23 @@ module ReadDTS.TypeScript.Testing where
 
 import Prelude
 
-import Data.Array (any) as Array
+import Data.Array (any, cons) as Array
 import Data.Array (find)
+import Data.List (List)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for)
+-- import Data.Tuple ((/\))
 import Data.Undefined.NoProblem (Opt, opt, undefined)
+import Debug (traceM)
 import Effect (Effect)
+import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn1, EffectFn2, EffectFn3, mkEffectFn1, mkEffectFn2, mkEffectFn3, runEffectFn1, runEffectFn2)
+import Node.Buffer (toString) as Buffer
+import Node.Encoding (Encoding(..))
+import Node.FS.Sync (exists, readFile)
+import Node.Path (FilePath, basename, dirname)
 import TypeScript.Compiler.Parser (FileName, SourceCode, createSourceFile)
-import TypeScript.Compiler.Types (CompilerHost, CompilerOptions, ScriptTarget, scriptTarget)
+import TypeScript.Compiler.Types (CompilerHost, CompilerOptions, Program, ScriptTarget, scriptTarget)
 import TypeScript.Compiler.Types.Nodes (SourceFile)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
 import Unsafe.Coerce (unsafeCoerce)
@@ -66,9 +74,21 @@ handleMemoryFiles realHost inMemoryFiles = do
       }
   pure $ toCompilerHost host
 
-inMemoryCompilerHost :: Array InMemoryFile -> Effect CompilerHost
-inMemoryCompilerHost inMemoryFiles = do
-  sourceFiles <- for inMemoryFiles \{ path, source } -> do
+inMemoryCompilerHost :: Array InMemoryFile -> FilePath -> Effect CompilerHost
+inMemoryCompilerHost inMemoryFiles defaultLibFile = do
+  defaultLibFileSrc <- exists defaultLibFile >>= if _
+    then do
+      b <- readFile defaultLibFile
+      Buffer.toString UTF8 b
+    else
+      throw $
+        "inMemoryCompilerHost: Unable to find default `CompilerHost` library file:" <> defaultLibFile
+  let
+    inMemoryFiles' = Array.cons
+      { path: defaultLibFile, source: defaultLibFileSrc }
+      inMemoryFiles
+
+  sourceFiles <- for inMemoryFiles' \{ path, source } -> do
     file <- createSourceFile path source scriptTarget."ES5" true
     pure { path, source, file }
   let
@@ -80,7 +100,7 @@ inMemoryCompilerHost inMemoryFiles = do
       , getDirectories: opt $ mkEffectFn1 $ const (pure [])
       , getCanonicalFileName: mkEffectFn1 pure
       , getNewLine: pure "\n"
-      , getDefaultLibFileName: mkEffectFn1 (const $ pure "")
+      , getDefaultLibFileName: mkEffectFn1 (const $ pure defaultLibFile)
       , getSourceFile: mkEffectFn2 \fileName _ -> do
           case find (eq fileName <<< _.path) sourceFiles of
             Just { file } -> pure $ opt file
@@ -94,3 +114,26 @@ inMemoryCompilerHost inMemoryFiles = do
       }
   pure $ toCompilerHost host
 
+-- exportedNodes :: forall d t. Program -> List (SourceFile /\ List (Node ()))
+-- exportedNodes program visit = do
+--   let
+--     checker = getTypeChecker program
+--     rootNames = getRootFileNames program
+--     fileName = Node.interface >>> _.fileName
+--     rootFiles = Array.filter ((\fn -> fn `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+--   -- | `SourceFile` "usually" has as a single root child of type `SyntaxList`.
+--   -- | * We are not interested in this particular child.
+--   -- | * We should probably recurse into any container like
+--   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
+--   rootFiles >>= traverse_ \sf -> do
+--     nodes <- for (getChildren sf >>= getChildren) \node -> do
+--       when (isNodeExported checker node) do
+--         pure node
+--     pure $ sf /\ nodes
+-- --   
+-- --   traceM $ "Reading node: " <> showSyntaxKind node
+-- --   case readDeclaration checker node visit of
+-- --     Just (fqn /\ d) -> modify_ (Map.insert fqn d)
+-- --     Nothing -> do
+-- --       traceM "Unable to parse node as declaration. Skipping node..."
+-- 

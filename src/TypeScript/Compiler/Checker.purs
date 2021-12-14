@@ -5,7 +5,7 @@ import Prelude
 import Data.Function.Uncurried (Fn2, runFn2)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
-import TypeScript.Compiler.Types (TypeChecker, Node, Typ)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Typ, TypeChecker)
 
 typeToString :: forall r. TypeChecker -> Typ r -> String
 typeToString = runFn2 typeToStringImpl
@@ -22,8 +22,8 @@ getTypeAtLocation c = toMaybe <<< runFn2 getTypeAtLocationImpl c
 
 foreign import getTypeAtLocationImpl :: forall k. Fn2 TypeChecker (Node k) (Nullable (Typ ()))
 
-getFullyQualifiedName :: TypeChecker -> Symbol -> String
-getFullyQualifiedName c = runFn2 getFullyQualifiedNameImpl c
+getFullyQualifiedName :: TypeChecker -> Symbol -> FullyQualifiedName
+getFullyQualifiedName c = FullyQualifiedName <<< runFn2 getFullyQualifiedNameImpl c
 
 foreign import getFullyQualifiedNameImpl :: Fn2 TypeChecker Symbol String
 

@@ -1,6 +1,7 @@
 module TypeScript.Compiler.Types where
 
 import Data.Undefined.NoProblem (Opt)
+import Prelude (class Eq, class Ord, class Show)
 
 foreign import data Program :: Type
 
@@ -72,4 +73,10 @@ foreign import data Node :: Row Type -> Type
 -- | `Type`. I've found that this makes some PS errors
 -- | hard to read. `Type` collide with PS builtin type name.
 foreign import data Typ :: Row Type -> Type
+
+newtype FullyQualifiedName = FullyQualifiedName String
+
+derive instance Eq FullyQualifiedName
+derive instance Ord FullyQualifiedName
+derive newtype instance Show FullyQualifiedName
 

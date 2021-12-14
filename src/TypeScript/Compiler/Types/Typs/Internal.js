@@ -19,15 +19,23 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSyntaxKind = exports.isNodeExportedImpl = void 0;
+exports.reflectBooleanLiteralTypeImpl = exports.asIntrinsicTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
-function isNodeExportedImpl(checker, node) {
-    var sym = checker.getSymbolAtLocation(node);
-    return (sym ? ((sym.valueDeclaration && ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0) : false ||
-        (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile && node.kind !== ts.SyntaxKind.EndOfFileToken));
-}
-exports.isNodeExportedImpl = isNodeExportedImpl;
-;
-var showSyntaxKind = function (node) { return ts.SyntaxKind[node.kind]; };
-exports.showSyntaxKind = showSyntaxKind;
-//# sourceMappingURL=TypeScript.js.map
+var asIntrinsicTypeImpl = function (t) {
+    var isIntrinsicType = function (t) {
+        // We use this hacky way to detect intrinsic type because
+        // we want to avoid copying of the `Intrinsic`
+        // `TypeFlags.Intrinsic` union which can change over time.
+        return t.intrinsicName !== undefined;
+    };
+    return isIntrinsicType(t) ? t : null;
+};
+exports.asIntrinsicTypeImpl = asIntrinsicTypeImpl;
+var reflectBooleanLiteralTypeImpl = function (t) {
+    var isBooleanLiteral = function (t) {
+        return !!(t.flags & ts.TypeFlags.BooleanLiteral);
+    };
+    return isBooleanLiteral(t) ? t.intrinsicName == "true" : null;
+};
+exports.reflectBooleanLiteralTypeImpl = reflectBooleanLiteralTypeImpl;
+//# sourceMappingURL=Internal.js.map

@@ -181,10 +181,10 @@ function _readTypes(_a) {
             memType.isStringLiteral();
         }
         if (memType.aliasSymbol && member) {
-            var s_1 = memType.aliasSymbol;
-            var fqn = checker.getFullyQualifiedName(s_1);
+            var s = memType.aliasSymbol;
+            var fqn = checker.getFullyQualifiedName(s);
             var params = ((_a = memType.aliasTypeArguments) === null || _a === void 0 ? void 0 : _a.map(getMemberTSType)) || [];
-            var ref = (s_1 && s_1.valueDeclaration) ? s_1.valueDeclaration : (s_1 && s_1.declarations && s_1.declarations.length === 1) ? s_1.declarations[0] : null;
+            var ref = (s && s.valueDeclaration) ? s.valueDeclaration : (s && s.declarations && s.declarations.length === 1) ? s.declarations[0] : null;
             if (ref) {
                 var t = onTypeNode.ref({ fqn: fqn, ref: ref });
                 if (params) {

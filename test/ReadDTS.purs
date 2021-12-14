@@ -3,14 +3,21 @@ module Test.ReadDTS where
 import Prelude
 
 import Control.Monad.Except (runExcept, runExceptT)
-import Data.Either (Either(..))
+import Data.Array (head) as Array
+import Data.Either (Either(..), either)
 import Data.Foldable (fold, foldMap, for_)
+import Data.Functor.Mu (roll)
+import Data.Lens (over) as Lens
+import Data.Lens.Record (prop)
+import Data.Lens.Record (prop) as Lens.Record
 import Data.List ((:))
-import Data.List (List(..), singleton) as List
+import Data.List (List(..), head, singleton) as List
+import Data.Map (Map)
 import Data.Map (empty, fromFoldable, singleton, values) as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
-import Data.Set (fromFoldable) as Set
+import Data.Set (Set)
+import Data.Set (empty, fromFoldable, singleton) as Set
 import Data.String (joinWith)
 import Data.String (joinWith) as String
 import Data.Tuple (fst, snd)
@@ -25,14 +32,15 @@ import Effect.Console (log)
 import Effect.Exception (throw)
 import JS.Unsafe.Stringify (unsafeStringify)
 import Matryoshka (cata)
-import ReadDTS (Declarations, FullyQualifiedName(..), OnDeclaration, OnType, TsDeclaration, Visit, fqnToString, readRootsDeclarations)
-import ReadDTS (FullyQualifiedName(..), defaults) as ReadDTS
-import ReadDTS.AST (KnownDeclarations) as AST
+import ReadDTS (Declarations, OnDeclaration, OnType, TsDeclaration, Visit, readRootsDeclarations)
+import ReadDTS (defaults) as ReadDTS
+import ReadDTS.AST (KnownDeclarations, TSTyp(..), TsType(..)) as AST
 import ReadDTS.TypeScript.Testing (handleMemoryFiles, inMemoryCompilerHost) as Testing
 import Test.Unit (failure, suite, test) as Test
 import Test.Unit.Assert (equal) as Assert
+import Type.Prelude (Proxy(..))
 import TypeScript.Class.Compiler.Program (createCompilerHost, createProgram)
-import TypeScript.Compiler.Types (CompilerOptions, scriptTarget)
+import TypeScript.Compiler.Types (CompilerOptions, FullyQualifiedName(..), scriptTarget)
 import Unsafe.Coerce (unsafeCoerce)
 
 file name source =
@@ -53,29 +61,64 @@ type RootModule = String
 --       Test.failure ("Compilation failed: " <> String.joinWith "\n" errs)
 --       pure { topLevel: [], declarations: Map.empty }
 
--- https://www.typescriptlang.org/docs/handbook/declaration-files/templates/module-d-ts.html
-suite compilerHost = do
-  Test.suite "Simple types" do
-    Test.test "export type X = {};\nexport type Y = number;" do
-      let
-        opts :: CompilerOptions
-        opts = NoProblem.coerce { module: undefined, target: scriptTarget."ES5", strictNullChecks: true }
-        rootName = "Root.ts"
-        rootFile = file rootName "export type X = number"
-        visit =
-          { onDeclarationNode: \_ _ -> unit
-          , onTyp:
-              { any: "any"
-              , object: \_ -> "object"
-              }
-          }
-      res <- liftEffect $ do
-        host <- Testing.inMemoryCompilerHost [ rootFile ]
-        program <- createProgram [ rootName ] opts (Just host)
+visit =
+  { onDeclaration: \fqn t -> { fqn, "type": t }
+  , onType:
+      { any: AST.TsAny
+      , array: AST.TsArray
+      , boolean: AST.TsBoolean
+      , booleanLiteral: AST.TsBooleanLiteral
+      , object: AST.TsObject
+      , null: AST.TsNull
+      , number: AST.TsNumber
+      , numberLiteral: AST.TsNumberLiteral
+      , string: AST.TsString
+      , stringLiteral: AST.TsStringLiteral
+      , undefined: AST.TsUndefined
+      , unknown: AST.TsUnknown <<< AST.TSTyp
+      }
+  }
 
-        runExceptT $ readRootsDeclarations program visit
-      traceM res
-      pure unit
+_type = Lens.Record.prop (Proxy :: Proxy "type")
+
+type TypeDeclaration t = { fqn :: FullyQualifiedName, "type" :: t }
+
+-- https://www.typescriptlang.org/docs/handbook/declaration-files/templates/module-d-ts.html
+suite compile = do
+  Test.suite "Simple types" do
+    let
+      xShouldEqual :: forall d. String -> AST.TsType Unit Unit -> _
+      xShouldEqual source expected = do
+        let
+          singleDeclaration :: forall d t. Ord d => Map _ (TypeDeclaration (AST.TsType d t)) -> Maybe (TypeDeclaration (AST.TsType d Unit))
+          singleDeclaration = List.head <<< map (Lens.over _type (map $ const unit)) <<< Map.values
+
+          rootName = "Root.ts"
+          rootFile = file rootName source
+          expected' =
+            { fqn: FullyQualifiedName "\"Root\".X"
+            , type: expected
+            }
+        program <- compile [rootName] [rootFile]
+        let
+          decls = readRootsDeclarations program visit
+        Assert.equal (Just expected') (singleDeclaration decls)
+
+      xShouldEqualTest source expected = Test.test source do
+        xShouldEqual source expected
+
+    xShouldEqualTest "export type X = any" AST.TsAny
+    xShouldEqualTest "export type X = Array<number>;" (AST.TsArray unit)
+    xShouldEqualTest "export type X = boolean" AST.TsBoolean
+    xShouldEqualTest "export type X = true" (AST.TsBooleanLiteral true)
+    xShouldEqualTest "export type X = false" (AST.TsBooleanLiteral false)
+    xShouldEqualTest "export type X = null" AST.TsNull
+    xShouldEqualTest "export type X = number" AST.TsNumber
+    xShouldEqualTest "export type X = 8" (AST.TsNumberLiteral 8.0)
+    xShouldEqualTest "export type X = string" AST.TsString
+    xShouldEqualTest "export type X = \"symbol\"" (AST.TsStringLiteral "symbol")
+    xShouldEqualTest "export type X = undefined" AST.TsUndefined
+    xShouldEqualTest "export type X = {}" (AST.TsObject [])
 
 --   let
 --     readTopLevel' = readTopLevel compilerHost
@@ -86,7 +129,7 @@ suite compilerHost = do
 --         fullyQualifiedName = ReadDTS.FullyQualifiedName "\"Root\".X"
 --         expected = Map.singleton fullyQualifiedName $ AST.TypeDeclaration
 --           { fullyQualifiedName
---           , type: AST.Any
+--           , type: AST.TsAny
 --           }
 --       { topLevel, declarations } ← readTopLevel' "Root.ts" [root]
 --       Assert.equal expected declarations
@@ -121,7 +164,7 @@ suite compilerHost = do
 --        fullyQualifiedName = ReadDTS.FullyQualifiedName "\"Root\".X"
 --        expected = Map.singleton fullyQualifiedName $ AST.TypeDeclaration
 --          { fullyQualifiedName
---          , type: AST.Any
+--          , type: AST.TsAny
 --          }
 --      { topLevel, declarations } ← readTopLevel' "Root.ts" [root]
 --      Assert.equal expected declarations
@@ -138,8 +181,8 @@ suite compilerHost = do
 --        xFqn = ReadDTS.FullyQualifiedName "\"Root\".X"
 --        yFqn = ReadDTS.FullyQualifiedName "\"Root\".Y"
 --        expected = Map.fromFoldable
---          $ (xFqn /\ AST.TypeDeclaration { fullyQualifiedName: xFqn, type: AST.Any })
---          : (yFqn /\ AST.TypeDeclaration { fullyQualifiedName: yFqn, type: AST.Any })
+--          $ (xFqn /\ AST.TypeDeclaration { fullyQualifiedName: xFqn, type: AST.TsAny })
+--          : (yFqn /\ AST.TypeDeclaration { fullyQualifiedName: yFqn, type: AST.TsAny })
 --          : List.Nil
 --
 --      { topLevel, declarations } ← readTopLevel' "Root.ts" [root, ext]
@@ -155,7 +198,7 @@ suite compilerHost = do
 --          decl = AST.TypeAlias
 --            { fullyQualifiedName
 --            , name: "Empty"
---            , type: AST.AnonymousObject []
+--            , type: AST.AnonymousTsObject []
 --            , typeParameters: []
 --            }
 --        topLevel /\ declarations ← readTopLevel' file
@@ -174,7 +217,7 @@ suite compilerHost = do
 --           expected = List.singleton $ AST.TypeAlias
 --             { fullyQualifiedName
 --             , name: "Point"
---             , type: AST.AnonymousObject
+--             , type: AST.AnonymousTsObject
 --                 [ { name: "x", optional: false, type: AST.Number }
 --                 , { name: "y", optional: false, type: AST.Number }
 --                 ]
@@ -203,7 +246,7 @@ suite compilerHost = do
 --             , type: AST.Union
 --                 [ AST.String
 --                 , AST.Number
---                 , AST.AnonymousObject
+--                 , AST.AnonymousTsObject
 --                   [{ name: "x", optional: false, type: AST.Number }]
 --                 ]
 --             , typeParameters: []
@@ -233,7 +276,7 @@ suite compilerHost = do
 --             $ ( AST.TypeAlias
 --                 { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
 --                 , name: "A"
---                 , type: AST.AnonymousObject
+--                 , type: AST.AnonymousTsObject
 --                   [ { name: "self"
 --                     , optional: false
 --                     , type: AST.Application
@@ -264,7 +307,7 @@ suite compilerHost = do
 --             $ ( AST.TypeAlias
 --                 { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
 --                 , name: "A"
---                 , type: AST.AnonymousObject [{ name: "x", optional: false, type: AST.Number }]
+--                 , type: AST.AnonymousTsObject [{ name: "x", optional: false, type: AST.Number }]
 --                 , typeParameters: []
 --                 }
 --               )
@@ -289,7 +332,7 @@ suite compilerHost = do
 --             [ AST.TypeAlias
 --               { fullyQualifiedName: FullyQualifiedName "\"inMemory\".A"
 --               , name: "A"
---               , type: AST.AnonymousObject
+--               , type: AST.AnonymousTsObject
 --                 [{ name: "x", optional: false, type: AST.TypeParameter { default: Nothing, name: "X" } }]
 --               , typeParameters: [{ default: Nothing, name: "X" }]
 --               }
@@ -323,7 +366,7 @@ suite compilerHost = do
 --             , name: "Tree"
 --             , type: AST.Union
 --               [ AST.Number
---               , AST.AnonymousObject
+--               , AST.AnonymousTsObject
 --                 [ { name: "left"
 --                   , optional: false
 --                   , type: AST.Application
