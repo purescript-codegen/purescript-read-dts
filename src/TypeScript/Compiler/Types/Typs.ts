@@ -8,9 +8,30 @@ export interface PlainObjectType extends ts.Type {
   properties?: ts.Symbol[];             // Properties
 }
 
+
 export const asObjectTypeImpl = (t: ts.Type): ts.ObjectType | null => {
   if (!(t.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)))
     return null;
+
+
+  /* Begin:isTupleType */
+  const Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
+
+  const ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never |
+    ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
+
+  function getObjectFlags(type: ts.Type): ts.ObjectFlags {
+    return type.flags & ObjectFlagsType ? (type as ts.ObjectType).objectFlags : 0;
+  }
+
+  function isTupleType(type: ts.Type) {
+    return !!(getObjectFlags(type) & ts.ObjectFlags.Reference && (type as ts.TypeReference).target.objectFlags & ts.ObjectFlags.Tuple);
+  }
+  /* End: isTupleType */
+
+  if(isTupleType(t))
+    return null;
+
   if(t.isClassOrInterface())
     return null;
 

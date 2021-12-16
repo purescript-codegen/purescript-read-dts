@@ -74,6 +74,7 @@ visit =
       , numberLiteral: AST.TsNumberLiteral
       , string: AST.TsString
       , stringLiteral: AST.TsStringLiteral
+      , tuple: AST.TsTuple
       , undefined: AST.TsUndefined
       , unknown: AST.TsUnknown <<< AST.TSTyp
       }
@@ -104,21 +105,22 @@ suite compile = do
           decls = readRootsDeclarations program visit
         Assert.equal (Just expected') (singleDeclaration decls)
 
-      xShouldEqualTest source expected = Test.test source do
+      testXShouldEqual source expected = Test.test source do
         xShouldEqual source expected
 
-    xShouldEqualTest "export type X = any" AST.TsAny
-    xShouldEqualTest "export type X = Array<number>;" (AST.TsArray unit)
-    xShouldEqualTest "export type X = boolean" AST.TsBoolean
-    xShouldEqualTest "export type X = true" (AST.TsBooleanLiteral true)
-    xShouldEqualTest "export type X = false" (AST.TsBooleanLiteral false)
-    xShouldEqualTest "export type X = null" AST.TsNull
-    xShouldEqualTest "export type X = number" AST.TsNumber
-    xShouldEqualTest "export type X = 8" (AST.TsNumberLiteral 8.0)
-    xShouldEqualTest "export type X = string" AST.TsString
-    xShouldEqualTest "export type X = \"symbol\"" (AST.TsStringLiteral "symbol")
-    xShouldEqualTest "export type X = undefined" AST.TsUndefined
-    xShouldEqualTest "export type X = {}" (AST.TsObject [])
+    testXShouldEqual "export type X = any" AST.TsAny
+    testXShouldEqual "export type X = Array<number>;" (AST.TsArray unit)
+    testXShouldEqual "export type X = boolean" AST.TsBoolean
+    testXShouldEqual "export type X = true" (AST.TsBooleanLiteral true)
+    testXShouldEqual "export type X = false" (AST.TsBooleanLiteral false)
+    testXShouldEqual "export type X = null" AST.TsNull
+    testXShouldEqual "export type X = number" AST.TsNumber
+    testXShouldEqual "export type X = 8" (AST.TsNumberLiteral 8.0)
+    testXShouldEqual "export type X = string" AST.TsString
+    testXShouldEqual "export type X = \"symbol\"" (AST.TsStringLiteral "symbol")
+    testXShouldEqual "export type X = [number, string, boolean]" (AST.TsTuple [unit, unit, unit])
+    testXShouldEqual "export type X = undefined" AST.TsUndefined
+    testXShouldEqual "export type X = {}" (AST.TsObject [])
 
 --   let
 --     readTopLevel' = readTopLevel compilerHost

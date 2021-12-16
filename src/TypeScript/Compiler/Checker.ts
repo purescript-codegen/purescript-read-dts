@@ -7,3 +7,6 @@ export const getSymbolAtLocationImpl = (checker: ts.TypeChecker, node: ts.Node):
 export const getTypeAtLocationImpl = (checker: ts.TypeChecker, node: ts.Node): ts.Type | null => checker.getTypeAtLocation(node) || null;
 
 export const getFullyQualifiedNameImpl = (checker: ts.TypeChecker, symbol: ts.Symbol): string => checker.getFullyQualifiedName(symbol);
+
+export const getTypeArgumentsImpl = (checker: ts.TypeChecker, type: ts.TypeReference): readonly ts.Type[] => checker.getTypeArguments(type);
+

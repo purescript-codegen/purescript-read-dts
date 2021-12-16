@@ -16,14 +16,14 @@ import Debug (traceM)
 import Effect (Effect)
 import Effect.Class.Console (info)
 import ReadDTS.TypeScript (isNodeExported, showSyntaxKind)
-import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeAtLocation)
-import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isUndefinedType)
+import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation)
+import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
-import TypeScript.Compiler.Types.Typs (asNumberLiteralType, asObjectType, asStringLiteralType)
+import TypeScript.Compiler.Types.Typs (TypeReference, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference)
 import TypeScript.Compiler.Types.Typs (interface) as Typs
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
 
@@ -83,7 +83,6 @@ type OnType t =
   , array :: Typ () -> t
   , boolean :: t
   -- ,application ∷ Application t → t
-  -- , array ∷ t → t
   , booleanLiteral ∷ Boolean → t
   -- , class ∷ Props t → t
   -- , function ∷ Function t → t
@@ -98,7 +97,7 @@ type OnType t =
   -- , ref ∷ Declaration → t
   , string :: t
   , stringLiteral ∷ String → t
-  -- , tuple ∷ Array t → t
+  , tuple ∷ Array (Typ ()) → t
   , undefined ∷ t
   -- , union ∷ Array t → t
   , unknown ∷ Typ () → t
@@ -184,8 +183,14 @@ readType checker t onType
   | Just n <- asNumberLiteralType t = onType.numberLiteral (Typs.interface n # _.value)
   | isStringType checker t = onType.string
   | Just s <- asStringLiteralType t = onType.stringLiteral (Typs.interface s # _.value)
+  | Just r <- asTupleTypeReference checker t = onType.tuple (getTypeArguments checker r)
   | isUndefinedType checker t = onType.undefined
   | otherwise = onType.unknown t
+
+asTupleTypeReference :: forall i. TypeChecker -> Typ i -> Maybe TypeReference
+asTupleTypeReference checker t = if isTupleType checker t
+  then asTypeReference t
+  else Nothing
 
 
 -- readDTS

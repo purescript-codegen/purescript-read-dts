@@ -26,6 +26,19 @@ exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
 var asObjectTypeImpl = function (t) {
     if (!(t.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)))
         return null;
+    /* Begin:isTupleType */
+    var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
+    var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never |
+        ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
+    function getObjectFlags(type) {
+        return type.flags & ObjectFlagsType ? type.objectFlags : 0;
+    }
+    function isTupleType(type) {
+        return !!(getObjectFlags(type) & ts.ObjectFlags.Reference && type.target.objectFlags & ts.ObjectFlags.Tuple);
+    }
+    /* End: isTupleType */
+    if (isTupleType(t))
+        return null;
     if (t.isClassOrInterface())
         return null;
     var ot = t;

@@ -6,7 +6,6 @@ import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import TypeScript.Compiler.Types (TypeChecker, Typ)
-import TypeScript.Compiler.Types.Typs (TypeReference)
 
 isAnyType ∷ forall i. TypeChecker -> Typ i -> Boolean
 isAnyType = runFn2 isAnyTypeImpl
@@ -46,7 +45,7 @@ isStringType = runFn2 isStringTypeImpl
 
 foreign import isStringTypeImpl :: forall i. Fn2 TypeChecker (Typ i) Boolean
 
-isTupleType ∷ TypeChecker -> TypeReference -> Boolean
+isTupleType ∷ forall i. TypeChecker -> Typ i -> Boolean
 isTupleType = runFn2 isTupleTypeImpl
 
 foreign import isTupleTypeImpl :: forall i. Fn2 TypeChecker (Typ i) Boolean

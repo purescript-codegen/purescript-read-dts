@@ -66,7 +66,7 @@ data TsType decl ref
   | TsObject (Array (ReadDTS.Prop ref))
   | TsString
   | TsStringLiteral String
-  -- | Tuple (Array (TsType ref))
+  | TsTuple (Array ref)
   -- | TypeParameter (TypeParameter ref)
   | TsTypeRef decl
   | TsUndefined
@@ -92,7 +92,6 @@ instance Foldable (TsType decl) where
   -- -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   -- foldMap f (Intersection ts) = A.fold (map (foldMap f) ts)
   -- foldMap f (Interface ts) = foldMap (foldMap f <<< _.type) ts
-  -- foldMap f (Tuple ts) = A.fold (map (foldMap f) ts)
   -- foldMap f (Application { constructor, params }) = f constructor <> foldMap (foldMap f) params
   -- foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
   foldMap _ TsNull = mempty
@@ -101,6 +100,7 @@ instance Foldable (TsType decl) where
   foldMap f (TsObject ts) = foldMap (f <<< _.type) ts
   foldMap _ TsString = mempty
   foldMap _ (TsStringLiteral _) = mempty
+  foldMap f (TsTuple ts) = foldMap f ts
   foldMap _ (TsTypeRef _) = mempty
   foldMap _ TsUndefined = mempty
   -- foldMap f (Union ts) = A.fold (map (foldMap f) ts)
@@ -129,11 +129,11 @@ instance Traversable (TsType decl) where
   sequence TsNumber = pure $ TsNumber
   sequence (TsNumberLiteral n) = pure $ TsNumberLiteral n
   sequence (TsObject props) = map TsObject $ sequence $ map ReadDTS.sequenceProp props
-  --   sequence (Tuple ts) = Tuple <$> (sequence <<< map sequence) ts
   --   sequence (TypeParameter { name, default }) =
   --     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
   sequence TsString = pure $ TsString
   sequence (TsStringLiteral s) = pure $ TsStringLiteral s
+  sequence (TsTuple ts) = TsTuple <$> sequence ts
   sequence (TsTypeRef fqn) = pure $ TsTypeRef fqn
   sequence TsUndefined = pure TsUndefined
   --   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
