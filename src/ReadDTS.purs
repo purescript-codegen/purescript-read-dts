@@ -5,12 +5,13 @@ import Prelude
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State (execState, modify_)
 import Control.Monad.State.Trans (execStateT)
-import Data.Array (elem, filter) as Array
+import Data.Array (elem, filter, uncons) as Array
 import Data.Either (Either)
+import Data.Int.Bits ((.&.))
 import Data.Map (Map)
 import Data.Map (empty, insert) as Map
-import Data.Maybe (Maybe(..))
-import Data.Traversable (class Traversable, for, sequence, traverse_)
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Traversable (class Traversable, for, sequence, traverse, traverse_)
 import Data.Tuple.Nested (type (/\), (/\))
 import Debug (traceM)
 import Effect (Effect)
@@ -23,7 +24,8 @@ import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChe
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
-import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference, asUnionType, getSymbol)
+import TypeScript.Compiler.Types.Symbol (getDeclarations, getFlags, getName, symbolFlags) as Symbol
+import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference, asUnionType, getProperties, getSymbol)
 import TypeScript.Compiler.Types.Typs (getProperties) as Typ
 import TypeScript.Compiler.Types.Typs (getProperties, interface) as Typs
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
@@ -188,12 +190,12 @@ readType checker t onType
   | Just i <- asIntersectionType t = onType.intersection $ Typs.interface i # _.types
   | Just i <- asInterfaceType t = do
       let
-        props = Typs.getProperties i
-      onType.interface $ []
+        props = readProperties checker i
+      onType.interface (fromMaybe [] props)
   | Just i <- asClassType t = do
       let
-        props = Typs.getProperties i
-      onType.class $ []
+        props = readProperties checker i
+      onType.class (fromMaybe [] props)
   | isNullType checker t = onType.null
   | isNumberType checker t = onType.number
   | Just n <- asNumberLiteralType t = onType.numberLiteral $ Typs.interface n # _.value
@@ -212,6 +214,17 @@ asTupleTypeReference checker t = if isTupleType checker t
   then asTypeReference t
   else Nothing
 
+readProperties :: forall i. TypeChecker -> Typ i -> Maybe (Array (Prop (Typ ())))
+readProperties checker t = do
+  let
+    step s = do
+      { head: decl } <- Array.uncons <<< Symbol.getDeclarations $ s
+      t' <- getTypeOfSymbolAtLocation checker s decl
+      let
+        optional = (Symbol.symbolFlags."Optional" .&. Symbol.getFlags s) /= 0
+      pure { name: Symbol.getName s, type: t', optional }
+
+  traverse step $ getProperties t
 
 -- readDTS
 --   ∷ ∀ d t

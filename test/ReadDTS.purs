@@ -128,6 +128,10 @@ suite compile = do
     testXShouldEqual "export type X = { x: string } & { y: number }" (AST.TsIntersection [unit, unit])
     testXShouldEqual "export type X = {}" (AST.TsObject [])
     testXShouldEqual "export interface X{}" (AST.TsInterface [])
+    testXShouldEqual "export interface X{ m: number }"
+      (AST.TsInterface [{ name: "m", optional: false, type: unit }])
+    testXShouldEqual "export interface X{ m?: number }"
+      (AST.TsInterface [{ name: "m", optional: true, type: unit }])
     testXShouldEqual "export class X{}" (AST.TsClass [])
 
     -- testXShouldEqual "export type X<arg=number> = {prop: arg}"

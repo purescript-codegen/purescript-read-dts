@@ -1,7 +1,5 @@
 module TypeScript.Compiler.Types.Nodes where
 
-import Prelude
-
 import Data.Undefined.NoProblem (Opt)
 import TypeScript.Compiler.Types (Node, ScriptTarget, Typ)
 import Unsafe.Coerce (unsafeCoerce)
@@ -65,6 +63,7 @@ type ConstructorDeclaration = Node ()
 type ConstructorTypeNode = Node ()
 type ContinueStatement = Node ()
 type DebuggerStatement = Node ()
+type Declaration = Node ()
 type Decorator = Node ()
 type DefaultClause = Node ()
 type DeleteExpression = Node ()

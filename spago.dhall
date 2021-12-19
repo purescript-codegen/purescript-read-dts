@@ -15,6 +15,7 @@ You can edit this file as you like.
   , "fixed-points"
   , "foldable-traversable"
   , "functions"
+  , "integers"
   , "js-unsafe-stringify"
   , "lists"
   , "matryoshka"
