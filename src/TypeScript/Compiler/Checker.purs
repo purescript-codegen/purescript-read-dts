@@ -2,7 +2,7 @@ module TypeScript.Compiler.Checker where
 
 import Prelude
 
-import Data.Function.Uncurried (Fn2, runFn2)
+import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Typ, TypeChecker)
@@ -22,6 +22,11 @@ getTypeAtLocation :: forall k. TypeChecker -> Node k -> Maybe (Typ ())
 getTypeAtLocation c = toMaybe <<< runFn2 getTypeAtLocationImpl c
 
 foreign import getTypeAtLocationImpl :: forall k. Fn2 TypeChecker (Node k) (Nullable (Typ ()))
+
+getTypeOfSymbolAtLocation :: forall k. TypeChecker -> Symbol -> Node k -> Maybe (Typ ())
+getTypeOfSymbolAtLocation c s = toMaybe <<< runFn3 getTypeOfSymbolAtLocationImpl c s
+
+foreign import getTypeOfSymbolAtLocationImpl :: forall i. Fn3 TypeChecker Symbol (Node i) (Nullable (Typ ()))
 
 getFullyQualifiedName :: TypeChecker -> Symbol -> FullyQualifiedName
 getFullyQualifiedName c = FullyQualifiedName <<< runFn2 getFullyQualifiedNameImpl c

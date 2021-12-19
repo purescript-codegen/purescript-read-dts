@@ -19,42 +19,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.asTypeReferenceImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
+exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.asTypeReferenceImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
 var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
 exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
+var asIntersectionTypeImpl = function (t) { return t.isIntersection() ? t : null; };
+exports.asIntersectionTypeImpl = asIntersectionTypeImpl;
 var asObjectTypeImpl = function (t) {
-    if (!(t.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)))
-        return null;
-    /* Begin:isTupleType */
-    var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
-    var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never |
-        ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
-    function getObjectFlags(type) {
-        return type.flags & ObjectFlagsType ? type.objectFlags : 0;
-    }
-    function isTupleType(type) {
-        return !!(getObjectFlags(type) & ts.ObjectFlags.Reference && type.target.objectFlags & ts.ObjectFlags.Tuple);
-    }
-    /* End: isTupleType */
-    if (isTupleType(t))
-        return null;
-    if (t.isClassOrInterface())
-        return null;
-    var ot = t;
-    return ot;
-    if ((ot.objectFlags & ts.ObjectFlags.Mapped) && (ot.objectFlags & ts.ObjectFlags.Instantiated))
-        return ot;
-    //   let objDeclarations = memObjectType.symbol.getDeclarations();
-    //   let props = memObjectType.getProperties().map((sym: ts.Symbol) =>
-    //     property(sym, objDeclarations?objDeclarations[0]:sym.declarations?sym.declarations[1]:sym.valueDeclaration)
-    //   );
-    //   return onTypeNode.object(props);
+    if (t.flags & ts.TypeFlags.Object)
+        return t;
     return null;
 };
 exports.asObjectTypeImpl = asObjectTypeImpl;
 var asStringLiteralTypeImpl = function (t) { return t.isStringLiteral() ? t : null; };
 exports.asStringLiteralTypeImpl = asStringLiteralTypeImpl;
+var asUnionTypeImpl = function (t) { return t.isUnion() ? t : null; };
+exports.asUnionTypeImpl = asUnionTypeImpl;
 var asTypeReferenceImpl = function (t) {
     // There is no sens at the moment to expose ObjectType casting I think to the PS side...
     var isObjectType = function (t) {
@@ -67,4 +47,22 @@ var asTypeReferenceImpl = function (t) {
     return null;
 };
 exports.asTypeReferenceImpl = asTypeReferenceImpl;
+var getPropertiesImpl = function (t) { return t.getProperties(); };
+exports.getPropertiesImpl = getPropertiesImpl;
+var asInterfaceTypeImpl = function (t) {
+    if (t.objectFlags & ts.ObjectFlags.Interface) {
+        return t;
+    }
+    return null;
+};
+exports.asInterfaceTypeImpl = asInterfaceTypeImpl;
+var asClassTypeImpl = function (t) {
+    if (t.objectFlags & ts.ObjectFlags.Class) {
+        return t;
+    }
+    return null;
+};
+exports.asClassTypeImpl = asClassTypeImpl;
+var getSymbolImpl = function (t) { return t.getSymbol() || null; };
+exports.getSymbolImpl = getSymbolImpl;
 //# sourceMappingURL=Typs.js.map

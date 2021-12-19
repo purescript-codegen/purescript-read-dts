@@ -68,6 +68,9 @@ visit =
       , array: AST.TsArray
       , boolean: AST.TsBoolean
       , booleanLiteral: AST.TsBooleanLiteral
+      , class: AST.TsClass
+      , intersection: AST.TsIntersection
+      , interface: AST.TsInterface
       , object: AST.TsObject
       , null: AST.TsNull
       , number: AST.TsNumber
@@ -77,6 +80,7 @@ visit =
       , tuple: AST.TsTuple
       , undefined: AST.TsUndefined
       , unknown: AST.TsUnknown <<< AST.TSTyp
+      , union: AST.TsUnion
       }
   }
 
@@ -120,7 +124,13 @@ suite compile = do
     testXShouldEqual "export type X = \"symbol\"" (AST.TsStringLiteral "symbol")
     testXShouldEqual "export type X = [number, string, boolean]" (AST.TsTuple [unit, unit, unit])
     testXShouldEqual "export type X = undefined" AST.TsUndefined
+    testXShouldEqual "export type X = string | number" (AST.TsUnion [unit, unit])
+    testXShouldEqual "export type X = { x: string } & { y: number }" (AST.TsIntersection [unit, unit])
     testXShouldEqual "export type X = {}" (AST.TsObject [])
+    testXShouldEqual "export interface X{}" (AST.TsInterface [])
+    testXShouldEqual "export class X{}" (AST.TsClass [])
+
+    -- testXShouldEqual "export type X<arg=number> = {prop: arg}"
 
 --   let
 --     readTopLevel' = readTopLevel compilerHost

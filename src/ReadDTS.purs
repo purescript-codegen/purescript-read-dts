@@ -16,15 +16,16 @@ import Debug (traceM)
 import Effect (Effect)
 import Effect.Class.Console (info)
 import ReadDTS.TypeScript (isNodeExported, showSyntaxKind)
-import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation)
+import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
-import TypeScript.Compiler.Types.Typs (TypeReference, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference)
-import TypeScript.Compiler.Types.Typs (interface) as Typs
+import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference, asUnionType, getSymbol)
+import TypeScript.Compiler.Types.Typs (getProperties) as Typ
+import TypeScript.Compiler.Types.Typs (getProperties, interface) as Typs
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
 
 foreign import data TsSourceFile :: Type
@@ -84,10 +85,10 @@ type OnType t =
   , boolean :: t
   -- ,application ∷ Application t → t
   , booleanLiteral ∷ Boolean → t
-  -- , class ∷ Props t → t
+  , class ∷ Props (Typ ()) → t
   -- , function ∷ Function t → t
-  -- , interface ∷ Props TsTypeNode → t
-  -- , intersection ∷ Array t → t
+  , interface ∷ Props (Typ ()) → t
+  , intersection ∷ Array (Typ ()) → t
   , object :: Props (Typ ()) -> t
   , number :: t
   , numberLiteral ∷ Number → t
@@ -99,7 +100,7 @@ type OnType t =
   , stringLiteral ∷ String → t
   , tuple ∷ Array (Typ ()) → t
   , undefined ∷ t
-  -- , union ∷ Array t → t
+  , union ∷ Array (Typ ()) → t
   , unknown ∷ Typ () → t
   }
 
@@ -144,7 +145,7 @@ readRootsDeclarations program visit = do
   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
   flip execState Map.empty $ (rootFiles >>= (getChildren >=> getChildren)) # traverse_ \node -> do
       when (isNodeExported checker node) do
-        traceM $ "Reading node: " <> showSyntaxKind node
+        -- traceM $ "Reading node: " <> showSyntaxKind node
         case readDeclaration checker node visit of
           Just (fqn /\ d) -> modify_ (Map.insert fqn d)
           Nothing -> do
@@ -153,15 +154,22 @@ readRootsDeclarations program visit = do
 readDeclaration :: forall r d t. TypeChecker -> Node r -> Visit d t -> Maybe (FullyQualifiedName /\ d)
 readDeclaration checker node visit
   | Just n <- Node.interface <$> asInterfaceDeclaration node = do
-      traceM "Trying to parse interface"
-      Nothing
-  | Just c <- Node.interface <$> asClassDeclaration node = do
-      traceM "Trying to class"
-      Nothing
+    t <- getTypeAtLocation checker node
+    s <- getSymbol t
+    let
+      t' = readType checker t visit.onType
+      fqn = getFullyQualifiedName checker s
+    pure $ fqn /\ visit.onDeclaration fqn t'
+  | Just n <- Node.interface <$> asClassDeclaration node = do
+    t <- getTypeAtLocation checker node
+    s <- getSymbol t
+    let
+      t' = readType checker t visit.onType
+      fqn = getFullyQualifiedName checker s
+    pure $ fqn /\ visit.onDeclaration fqn t'
   | Just n <- Node.interface <$> asTypeAliasDeclaration node = do
       case getSymbolAtLocation checker n.name, getTypeAtLocation checker node of
         Just s, Just t -> do
-          traceM $ "Type alias with symbol..."
           let
             t' = readType checker t visit.onType
             fqn = getFullyQualifiedName checker s
@@ -177,14 +185,26 @@ readType checker t onType
   | Just e <- getElementTypeOfArrayType checker t = onType.array e
   | isBooleanType checker t = onType.boolean
   | Just b <- reflectBooleanLiteralType t = onType.booleanLiteral b
+  | Just i <- asIntersectionType t = onType.intersection $ Typs.interface i # _.types
+  | Just i <- asInterfaceType t = do
+      let
+        props = Typs.getProperties i
+      onType.interface $ []
+  | Just i <- asClassType t = do
+      let
+        props = Typs.getProperties i
+      onType.class $ []
   | isNullType checker t = onType.null
   | isNumberType checker t = onType.number
-  | Just o <- asObjectType t = onType.object []
-  | Just n <- asNumberLiteralType t = onType.numberLiteral (Typs.interface n # _.value)
+  | Just n <- asNumberLiteralType t = onType.numberLiteral $ Typs.interface n # _.value
   | isStringType checker t = onType.string
-  | Just s <- asStringLiteralType t = onType.stringLiteral (Typs.interface s # _.value)
+  | Just s <- asStringLiteralType t = onType.stringLiteral $ Typs.interface s # _.value
+  | Just u <- asUnionType t = onType.union $ Typs.interface u # _.types
   | Just r <- asTupleTypeReference checker t = onType.tuple (getTypeArguments checker r)
   | isUndefinedType checker t = onType.undefined
+  -- | At this point we are sure that this type is not a tuple, array etc.
+  -- | Let's assume it is `ObjectType` which represents "object"...
+  | Just o <- asObjectType t = onType.object []
   | otherwise = onType.unknown t
 
 asTupleTypeReference :: forall i. TypeChecker -> Typ i -> Maybe TypeReference

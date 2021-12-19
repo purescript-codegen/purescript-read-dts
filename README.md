@@ -10,6 +10,10 @@ _Major rewrite_. I want to put here some stubs for the notes:
 
   - `Internal` modules are modules which expose typescript implementation internals which seems to be really useful.
 
+  - `Contrib` subpackage contains additions - for clarity
+
+  - Bindings to `is*` are usually renamed to `as*` functions which return `Maybe t` where `t` is narrowed type
+
   - `Node r` - provide info about interfaces access model.
 
   - Add info about immutability of the Program from the checker and the decision behind "pure" bindings.

@@ -56,10 +56,10 @@ data TsType decl ref
   -- -- | `'a' | 'b' | 8`
   -- -- | is going to be read as:
   -- -- | `Union [StringLiteral "a", StringLiteral "b", TsNumberLiteral 8]`
-  -- | Class (ReadDTS.Props ref)
+  | TsClass (Array (ReadDTS.Prop ref))
   -- | Function (ReadDTS.Function ref)
-  -- | Interface (Array (ReadDTS.Prop ref))
-  -- | Intersection (Array ref)
+  | TsInterface (Array (ReadDTS.Prop ref))
+  | TsIntersection (Array ref)
   | TsNull
   | TsNumber
   | TsNumberLiteral Number
@@ -70,8 +70,8 @@ data TsType decl ref
   -- | TypeParameter (TypeParameter ref)
   | TsTypeRef decl
   | TsUndefined
+  | TsUnion (Array ref)
   | TsUnknown TSTyp
--- | Union (Array (TsType ref))
 -- | Void
 
 derive instance functorTsType :: Functor (TsType decl)
@@ -86,14 +86,15 @@ instance Foldable (TsType decl) where
   foldMap f (TsArray t) = f t
   foldMap _ TsBoolean = mempty
   foldMap _ (TsBooleanLiteral _) = mempty
+  foldMap f (TsClass ts) = foldMap (f <<< _.type) ts
   -- foldMap f (Function r)
   --   = foldMap (foldMap f <<< _.type) r.parameters
   --   <> foldMap f r.returnType
   -- -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
-  -- foldMap f (Intersection ts) = A.fold (map (foldMap f) ts)
-  -- foldMap f (Interface ts) = foldMap (foldMap f <<< _.type) ts
+  foldMap f (TsInterface ts) = foldMap (f <<< _.type) ts
   -- foldMap f (Application { constructor, params }) = f constructor <> foldMap (foldMap f) params
   -- foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
+  foldMap f (TsIntersection ts) = foldMap f ts
   foldMap _ TsNull = mempty
   foldMap _ TsNumber = mempty
   foldMap _ (TsNumberLiteral _) = mempty
@@ -103,7 +104,7 @@ instance Foldable (TsType decl) where
   foldMap f (TsTuple ts) = foldMap f ts
   foldMap _ (TsTypeRef _) = mempty
   foldMap _ TsUndefined = mempty
-  -- foldMap f (Union ts) = A.fold (map (foldMap f) ts)
+  foldMap f (TsUnion ts) = foldMap f ts
   foldMap _ (TsUnknown _) = mempty
   -- foldMap _ Void = mempty
 
@@ -117,14 +118,15 @@ instance Traversable (TsType decl) where
   sequence (TsArray t) = TsArray <$> t
   sequence TsBoolean = pure TsBoolean
   sequence (TsBooleanLiteral b) = pure $ TsBooleanLiteral b
+  sequence (TsClass props) = map TsClass $ sequence $ map ReadDTS.sequenceProp props
   --   sequence (Function r) = map Function
   --     $ { parameters: _, returnType: _ }
   --     <$> traverse sequenceParameter r.parameters
   --     <*> sequence r.returnType
   --     where
   --       sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
-  --   sequence (Interface ts) = Interface <$> (sequence <<< map ReadDTS.sequenceProp) ts
-  --   sequence (Intersection ts) = Intersection <$> (sequence <<< map sequence) ts
+  sequence (TsInterface props) = map TsInterface $ sequence $ map ReadDTS.sequenceProp props
+  sequence (TsIntersection ts) = TsIntersection <$> sequence ts
   sequence TsNull = pure TsNull
   sequence TsNumber = pure $ TsNumber
   sequence (TsNumberLiteral n) = pure $ TsNumberLiteral n
@@ -136,7 +138,7 @@ instance Traversable (TsType decl) where
   sequence (TsTuple ts) = TsTuple <$> sequence ts
   sequence (TsTypeRef fqn) = pure $ TsTypeRef fqn
   sequence TsUndefined = pure TsUndefined
-  --   sequence (Union ts) = Union <$> (sequence <<< map sequence) ts
+  sequence (TsUnion ts) = TsUnion <$> sequence ts
   sequence (TsUnknown t) = pure $ TsUnknown t
   --   sequence Void = pure Void
   traverse = traverseDefault

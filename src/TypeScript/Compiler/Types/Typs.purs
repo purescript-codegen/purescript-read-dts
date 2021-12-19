@@ -6,6 +6,7 @@ import Data.Function.Uncurried (Fn1, runFn1)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import Data.Undefined.NoProblem (Opt)
+import Type.Row (type (+))
 import TypeScript.Compiler.Types (Typ)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -16,17 +17,60 @@ type BooleanLiteralType = Typ (value :: Boolean)
 
 type GenericTypeRow r = InterfaceTypeRow r
 
-type InterfaceTypeRow r =
-  ( typeParameters :: Opt (Array TypeParameter)
-  , outerTypeParameters :: Opt (Array TypeParameter)
-  , localTypeParameters :: Opt (Array TypeParameter)
-  , thisType :: Opt TypeParameter
-  | r
-  )
+asClassType :: forall r. Typ r -> Maybe InterfaceType
+asClassType = toMaybe <<< runFn1 asClassTypeImpl
+
+foreign import asClassTypeImpl :: forall r. Fn1 (Typ r) (Nullable InterfaceType)
+
+type IntersectionType = Typ (types :: Array (Typ ()))
+
+asIntersectionType :: forall r. Typ r -> Maybe IntersectionType
+asIntersectionType = toMaybe <<< runFn1 asIntersectionTypeImpl
+
+foreign import asIntersectionTypeImpl :: forall r. Fn1 (Typ r) (Nullable IntersectionType)
+
+-- | Interface or Class
+type InterfaceTypeRow r
+  = ObjectTypeRow
+  + ( typeParameters :: Opt (Array TypeParameter)
+    , outerTypeParameters :: Opt (Array TypeParameter)
+    , localTypeParameters :: Opt (Array TypeParameter)
+    , thisType :: Opt TypeParameter
+    | r
+    )
+
+type InterfaceType = Typ (InterfaceTypeRow ())
+
+asInterfaceType :: forall r. Typ r -> Maybe InterfaceType
+asInterfaceType = toMaybe <<< runFn1 asInterfaceTypeImpl
+
+foreign import asInterfaceTypeImpl :: forall r. Fn1 (Typ r) (Nullable InterfaceType)
 
 type NumberLiteralType = Typ (value :: Number)
 
+asNumberLiteralType :: forall r. Typ r -> Maybe NumberLiteralType
+asNumberLiteralType = toMaybe <<< runFn1 asNumberLiteralTypeImpl
+
+foreign import asNumberLiteralTypeImpl :: forall r. Fn1 (Typ r) (Nullable NumberLiteralType)
+
+foreign import data ObjectFlags :: Type
+
+type ObjectTypeRow r = (objectFlags :: ObjectFlags, properties :: Array Symbol | r)
+
+-- | `ObjectType` has a broad scope in the ts terms
+type ObjectType = Typ (objectFlags :: ObjectFlags, properties :: Array Symbol) -- (objectFlags :: ObjectFlag, properties :: Array Symbol)
+
+asObjectType :: forall r. Typ r -> Maybe ObjectType
+asObjectType = toMaybe <<< runFn1 asObjectTypeImpl
+
+foreign import asObjectTypeImpl :: forall r. Fn1 (Typ r) (Nullable ObjectType)
+
 type StringLiteralType = Typ (value :: String)
+
+asStringLiteralType :: forall r. Typ r -> Maybe StringLiteralType
+asStringLiteralType = toMaybe <<< runFn1 asStringLiteralTypeImpl
+
+foreign import asStringLiteralTypeImpl :: forall r. Fn1 (Typ r) (Nullable StringLiteralType)
 
 type TypeParameter = Typ ()
 
@@ -35,27 +79,25 @@ type TypeReference = Typ
   , typeArguments :: Opt (Array (Typ ()))
   )
 
-asNumberLiteralType :: forall r. Typ r -> Maybe NumberLiteralType
-asNumberLiteralType = toMaybe <<< runFn1 asNumberLiteralTypeImpl
-
-foreign import asNumberLiteralTypeImpl :: forall r. Fn1 (Typ r) (Nullable NumberLiteralType)
-
--- | You can find test driven heuristic against `ObjectFlags` on the `ts` side.
--- | Touching internal properites here.
-type ObjectType = Typ (properties :: Array Symbol) -- (objectFlags :: ObjectFlag, properties :: Array Symbol)
-
-asObjectType :: forall r. Typ r -> Maybe ObjectType
-asObjectType = toMaybe <<< runFn1 asObjectTypeImpl
-
-foreign import asObjectTypeImpl :: forall r. Fn1 (Typ r) (Nullable ObjectType)
-
-asStringLiteralType :: forall r. Typ r -> Maybe StringLiteralType
-asStringLiteralType = toMaybe <<< runFn1 asStringLiteralTypeImpl
-
-foreign import asStringLiteralTypeImpl :: forall r. Fn1 (Typ r) (Nullable StringLiteralType)
-
 asTypeReference :: forall r. Typ r -> Maybe TypeReference
 asTypeReference = toMaybe <<< runFn1 asTypeReferenceImpl
 
 foreign import asTypeReferenceImpl :: forall r. Fn1 (Typ r) (Nullable TypeReference)
 
+
+type UnionType = Typ (types :: Array (Typ ()))
+
+asUnionType :: forall r. Typ r -> Maybe UnionType
+asUnionType = toMaybe <<< runFn1 asUnionTypeImpl
+
+foreign import asUnionTypeImpl :: forall r. Fn1 (Typ r) (Nullable UnionType)
+
+getProperties :: forall r. Typ r -> Array Symbol
+getProperties = runFn1 getPropertiesImpl
+
+foreign import getPropertiesImpl :: forall i. Fn1 (Typ i) (Array Symbol)
+
+getSymbol :: forall i. Typ i -> Maybe Symbol
+getSymbol = toMaybe <<< runFn1 getSymbolImpl
+
+foreign import getSymbolImpl :: forall i. Fn1 (Typ i) (Nullable Symbol)
