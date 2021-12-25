@@ -9,3 +9,12 @@ export function isNodeExportedImpl(checker:ts.TypeChecker, node: ts.Node): boole
 };
 
 export const showSyntaxKind = (node: ts.Node): string => ts.SyntaxKind[node.kind];
+
+type Debug = {
+  formatTypeFlags: (t: ts.Type) => string
+};
+
+export const formatTypeFlags = (t: ts.Type): string => {
+  let Debug = (<{ Debug: Debug }>(<unknown>ts)).Debug;
+  return Debug.formatTypeFlags(t);
+}

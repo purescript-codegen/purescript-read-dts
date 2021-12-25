@@ -3,7 +3,8 @@ module Test.ReadDTS where
 import Prelude
 
 import Control.Monad.Except (runExcept, runExceptT)
-import Data.Array (head) as Array
+import Data.Array (head, singleton) as Array
+import Data.Array.NonEmpty (fromArray, singleton) as Array.NonEmpty
 import Data.Either (Either(..), either)
 import Data.Foldable (fold, foldMap, for_)
 import Data.Functor.Mu (roll)
@@ -11,9 +12,9 @@ import Data.Lens (over) as Lens
 import Data.Lens.Record (prop)
 import Data.Lens.Record (prop) as Lens.Record
 import Data.List ((:))
-import Data.List (List(..), head, singleton) as List
-import Data.Map (Map)
-import Data.Map (empty, fromFoldable, singleton, values) as Map
+import Data.List (List(..), filter, head, singleton) as List
+import Data.Map (Map, fromFoldableWithIndex)
+import Data.Map (empty, fromFoldable, fromFoldableWithIndex, singleton, toUnfoldableUnordered, values) as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.Set (Set)
@@ -32,15 +33,20 @@ import Effect.Console (log)
 import Effect.Exception (throw)
 import JS.Unsafe.Stringify (unsafeStringify)
 import Matryoshka (cata)
-import ReadDTS (Declarations, OnDeclaration, OnType, TsDeclaration, Visit, readRootsDeclarations)
+import ReadDTS (Declarations, OnDeclaration, OnType, TsDeclaration, Visit, readRootsDeclarations, readType)
 import ReadDTS (defaults) as ReadDTS
 import ReadDTS.AST (KnownDeclarations, TSTyp(..), TsType(..)) as AST
+import ReadDTS.AST (TsType)
 import ReadDTS.TypeScript.Testing (handleMemoryFiles, inMemoryCompilerHost) as Testing
+import Test.Unit (failure)
 import Test.Unit (failure, suite, test) as Test
 import Test.Unit.Assert (equal) as Assert
+import Test.Unit.Assert (shouldEqual)
 import Type.Prelude (Proxy(..))
 import TypeScript.Class.Compiler.Program (createCompilerHost, createProgram)
-import TypeScript.Compiler.Types (CompilerOptions, FullyQualifiedName(..), scriptTarget)
+import TypeScript.Compiler.Checker (getTypeArguments)
+import TypeScript.Compiler.Program (getTypeChecker)
+import TypeScript.Compiler.Types (CompilerOptions, FullyQualifiedName(..), Program, Typ, scriptTarget)
 import Unsafe.Coerce (unsafeCoerce)
 
 file name source =
@@ -65,6 +71,7 @@ visit =
   { onDeclaration: \fqn t -> { fqn, "type": t }
   , onType:
       { any: AST.TsAny
+      , application: AST.TsApplication
       , array: AST.TsArray
       , boolean: AST.TsBoolean
       , booleanLiteral: AST.TsBooleanLiteral
@@ -75,6 +82,8 @@ visit =
       , null: AST.TsNull
       , number: AST.TsNumber
       , numberLiteral: AST.TsNumberLiteral
+      , parameter: AST.TsParameter
+      , parametric: AST.TsParametric
       , string: AST.TsString
       , stringLiteral: AST.TsStringLiteral
       , tuple: AST.TsTuple
@@ -92,25 +101,35 @@ type TypeDeclaration t = { fqn :: FullyQualifiedName, "type" :: t }
 suite compile = do
   Test.suite "Simple types" do
     let
-      xShouldEqual :: forall d. String -> AST.TsType Unit Unit -> _
-      xShouldEqual source expected = do
+      xDeclaration :: String -> Aff { program :: Program, x :: Maybe (AST.TsType Unit (Typ ())) }
+      xDeclaration source = do
         let
-          singleDeclaration :: forall d t. Ord d => Map _ (TypeDeclaration (AST.TsType d t)) -> Maybe (TypeDeclaration (AST.TsType d Unit))
-          singleDeclaration = List.head <<< map (Lens.over _type (map $ const unit)) <<< Map.values
-
           rootName = "Root.ts"
+          fqn = FullyQualifiedName "\"Root\".X"
+
+          getX :: forall t. Map _ (TypeDeclaration (AST.TsType Unit t)) -> Maybe (TypeDeclaration (AST.TsType Unit t))
+          getX
+            = List.head
+            <<< map snd
+            <<< List.filter (eq fqn <<< fst)
+            <<< Map.toUnfoldableUnordered
+
           rootFile = file rootName source
-          expected' =
-            { fqn: FullyQualifiedName "\"Root\".X"
-            , type: expected
-            }
         program <- compile [rootName] [rootFile]
         let
           decls = readRootsDeclarations program visit
-        Assert.equal (Just expected') (singleDeclaration decls)
+        pure { x: _.type <$> getX decls, program }
 
-      testXShouldEqual source expected = Test.test source do
-        xShouldEqual source expected
+      testOnX source test = Test.test source do
+        r <- xDeclaration source
+        case r of
+          { x: Nothing } -> failure "Unable to find exported type X"
+          { x: Just x, program } -> test { x, program }
+
+      testXShouldEqual source expected = testOnX source \{ x } -> do
+        let
+          x' = map (const unit) x
+        x' `shouldEqual` expected
 
     testXShouldEqual "export type X = any" AST.TsAny
     testXShouldEqual "export type X = Array<number>;" (AST.TsArray unit)
@@ -133,8 +152,65 @@ suite compile = do
     testXShouldEqual "export interface X{ m?: number }"
       (AST.TsInterface [{ name: "m", optional: true, type: unit }])
     testXShouldEqual "export class X{}" (AST.TsClass [])
+    -- | This is interesting case
+    testXShouldEqual "export class X<param=number>{ }"
+      ( AST.TsParametric
+        unit
+        (Array.NonEmpty.singleton { default: Just unit, name: "param" })
+      )
+    testXShouldEqual "export interface X<param=number>{ }"
+      ( AST.TsParametric
+        unit
+        (Array.NonEmpty.singleton { default: Just unit, name: "param" })
+      )
+    testXShouldEqual
+      "export type X<param> = number | param"
+      (AST.TsParametric
+        unit
+        (Array.NonEmpty.singleton { default: Nothing, name: "param" })
+      )
+    testXShouldEqual
+      "export type X<param=string> = number | param"
+      (AST.TsParametric
+        unit
+        (Array.NonEmpty.singleton { default: Just unit, name: "param" })
+      )
+    testXShouldEqual "class C<p> {}; export type X = C<number>"
+      ( AST.TsApplication
+        unit
+        (Array.NonEmpty.singleton unit)
+      )
 
-    -- testXShouldEqual "export type X<arg=number> = {prop: arg}"
+    testOnX "export type X<arg=number> = {prop: arg}" \{ program, x } -> do
+      let
+        checker = getTypeChecker program
+        readType' t = readType checker t [] visit.onType
+
+        x' :: TsType Unit (TsType Unit (TsType Unit Unit))
+        x' = map (map (map (const unit) <<< readType') <<< readType') x
+        body = AST.TsObject $ Array.singleton
+          { name: "prop"
+          , optional: false
+          , type: AST.TsParameter "arg"
+          }
+        params = Array.NonEmpty.singleton { default: Just AST.TsNumber, name: "arg" }
+        expected = AST.TsParametric body params
+      x' `shouldEqual` expected
+
+    -- testOnX "export type X<ARG> = ARG" \{ program, x } -> do
+    --   let
+    --     checker = getTypeChecker program
+    --     x' :: TsType Unit (TsType Unit Unit)
+    --     x' = map (map (const unit) <<< \t -> readType checker t [] visit.onType) x
+    --   x' `shouldEqual` AST.TsAny
+
+    -- testOnX "export type X<ARG> = ARG" \{ program, x } -> do
+    --   let
+    --     checker = getTypeChecker program
+    --     x' :: TsType Unit (TsType Unit Unit)
+    --     x' = map (map (const unit) <<< \t -> readType checker t [] visit.onType) x
+    --   x' `shouldEqual` AST.TsAny
+
 
 --   let
 --     readTopLevel' = readTopLevel compilerHost

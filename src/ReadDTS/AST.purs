@@ -8,6 +8,7 @@ import Control.Monad.State (StateT, runStateT)
 import Control.Monad.State.Class (gets, modify_)
 import Data.Array (catMaybes)
 import Data.Array as A
+import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, fold)
@@ -24,16 +25,14 @@ import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Matryoshka (CoalgebraM, anaM)
-import ReadDTS (Options, TsDeclaration, Visit)
-import ReadDTS (Param, Prop, Props, sequenceProp) as ReadDTS
+import ReadDTS (Options, TsDeclaration, Visit, foldMapParam, sequenceParam)
+import ReadDTS (Param, Prop, Props, Application, sequenceProp) as ReadDTS
 import Type.Prelude (SProxy(..))
 import TypeScript.Compiler.Types (FullyQualifiedName(..))
 import TypeScript.Compiler.Types (Typ) as TS
 import Unsafe.Reference (unsafeRefEq)
 
 type Prop decl ref = ReadDTS.Prop (TsType decl ref)
-
-type Param decl ref = ReadDTS.Param Maybe (TsType decl ref)
 
 -- | We want this wrapper so we are able to provide basic instances
 -- | for it.
@@ -46,16 +45,10 @@ instance Eq TSTyp where
 
 data TsType decl ref
   = TsAny
-  -- | Application (ReadDTS.Application ref)
+  | TsApplication ref (NonEmptyArray ref)
   | TsArray ref
   | TsBoolean
   | TsBooleanLiteral Boolean
-  -- -- | In typescript this type level is
-  -- -- | mixed up with value level in declarations.
-  -- -- | For example this ts union:
-  -- -- | `'a' | 'b' | 8`
-  -- -- | is going to be read as:
-  -- -- | `Union [StringLiteral "a", StringLiteral "b", TsNumberLiteral 8]`
   | TsClass (Array (ReadDTS.Prop ref))
   -- | Function (ReadDTS.Function ref)
   | TsInterface (Array (ReadDTS.Prop ref))
@@ -67,7 +60,8 @@ data TsType decl ref
   | TsString
   | TsStringLiteral String
   | TsTuple (Array ref)
-  -- | TypeParameter (TypeParameter ref)
+  | TsParametric ref (NonEmptyArray (ReadDTS.Param ref))
+  | TsParameter String
   | TsTypeRef decl
   | TsUndefined
   | TsUnion (Array ref)
@@ -92,13 +86,14 @@ instance Foldable (TsType decl) where
   --   <> foldMap f r.returnType
   -- -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f (TsInterface ts) = foldMap (f <<< _.type) ts
-  -- foldMap f (Application { constructor, params }) = f constructor <> foldMap (foldMap f) params
-  -- foldMap f (TypeParameter { default }) = fold (map (foldMap f) default)
+  foldMap f (TsApplication c ps) = f c <> foldMap f ps
   foldMap f (TsIntersection ts) = foldMap f ts
   foldMap _ TsNull = mempty
   foldMap _ TsNumber = mempty
   foldMap _ (TsNumberLiteral _) = mempty
   foldMap f (TsObject ts) = foldMap (f <<< _.type) ts
+  foldMap f (TsParameter t) = mempty
+  foldMap f (TsParametric body params) = f body <> foldMap (foldMapParam f) params
   foldMap _ TsString = mempty
   foldMap _ (TsStringLiteral _) = mempty
   foldMap f (TsTuple ts) = foldMap f ts
@@ -113,8 +108,7 @@ instance Foldable (TsType decl) where
 
 instance Traversable (TsType decl) where
   sequence TsAny = pure TsAny
-  --   sequence (Application { constructor, params }) =
-  --     map Application $ { constructor: _, params: _ } <$> constructor <*> sequence (map sequence params)
+  sequence (TsApplication c ps) = TsApplication <$> c <*> sequence ps
   sequence (TsArray t) = TsArray <$> t
   sequence TsBoolean = pure TsBoolean
   sequence (TsBooleanLiteral b) = pure $ TsBooleanLiteral b
@@ -131,8 +125,10 @@ instance Traversable (TsType decl) where
   sequence TsNumber = pure $ TsNumber
   sequence (TsNumberLiteral n) = pure $ TsNumberLiteral n
   sequence (TsObject props) = map TsObject $ sequence $ map ReadDTS.sequenceProp props
-  --   sequence (TypeParameter { name, default }) =
-  --     TypeParameter <<< { name, default: _ } <$> (sequence <<< map sequence) default
+  sequence (TsParameter t) = pure $ TsParameter t
+  sequence (TsParametric body params) = TsParametric
+    <$> body
+    <*> traverse sequenceParam params
   sequence TsString = pure $ TsString
   sequence (TsStringLiteral s) = pure $ TsStringLiteral s
   sequence (TsTuple ts) = TsTuple <$> sequence ts

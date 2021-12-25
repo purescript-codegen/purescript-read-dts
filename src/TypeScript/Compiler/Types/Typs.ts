@@ -21,6 +21,8 @@ export const asStringLiteralTypeImpl = (t: ts.Type): ts.StringLiteralType | null
 
 export const asUnionTypeImpl = (t: ts.Type): ts.UnionType | null => t.isUnion()?t:null;
 
+export const asTypeParameterImpl = (t: ts.Type): ts.TypeParameter | null => t.isTypeParameter()?t:null;
+
 export const asTypeReferenceImpl = (t: ts.Type): ts.TypeReference | null => {
   // There is no sens at the moment to expose ObjectType casting I think to the PS side...
   const isObjectType = (t: ts.Type): t is ts.ObjectType => {
@@ -52,3 +54,5 @@ export const asClassTypeImpl = (t: ts.ObjectType): ts.InterfaceType | null => {
 }
 
 export const getSymbolImpl = (t: ts.Type): ts.Symbol | null => t.getSymbol() || null;
+
+export const getDefaultImpl = (t: ts.Type): ts.Type | null => t.getDefault() || null;

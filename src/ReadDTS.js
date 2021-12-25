@@ -67,8 +67,8 @@ function _readTypes(_a) {
         }
         try {
             ts.forEachChild(sourceFile, function (d) {
-                if (isNodeExported(checker, d))
-                    declarations.push(visitDeclaration(d));
+                // if (isNodeExported(check//App/appcler, d))
+                declarations.push(visitDeclaration(d));
             });
         }
         catch (e) {

@@ -7,11 +7,22 @@ import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import Data.Undefined.NoProblem (Opt)
 import Type.Row (type (+))
-import TypeScript.Compiler.Types (Typ)
+import TypeScript.Compiler.Types (Symbol_, Typ, TypeFlags)
 import Unsafe.Coerce (unsafeCoerce)
 
-interface :: forall i. Typ i -> { | i }
+type TypRow r =
+  ( aliasSymbol :: Opt Symbol_
+  , aliasTypeArguments :: Opt (Array (Typ ()))
+  , flags :: TypeFlags
+  , symbol :: Symbol_
+  | r
+  )
+
+interface :: forall i. Typ i -> { | TypRow + i }
 interface = unsafeCoerce
+
+forget :: forall i. Typ i -> Typ ()
+forget = unsafeCoerce
 
 type BooleanLiteralType = Typ (value :: Boolean)
 
@@ -58,7 +69,7 @@ foreign import data ObjectFlags :: Type
 type ObjectTypeRow r = (objectFlags :: ObjectFlags, properties :: Array Symbol | r)
 
 -- | `ObjectType` has a broad scope in the ts terms
-type ObjectType = Typ (objectFlags :: ObjectFlags, properties :: Array Symbol) -- (objectFlags :: ObjectFlag, properties :: Array Symbol)
+type ObjectType = Typ (ObjectTypeRow + ())
 
 asObjectType :: forall r. Typ r -> Maybe ObjectType
 asObjectType = toMaybe <<< runFn1 asObjectTypeImpl
@@ -92,12 +103,23 @@ asUnionType = toMaybe <<< runFn1 asUnionTypeImpl
 
 foreign import asUnionTypeImpl :: forall r. Fn1 (Typ r) (Nullable UnionType)
 
-getProperties :: forall r. Typ r -> Array Symbol
+asTypeParameter :: forall r. Typ r -> Maybe TypeParameter
+asTypeParameter = toMaybe <<< runFn1 asTypeParameterImpl
+
+foreign import asTypeParameterImpl :: forall r. Fn1 (Typ r) (Nullable TypeParameter)
+
+getProperties :: forall r. Typ r -> Array Symbol_
 getProperties = runFn1 getPropertiesImpl
 
-foreign import getPropertiesImpl :: forall i. Fn1 (Typ i) (Array Symbol)
+foreign import getPropertiesImpl :: forall i. Fn1 (Typ i) (Array Symbol_)
 
-getSymbol :: forall i. Typ i -> Maybe Symbol
+getSymbol :: forall i. Typ i -> Maybe Symbol_
 getSymbol = toMaybe <<< runFn1 getSymbolImpl
 
-foreign import getSymbolImpl :: forall i. Fn1 (Typ i) (Nullable Symbol)
+foreign import getSymbolImpl :: forall i. Fn1 (Typ i) (Nullable Symbol_)
+
+-- | Dafault type for type parameter
+getDefault :: forall i. Typ i -> Maybe (Typ ())
+getDefault = toMaybe <<< runFn1 getDefaultImpl
+
+foreign import getDefaultImpl :: forall i. Fn1 (Typ i) (Nullable (Typ ()))

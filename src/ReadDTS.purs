@@ -6,29 +6,38 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State (execState, modify_)
 import Control.Monad.State.Trans (execStateT)
 import Data.Array (elem, filter, uncons) as Array
+import Data.Array.NonEmpty (NonEmptyArray)
+import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Either (Either)
+import Data.Foldable (foldMap)
 import Data.Int.Bits ((.&.))
 import Data.Map (Map)
 import Data.Map (empty, insert) as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.NonEmpty (NonEmpty(..))
+import Data.Nullable (toMaybe)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverse_)
 import Data.Tuple.Nested (type (/\), (/\))
+import Data.Undefined.NoProblem (fromOpt, (!))
+import Data.Undefined.NoProblem (toMaybe) as NoProblem
 import Debug (traceM)
 import Effect (Effect)
 import Effect.Class.Console (info)
-import ReadDTS.TypeScript (isNodeExported, showSyntaxKind)
+import ReadDTS.TypeScript (formatTypeFlags, isNodeExported, showSyntaxKind)
 import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
-import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
+import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker, unNode')
+import TypeScript.Compiler.Types.Nodes (TypeParameterDeclaration, interface) as Nodes
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
 import TypeScript.Compiler.Types.Symbol (getDeclarations, getFlags, getName, symbolFlags) as Symbol
-import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeReference, asUnionType, getProperties, getSymbol)
-import TypeScript.Compiler.Types.Typs (getProperties) as Typ
-import TypeScript.Compiler.Types.Typs (getProperties, interface) as Typs
+import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeParameter, asTypeReference, asUnionType, getProperties, getSymbol)
+import TypeScript.Compiler.Types.Typs (forget, getDefault, getProperties, getSymbol, interface) as Typs
+import TypeScript.Compiler.Types.Typs (getProperties, interface) as Typ
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
+import TypeScript.Compiler.UtilitiesPublic (idText)
 
 foreign import data TsSourceFile :: Type
 
@@ -49,20 +58,17 @@ type Function t =
   , return :: t
   }
 
-type Param :: (Type -> Type) -> Type -> Type
-type Param nullable t =
+type Param :: Type -> Type
+type Param t =
   { name :: String
-  , default :: nullable t
+  , default :: Maybe t
   }
 
-sequenceParam :: forall m nullable ref t. Traversable nullable => Applicative m => Traversable t => Param nullable (t (m ref)) -> m (Param nullable (t ref))
-sequenceParam { name, default: t } = { default: _, name } <$> (sequence <<< map sequence) t
+foldMapParam :: forall m t. Monoid m => (t -> m) -> Param t -> m
+foldMapParam f { default } = foldMap f default
 
-type Parametric :: (Type -> Type) -> Type -> Type
-type Parametric nullable t =
-  { body :: t
-  , params :: Array (Param nullable t)
-  }
+sequenceParam :: forall m ref. Applicative m => Param (m ref) -> m (Param ref)
+sequenceParam { name, default: t } = { default: _, name } <$> sequence t
 
 type Prop t =
   { name :: String
@@ -85,7 +91,7 @@ type OnType t =
   { any :: t
   , array :: Typ () -> t
   , boolean :: t
-  -- ,application ∷ Application t → t
+  , application ∷ Typ () -> NonEmptyArray (Typ ()) → t
   , booleanLiteral ∷ Boolean → t
   , class ∷ Props (Typ ()) → t
   -- , function ∷ Function t → t
@@ -95,9 +101,8 @@ type OnType t =
   , number :: t
   , numberLiteral ∷ Number → t
   , null :: t
-  -- , parametric ∷ Parametric nullable t → t
-  -- , primitive ∷ String → t
-  -- , ref ∷ Declaration → t
+  , parameter :: String -> t
+  , parametric ∷ Typ () -> NonEmptyArray (Param (Typ ())) → t
   , string :: t
   , stringLiteral ∷ String → t
   , tuple ∷ Array (Typ ()) → t
@@ -129,11 +134,6 @@ type Declarations d =
   , readDeclaration :: TsDeclaration -> Effect d
   }
 
--- type TypRef =
---   { ref ∷ TS.Typ
---   , topLevel ∷ Boolean
---   }
-
 readRootsDeclarations :: forall d t. Program -> Visit d t -> Map FullyQualifiedName d
 readRootsDeclarations program visit = do
   let
@@ -147,43 +147,66 @@ readRootsDeclarations program visit = do
   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
   flip execState Map.empty $ (rootFiles >>= (getChildren >=> getChildren)) # traverse_ \node -> do
       when (isNodeExported checker node) do
-        -- traceM $ "Reading node: " <> showSyntaxKind node
-        case readDeclaration checker node visit of
-          Just (fqn /\ d) -> modify_ (Map.insert fqn d)
+        -- | Ignore "semicolons"
+        case asEmptyStatement node of
+          Just _ -> pure unit
           Nothing -> do
-            traceM "Unable to parse node as declaration. Skipping node..."
+            -- traceM $ "Reading node: " <> showSyntaxKind node
+            case readDeclaration checker node visit of
+              Just (fqn /\ d) -> modify_ (Map.insert fqn d)
+              Nothing -> do
+                traceM "Unable to parse node as declaration. Skipping node..."
 
 readDeclaration :: forall r d t. TypeChecker -> Node r -> Visit d t -> Maybe (FullyQualifiedName /\ d)
-readDeclaration checker node visit
-  | Just n <- Node.interface <$> asInterfaceDeclaration node = do
-    t <- getTypeAtLocation checker node
-    s <- getSymbol t
-    let
-      t' = readType checker t visit.onType
-      fqn = getFullyQualifiedName checker s
-    pure $ fqn /\ visit.onDeclaration fqn t'
-  | Just n <- Node.interface <$> asClassDeclaration node = do
-    t <- getTypeAtLocation checker node
-    s <- getSymbol t
-    let
-      t' = readType checker t visit.onType
-      fqn = getFullyQualifiedName checker s
-    pure $ fqn /\ visit.onDeclaration fqn t'
-  | Just n <- Node.interface <$> asTypeAliasDeclaration node = do
-      case getSymbolAtLocation checker n.name, getTypeAtLocation checker node of
-        Just s, Just t -> do
-          let
-            t' = readType checker t visit.onType
-            fqn = getFullyQualifiedName checker s
-          pure $ fqn /\ visit.onDeclaration fqn t'
-        _, _ -> Nothing
-  | otherwise = do
-      Nothing
+readDeclaration checker = do
+  let
+    params :: forall l. { typeParameters :: _ | l } -> _
+    params n = map (readTypeParameterDeclaration checker) (n.typeParameters ! [])
+    readDeclaration' node visit
+      | Just n <- Node.interface <$> asInterfaceDeclaration node = do
+        t <- getTypeAtLocation checker node
+        s <- getSymbol t
+        let
+          t' = readType checker t (params n) visit.onType
+          fqn = getFullyQualifiedName checker s
+        pure $ fqn /\ visit.onDeclaration fqn t'
+      | Just n <- Node.interface <$> asClassDeclaration node = do
+        t <- getTypeAtLocation checker node
+        s <- getSymbol t
+        let
+          t' = readType checker t (params n) visit.onType
+          fqn = getFullyQualifiedName checker s
+        pure $ fqn /\ visit.onDeclaration fqn t'
+      | Just n <- Node.interface <$> asTypeAliasDeclaration node = do
+          case getSymbolAtLocation checker (unNode' n.name), getTypeAtLocation checker node of
+            Just s, Just t -> do
+              let
+                t' = readType checker t (params n) visit.onType
+                fqn = getFullyQualifiedName checker s
+              pure $ fqn /\ visit.onDeclaration fqn t'
+            _, _ -> Nothing
+      | otherwise = do
+          Nothing
+  readDeclaration'
 
-readType :: forall t. TypeChecker -> Typ () -> OnType t -> t
-readType checker t onType
+readTypeParameterDeclaration :: TypeChecker -> Nodes.TypeParameterDeclaration -> Param (Typ ())
+readTypeParameterDeclaration checker n = do
+  let
+    n' = Nodes.interface n
+    default = do
+      d <- NoProblem.toMaybe n'.default
+      getTypeAtLocation checker d
+
+  { name: idText n'.name
+  -- constraint: ....
+  , default
+  }
+
+readType :: forall t. TypeChecker -> Typ () -> Array (Param (Typ ())) -> OnType t -> t
+readType checker t params onType
+  | Just params' <- Array.NonEmpty.fromArray params =
+      onType.parametric t params'
   | isAnyType checker t = onType.any
-  | Just e <- getElementTypeOfArrayType checker t = onType.array e
   | Just e <- getElementTypeOfArrayType checker t = onType.array e
   | isBooleanType checker t = onType.boolean
   | Just b <- reflectBooleanLiteralType t = onType.booleanLiteral b
@@ -204,10 +227,37 @@ readType checker t onType
   | Just u <- asUnionType t = onType.union $ Typs.interface u # _.types
   | Just r <- asTupleTypeReference checker t = onType.tuple (getTypeArguments checker r)
   | isUndefinedType checker t = onType.undefined
+  | Just (t' /\ args) <- asApplication t = onType.application t args
   -- | At this point we are sure that this type is not a tuple, array etc.
   -- | Let's assume it is `ObjectType` which represents "object"...
-  | Just o <- asObjectType t = onType.object []
-  | otherwise = onType.unknown t
+  | Just o <- asObjectType t = do
+    let
+      props = readProperties checker o
+    onType.object (fromMaybe [] props)
+  | Just t' <- Typ.interface <$> asTypeParameter t = do
+    let
+      s = t'.symbol
+      n = Symbol.getName s
+    onType.parameter n
+  | otherwise = do
+    let
+      x = do
+        traceM "UNKOWN"
+        traceM (formatTypeFlags <<< _.flags <<< Typs.interface $ t)
+        Nothing
+    onType.unknown t
+
+-- as
+--   | Just s <- NoProblem.toMaybe (Typs.interface t).aliasTypeArguments = do
+--     onType.any
+--   Just s <- NoProblem.toMaybe (Typs.interface t).aliasTypeArguments = do
+
+asApplication :: forall i. Typ i -> Maybe (Typ () /\ NonEmptyArray (Typ ()))
+asApplication t = do
+  { target: body, typeArguments } <- asTypeReference t <#> Typs.interface
+  ta <- NoProblem.toMaybe typeArguments
+  params <- Array.NonEmpty.fromArray $ ta
+  pure $ Typs.forget body /\ params
 
 asTupleTypeReference :: forall i. TypeChecker -> Typ i -> Maybe TypeReference
 asTupleTypeReference checker t = if isTupleType checker t

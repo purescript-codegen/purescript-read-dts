@@ -69,10 +69,22 @@ foreign import data TypeReference :: Type
 -- | expose them as methods shoudl be bounded to the js object.
 foreign import data Node :: Row Type -> Type
 
+-- | FIXME: Currently we use this wrapper to tag some specific
+-- | nodes which we feed back into the FFI so we won't mess
+-- | the types of the nodes by only structurally typing
+-- | them with rows.
+-- | This is going to be private constructor
+newtype Node' (tag :: Symbol) i = Node' (Node i)
+
+unNode' :: forall tag i. Node' tag i -> Node i
+unNode' (Node' n) = n
+
 -- | The interface in the `compiler/types.ts` is called
 -- | `Type`. I've found that this makes some PS errors
 -- | hard to read. `Type` collide with PS builtin type name.
 foreign import data Typ :: Row Type -> Type
+foreign import data TypeFlags :: Type
+foreign import data Symbol_ :: Type
 
 newtype FullyQualifiedName = FullyQualifiedName String
 

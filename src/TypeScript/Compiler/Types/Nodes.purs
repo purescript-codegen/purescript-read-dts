@@ -1,7 +1,7 @@
 module TypeScript.Compiler.Types.Nodes where
 
 import Data.Undefined.NoProblem (Opt)
-import TypeScript.Compiler.Types (Node, ScriptTarget, Typ)
+import TypeScript.Compiler.Types (Node, Node', ScriptTarget, Typ)
 import Unsafe.Coerce (unsafeCoerce)
 
 interface :: forall k. Node k -> { | k }
@@ -46,7 +46,7 @@ type ClassElement = Node (name :: PropertyName)
 type ClassExpression = ClassLikeDeclaration
 type ClassLikeDeclaration = Node
   ( name :: Opt Identifier
-  , typeParameters :: Array TypeParameterDeclaration
+  , typeParameters :: Opt (Array TypeParameterDeclaration)
   -- , heritageClauses?: NodeArray<HeritageClause>;
   , members :: Array ClassElement
   )
@@ -99,7 +99,7 @@ type FunctionExpression = Node ()
 type FunctionTypeNode = Node ()
 type GetAccessorDeclaration = Node ()
 type HeritageClause = Node ()
-type Identifier = Node ()
+type Identifier = Node' "Identifier" ()
 type Identifiers = Node ()
 type IfStatement = Node ()
 type ImportClause = Node ()
@@ -112,7 +112,7 @@ type IndexSignatureDeclaration = Node ()
 type IndexedAccessTypeNode = Node ()
 type InterfaceDeclaration = Node
   ( name :: Identifier
-  , typeParameters :: Array TypeParameterDeclaration
+  , typeParameters :: Opt (Array TypeParameterDeclaration)
   -- , heritageClauses?: NodeArray<HeritageClause>;
   , members :: Array TypeElement
   )
@@ -185,7 +185,7 @@ type PropertyName = Node ()
 type PlusToken = Node ()
 type PostfixUnaryExpression = Node ()
 type PrefixUnaryExpression = Node ()
-type PrivateIdentifier = Node ()
+type PrivateIdentifier = Node' "PrivateIdentifier" ()
 type PropertyAccessExpression = Node ()
 type PropertyAssignment = Node ()
 type PropertyDeclaration = Node ()
@@ -236,7 +236,7 @@ type TryStatement = Node ()
 type TupleTypeNode = Node ()
 type TypeAliasDeclaration = Node
   ( name :: Identifier
-  , typeParameters :: Array TypeParameterDeclaration
+  , typeParameters :: Opt (Array TypeParameterDeclaration)
   , "type" :: Typ ()
   )
 
@@ -256,7 +256,6 @@ type TypeParameterDeclaration = Node
   , constraint :: Opt TypeNode
   , default :: Opt TypeNode
   )
-
 type TypePredicateNode = Node ()
 type TypeQueryNode = Node ()
 type TypeReferenceNode = Node ()

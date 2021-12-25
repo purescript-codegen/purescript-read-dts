@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.asTypeReferenceImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
+exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
 var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
 exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
@@ -35,6 +35,8 @@ var asStringLiteralTypeImpl = function (t) { return t.isStringLiteral() ? t : nu
 exports.asStringLiteralTypeImpl = asStringLiteralTypeImpl;
 var asUnionTypeImpl = function (t) { return t.isUnion() ? t : null; };
 exports.asUnionTypeImpl = asUnionTypeImpl;
+var asTypeParameterImpl = function (t) { return t.isTypeParameter() ? t : null; };
+exports.asTypeParameterImpl = asTypeParameterImpl;
 var asTypeReferenceImpl = function (t) {
     // There is no sens at the moment to expose ObjectType casting I think to the PS side...
     var isObjectType = function (t) {
@@ -65,4 +67,6 @@ var asClassTypeImpl = function (t) {
 exports.asClassTypeImpl = asClassTypeImpl;
 var getSymbolImpl = function (t) { return t.getSymbol() || null; };
 exports.getSymbolImpl = getSymbolImpl;
+var getDefaultImpl = function (t) { return t.getDefault() || null; };
+exports.getDefaultImpl = getDefaultImpl;
 //# sourceMappingURL=Typs.js.map

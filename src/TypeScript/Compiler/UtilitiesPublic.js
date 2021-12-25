@@ -19,20 +19,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatTypeFlags = exports.showSyntaxKind = exports.isNodeExportedImpl = void 0;
+exports.unsafeIdTextImpl = void 0;
 var ts = __importStar(require("typescript"));
-function isNodeExportedImpl(checker, node) {
-    var sym = checker.getSymbolAtLocation(node);
-    return (sym ? ((sym.valueDeclaration && ts.getCombinedModifierFlags(sym.valueDeclaration) & ts.ModifierFlags.Export) !== 0) : false ||
-        (!!node.parent && node.parent.kind === ts.SyntaxKind.SourceFile && node.kind !== ts.SyntaxKind.EndOfFileToken));
-}
-exports.isNodeExportedImpl = isNodeExportedImpl;
-;
-var showSyntaxKind = function (node) { return ts.SyntaxKind[node.kind]; };
-exports.showSyntaxKind = showSyntaxKind;
-var formatTypeFlags = function (t) {
-    var Debug = ts.Debug;
-    return Debug.formatTypeFlags(t);
-};
-exports.formatTypeFlags = formatTypeFlags;
-//# sourceMappingURL=TypeScript.js.map
+var unsafeIdTextImpl = function (identifierOrPrivateName) { return ts.idText(identifierOrPrivateName); };
+exports.unsafeIdTextImpl = unsafeIdTextImpl;
+//# sourceMappingURL=UtilitiesPublic.js.map

@@ -103,7 +103,7 @@ export function _readTypes<d, t, either>(
     }
     try {
       ts.forEachChild(sourceFile, function(d) {
-        if (isNodeExported(checker, d))
+        // if (isNodeExported(check//App/appcler, d))
           declarations.push(visitDeclaration(d));
       });
     } catch(e) {

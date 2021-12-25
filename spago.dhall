@@ -24,6 +24,7 @@ You can edit this file as you like.
   , "node-buffer"
   , "node-fs"
   , "node-path"
+  , "nonempty"
   , "nullable"
   , "ordered-collections"
   , "prelude"
