@@ -28,8 +28,8 @@ import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, 
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker, unNode')
-import TypeScript.Compiler.Types.Nodes (TypeParameterDeclaration, interface) as Nodes
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
+import TypeScript.Compiler.Types.Nodes (Declaration, TypeParameterDeclaration, interface) as Nodes
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
 import TypeScript.Compiler.Types.Symbol (getDeclarations, getFlags, getName, symbolFlags) as Symbol
@@ -38,6 +38,8 @@ import TypeScript.Compiler.Types.Typs (forget, getDefault, getProperties, getSym
 import TypeScript.Compiler.Types.Typs (getProperties, interface) as Typ
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
 import TypeScript.Compiler.UtilitiesPublic (idText)
+
+data Fix f a = In (f (Fix f))
 
 foreign import data TsSourceFile :: Type
 
@@ -106,6 +108,7 @@ type OnType t =
   , string :: t
   , stringLiteral ∷ String → t
   , tuple ∷ Array (Typ ()) → t
+  , typeRef :: Nodes.Declaration -> t
   , undefined ∷ t
   , union ∷ Array (Typ ()) → t
   , unknown ∷ Typ () → t
@@ -134,6 +137,14 @@ type Declarations d =
   , readDeclaration :: TsDeclaration -> Effect d
   }
 
+-- exportedDeclarations :: Program -> List (FullyQualifiedName /\ Nodes.Declaration)
+-- exportedDeclarations = do
+--   let
+--     checker = getTypeChecker program
+--     rootNames = getRootFileNames program
+--     fileName = Node.interface >>> _.fileName
+--     rootFiles = Array.filter ((\fn -> fn `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+
 readRootsDeclarations :: forall d t. Program -> Visit d t -> Map FullyQualifiedName d
 readRootsDeclarations program visit = do
   let
@@ -157,7 +168,7 @@ readRootsDeclarations program visit = do
               Nothing -> do
                 traceM "Unable to parse node as declaration. Skipping node..."
 
-readDeclaration :: forall r d t. TypeChecker -> Node r -> Visit d t -> Maybe (FullyQualifiedName /\ d)
+readDeclaration :: forall l r d t. TypeChecker -> Node l r -> Visit d t -> Maybe (FullyQualifiedName /\ d)
 readDeclaration checker = do
   let
     params :: forall l. { typeParameters :: _ | l } -> _
@@ -178,7 +189,7 @@ readDeclaration checker = do
           fqn = getFullyQualifiedName checker s
         pure $ fqn /\ visit.onDeclaration fqn t'
       | Just n <- Node.interface <$> asTypeAliasDeclaration node = do
-          case getSymbolAtLocation checker (unNode' n.name), getTypeAtLocation checker node of
+          case getSymbolAtLocation checker n.name, getTypeAtLocation checker node of
             Just s, Just t -> do
               let
                 t' = readType checker t (params n) visit.onType
@@ -242,7 +253,6 @@ readType checker t params onType
   | otherwise = do
     let
       x = do
-        traceM "UNKOWN"
         traceM (formatTypeFlags <<< _.flags <<< Typs.interface $ t)
         Nothing
     onType.unknown t

@@ -2,22 +2,25 @@ module ReadDTS.AST where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
+import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.Except (ExceptT(..), runExcept, runExceptT)
 import Control.Monad.State (StateT, runStateT)
 import Control.Monad.State.Class (gets, modify_)
 import Data.Array (catMaybes)
 import Data.Array as A
 import Data.Array.NonEmpty (NonEmptyArray)
-import Data.Bifunctor (lmap)
+import Data.Bifoldable (class Bifoldable, bifoldlDefault, bifoldrDefault)
+import Data.Bifunctor (class Bifunctor, lmap)
+import Data.Bifunctor (lmap) as Bifunctor
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, fold)
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
 import Data.Lens (Lens)
 import Data.Lens.Record (prop)
+import Data.List (List)
 import Data.Map (Map)
-import Data.Map (empty, insert, lookup) as Map
+import Data.Map (empty, insert, lookup, toUnfoldableUnordered) as Map
 import Data.Maybe (Maybe(..))
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
@@ -28,8 +31,10 @@ import Matryoshka (CoalgebraM, anaM)
 import ReadDTS (Options, TsDeclaration, Visit, foldMapParam, sequenceParam)
 import ReadDTS (Param, Prop, Props, Application, sequenceProp) as ReadDTS
 import Type.Prelude (SProxy(..))
-import TypeScript.Compiler.Types (FullyQualifiedName(..))
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Typ)
 import TypeScript.Compiler.Types (Typ) as TS
+import TypeScript.Compiler.Types.Nodes (Declaration) as Nodes
+import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
 type Prop decl ref = ReadDTS.Prop (TsType decl ref)
@@ -75,6 +80,10 @@ derive instance genericTsType :: Generic (TsType decl ref) _
 instance showTsType :: (Show decl, Show ref) => Show (TsType decl ref) where
   show s = genericShow s
 
+instance Bifunctor TsType where
+  bimap f _ (TsTypeRef ref) = TsTypeRef (f ref)
+  bimap _ g t = unsafeCoerce (map g t)
+
 instance Foldable (TsType decl) where
   foldMap _ TsAny = mempty
   foldMap f (TsArray t) = f t
@@ -92,7 +101,7 @@ instance Foldable (TsType decl) where
   foldMap _ TsNumber = mempty
   foldMap _ (TsNumberLiteral _) = mempty
   foldMap f (TsObject ts) = foldMap (f <<< _.type) ts
-  foldMap f (TsParameter t) = mempty
+  foldMap _ (TsParameter _) = mempty
   foldMap f (TsParametric body params) = f body <> foldMap (foldMapParam f) params
   foldMap _ TsString = mempty
   foldMap _ (TsStringLiteral _) = mempty
@@ -105,6 +114,12 @@ instance Foldable (TsType decl) where
 
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
+
+instance Bifoldable TsType where
+  bifoldMap f _ (TsTypeRef decl) = f decl
+  bifoldMap _ g t = unsafeCoerce (foldMap g t)
+  bifoldr f = bifoldrDefault f
+  bifoldl f = bifoldlDefault f
 
 instance Traversable (TsType decl) where
   sequence TsAny = pure TsAny
@@ -139,107 +154,106 @@ instance Traversable (TsType decl) where
   --   sequence Void = pure Void
   traverse = traverseDefault
 
--- newtype TypeDeclaration ref = TypeDeclaration
---   { fullyQualifiedName ∷ FullyQualifiedName
---   , "type" ∷ TsType FullyQualifiedName ref
---   }
--- 
--- derive instance functorTypeDeclaration ∷ Functor TypeDeclaration
--- derive instance Eq ref ⇒ Eq (TypeDeclaration ref)
--- derive instance Ord ref ⇒ Ord (TypeDeclaration ref)
--- derive instance genericTypeDeclaration ∷ Generic (TypeDeclaration ref) _
--- instance showTypeDeclaration ∷ (Show ref) ⇒ Show (TypeDeclaration ref) where
---   show s = genericShow s
--- 
--- instance foldableTypeDeclaration ∷ Foldable TypeDeclaration where
---   foldMap f (TypeDeclaration { type: t }) = foldMap f t
---   foldr f t = foldrDefault f t
---   foldl f t = foldlDefault f t
--- 
--- instance traversableTypeDeclaration ∷ Traversable TypeDeclaration where
---   sequence (TypeDeclaration { fullyQualifiedName, type: t }) =
---     TypeDeclaration <<< { fullyQualifiedName, type: _ } <$> sequence t
---   traverse = traverseDefault
+type Typ' = TsType Nodes.Declaration (Typ ())
+
+type TypeDeclaration t = { fqn :: FullyQualifiedName, "type" :: t }
+
+visitor :: Visit (TypeDeclaration Typ') Typ'
+visitor =
+  { onDeclaration: \fqn t -> { fqn, "type": t }
+  , onType:
+      { any: TsAny
+      , application: TsApplication
+      , array: TsArray
+      , boolean: TsBoolean
+      , booleanLiteral: TsBooleanLiteral
+      , class: TsClass
+      , intersection: TsIntersection
+      , interface: TsInterface
+      , object: TsObject
+      , null: TsNull
+      , number: TsNumber
+      , numberLiteral: TsNumberLiteral
+      , parameter: TsParameter
+      , parametric: TsParametric
+      , string: TsString
+      , stringLiteral: TsStringLiteral
+      , tuple: TsTuple
+      , typeRef: TsTypeRef
+      , undefined: TsUndefined
+      , unknown: TsUnknown <<< TSTyp
+      , union: TsUnion
+      }
+  }
 
 type KnownDeclarations decl = Map FullyQualifiedName (Mu (TsType decl))
+
+-- type Context = { env :: KnownDeclarations FullyQualifiedName, path :: Path }
 
 type TsRef =
   { ref :: TsDeclaration
   , fullyQualifiedName :: FullyQualifiedName
   }
 
-type VisitMonad a = ExceptT (Array String) Effect a
+type TsDeclarations = Map FullyQualifiedName TsDeclaration
 
-type ReadTsTsType = TS.Typ () -> VisitMonad (TsType TsRef (TS.Typ ()))
+type VisitMonad a = ExceptT (Array String) (StateT TsDeclarations Effect) a
+
+type ReadTsType m = TS.Typ () -> m (TsType FullyQualifiedName (TS.Typ ()))
 
 type Seed = { level :: Int, ref :: TS.Typ () }
 
-coalgebra :: ReadTsTsType -> CoalgebraM VisitMonad (TsType TsRef) Seed
-coalgebra readTsTsType { level, ref } =
+coalgebra ::
+  forall m.
+  MonadError (Array String) m =>
+  ReadTsType m ->
+  CoalgebraM m (TsType FullyQualifiedName) Seed
+coalgebra readTsType { level, ref } =
   if level < 10 then do
-    td <- readTsTsType ref
+    td <- readTsType ref
     pure $ map seed td
   else
     throwError [ "Maximum recursion depth in ReadDTS.AST.visitor coalgebra" ]
   where
   seed = { level: level + 1, ref: _ }
 
--- type ReadDeclaration = TsDeclaration → Effect (TypeDeclaration TsRef)
--- 
--- type ReadTs = { readDeclaration ∷ ReadDeclaration, readType ∷ ReadType }
--- 
--- 
--- -- -- | TODO: rename to `visitor`
--- -- visitor ∷ Visit (TypeDeclaration TsTsType) (TsType TsTsType)
--- -- visitor =
--- --   { onDeclaration: \fqn t → TypeDeclaration { fullyQualifiedName: fqn, type: t }
--- --   , onTsType:
--- --     { any: TsAny
--- --     -- , array: Array
--- --     -- , function: Function
--- --     -- , intersection: Intersection
--- --     -- , interface: Interface
--- --     -- , primitive: case _ of
--- --     --     "any" → TsAny
--- --     --     "boolean" → Boolean
--- --     --     "null" → TsNull
--- --     --     "number" → TsNumber
--- --     --     "string" → String
--- --     --     "undefined" → TsUndefined
--- --     --     "void" → Void
--- --     --     x → TsUnknownTsType ("TsUnknown primitive type:" <> x)
--- --     -- , tuple: Tuple
--- --     -- , typeParameter: TypeParameter
--- --     -- , typeReference: \{ fullyQualifiedName, ref, typeArguments } →
--- --     --     Application { constructor: { fullyQualifiedName, ref }, params: typeArguments }
--- --     -- , booleanLiteral: BooleanLiteral
--- --     -- , numberLiteral: TsNumberLiteral
--- --     , object: TsObject
--- --     -- , stringLiteral: StringLiteral
--- --     -- , union: Union
--- --     -- , unknown: TsUnknownTsType
--- --     }
--- --   }
--- --   where
--- --     _nameL ∷ ∀ a b r. Lens { name ∷ a | r } { name ∷ b | r } a b
--- --     _nameL = prop (SProxy ∷ SProxy "name")
--- -- 
--- -- --     _typeParametersL ∷ ∀ a b r. Lens { typeParameters ∷ a | r } { typeParameters ∷ b | r } a b
--- -- --     _typeParametersL = prop (SProxy ∷ SProxy "typeParameters")
+-- -- -- type ReadDeclaration = TsDeclaration → Effect (TypeDeclaration TsRef)
 -- -- -- 
--- -- type Declarations = Map FullyQualifiedName (TypeDeclaration FullyQualifiedName)
+-- -- -- type ReadTs = { readDeclaration ∷ ReadDeclaration, readType ∷ ReadType }
+-- -- -- 
+-- -- -- -- type Declarations = Map FullyQualifiedName (TypeDeclaration FullyQualifiedName)
 -- -- 
--- -- visit
--- --   ∷ Options
--- --   → Array String
--- --   → Array ReadDTS.InMemoryFile
--- --   → TypeScript.CompilerHost
--- --   → Effect
--- --     (Either
--- --       (Array String)
--- --       { topLevel ∷ Array FullyQualifiedName, declarations ∷ Declarations }
--- --     )
--- -- visit compilerOptions rootNames inMemoryFiles host = do
+-- -- 
+-- -- -- -- visit
+-- -- -- --   ∷ Options
+-- -- -- --   → Array String
+-- -- -- --   → Array ReadDTS.InMemoryFile
+-- -- -- --   → TypeScript.CompilerHost
+-- -- -- --   → Effect
+-- -- -- --     (Either
+-- -- -- --       (Array String)
+-- -- -- --       { topLevel ∷ Array FullyQualifiedName, declarations ∷ Declarations }
+-- -- -- --     )
+
+-- visit program = do
+--   let
+--     -- | This unfolding expands the tree of nested types.
+--     -- | It leaves references do type declarations untouched.
+--     unfoldTsRefs ∷ Seed → _ (Mu _)
+--     unfoldTsRefs = anaM (coalgebra readDeclaration)
+-- 
+--     roots = readRootsDeclarations program visitor
+--     readDeclarations decls = do
+--       whenM (gets $ isNothing <<< Map.lookup fqn) do
+
+--     go = for_ (Map.values roots :: List _) \{ fqn, type: t } -> do
+--       whenM (gets $ isNothing <<< Map.lookup fqn) do
+--         let
+--           t' = unfoldTsRefs { level: 0, ref: t }
+--           decls' = bifoldMap (\tsRef -> List.singleton tsRef) (const mempty) t'
+--           t'' = Bifunctor.lmap _.fqn t'
+--         modify_ (Map.insert fqn t'')
+-- -- 
 -- --   readDTS compilerOptions visitor rootNames inMemoryFiles host >>= case _ of
 -- --     Right { readDeclaration, topLevel } → do
 -- --       let

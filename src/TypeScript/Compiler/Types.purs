@@ -53,32 +53,31 @@ foreign import data PropertyName :: Type
 
 foreign import data TypeReference :: Type
 
--- | `Node` carries information about possible accessors.
+-- | `Node` carries information about possible accessors in the row.
+-- | You can use it by casting done through `Types.Nodes.interface`.
 -- |
 -- | Few notes:
 -- |
--- | * We treat `Node` values in this binding as immutable.
+-- | * We treat `Node` values as immutable in this TS compiler binding.
 -- | * We need this opaque type around possible records because
 -- | we don't want to expose its internal `kind` field which
--- | is used for casting etc.
+-- | is used for casting and we don't want to expose private fields etc.
 -- | * We need this opaque type because we should disallow
 -- | creation of nodes which are partial (i.e. missing `kind` field)
 -- | or inconsistent (when `kind` field is incosistent with the
 -- | actual shape of the node record).
 -- | * Nodes don't have methods. If they have we will not
--- | expose them as methods shoudl be bounded to the js object.
-foreign import data Node :: Row Type -> Type
+-- | expose them - methods should be bounded to the "this" object
+-- | before we can expose them to the PS.
+-- | * We use `Symbol` tag to distinguish between different types
+-- | of nodes (with the same exposed public props). They in some
+-- | sens represent all the private stuff.
+foreign import data Node :: Symbol -> Row Type -> Type
 
--- | FIXME: Currently we use this wrapper to tag some specific
--- | nodes which we feed back into the FFI so we won't mess
--- | the types of the nodes by only structurally typing
--- | them with rows.
--- | This is going to be private constructor
-newtype Node' (tag :: Symbol) i = Node' (Node i)
-
-unNode' :: forall tag i. Node' tag i -> Node i
-unNode' (Node' n) = n
-
+-- | FIXME: we should add symbol tag similar to the one above
+-- | as well here.
+-- |
+-- | FIXME: Rename to `Type_` so it is consistent with `Symbol_`.
 -- | The interface in the `compiler/types.ts` is called
 -- | `Type`. I've found that this makes some PS errors
 -- | hard to read. `Type` collide with PS builtin type name.

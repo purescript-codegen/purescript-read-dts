@@ -2,112 +2,67 @@ module Test.ReadDTS where
 
 import Prelude
 
-import Control.Monad.Except (runExcept, runExceptT)
-import Data.Array (head, singleton) as Array
-import Data.Array.NonEmpty (fromArray, singleton) as Array.NonEmpty
-import Data.Either (Either(..), either)
-import Data.Foldable (fold, foldMap, for_)
-import Data.Functor.Mu (roll)
-import Data.Lens (over) as Lens
-import Data.Lens.Record (prop)
+import Data.Array (singleton) as Array
+import Data.Array.NonEmpty (singleton) as Array.NonEmpty
+import Data.Bifunctor (bimap)
+import Data.Lens (Lens')
 import Data.Lens.Record (prop) as Lens.Record
-import Data.List ((:))
-import Data.List (List(..), filter, head, singleton) as List
-import Data.Map (Map, fromFoldableWithIndex)
-import Data.Map (empty, fromFoldable, fromFoldableWithIndex, singleton, toUnfoldableUnordered, values) as Map
+import Data.List (filter, head) as List
+import Data.Map (Map)
+import Data.Map (toUnfoldableUnordered) as Map
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype, un)
-import Data.Set (Set)
-import Data.Set (empty, fromFoldable, singleton) as Set
-import Data.String (joinWith)
 import Data.String (joinWith) as String
 import Data.Tuple (fst, snd)
-import Data.Tuple.Nested ((/\), type (/\))
-import Data.Undefined.NoProblem (undefined)
-import Data.Undefined.NoProblem.Closed (coerce) as NoProblem
-import Debug (traceM)
-import Effect (Effect)
-import Effect.Aff (Aff, throwError)
-import Effect.Class (liftEffect)
-import Effect.Console (log)
-import Effect.Exception (throw)
-import JS.Unsafe.Stringify (unsafeStringify)
-import Matryoshka (cata)
-import ReadDTS (Declarations, OnDeclaration, OnType, TsDeclaration, Visit, readRootsDeclarations, readType)
-import ReadDTS (defaults) as ReadDTS
-import ReadDTS.AST (KnownDeclarations, TSTyp(..), TsType(..)) as AST
+import Effect.Aff (Aff)
+import Node.Path (FilePath)
+import ReadDTS (readRootsDeclarations, readType)
+import ReadDTS.AST (TsType(..), TypeDeclaration, visitor) as AST
 import ReadDTS.AST (TsType)
-import ReadDTS.TypeScript.Testing (handleMemoryFiles, inMemoryCompilerHost) as Testing
-import Test.Unit (failure)
-import Test.Unit (failure, suite, test) as Test
-import Test.Unit.Assert (equal) as Assert
+import ReadDTS.TypeScript.Testing (InMemoryFile)
+import Test.Unit (TestSuite, failure)
+import Test.Unit (suite, test) as Test
 import Test.Unit.Assert (shouldEqual)
 import Type.Prelude (Proxy(..))
-import TypeScript.Class.Compiler.Program (createCompilerHost, createProgram)
-import TypeScript.Compiler.Checker (getTypeArguments)
+import TypeScript.Compiler.Parser (SourceCode)
 import TypeScript.Compiler.Program (getTypeChecker)
-import TypeScript.Compiler.Types (CompilerOptions, FullyQualifiedName(..), Program, Typ, scriptTarget)
-import Unsafe.Coerce (unsafeCoerce)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Program, Typ)
+import TypeScript.Compiler.Types.Nodes (Declaration) as Nodes
 
+file :: FilePath -> SourceCode -> InMemoryFile
 file name source =
   { path: name
   , source: source
   }
 
+type SourceLine = String
+
+file' :: FilePath -> Array SourceLine -> InMemoryFile
 file' name = file name <<< String.joinWith "\n"
 
 type RootModule = String
 
--- readTopLevel ∷ CompilerHost → RootModule → Array ReadDTS.InMemoryFile → Aff _ -- (Array _ /\ AST.KnownDeclarations)
--- readTopLevel host root files = do
---   liftEffect (ReadDTS.AST.visit (ReadDTS.defaults { debug = false }) [root] files host) >>= case _ of
---     Right result → do
---       pure result
---     Left errs → do
---       Test.failure ("Compilation failed: " <> String.joinWith "\n" errs)
---       pure { topLevel: [], declarations: Map.empty }
-
-visit =
-  { onDeclaration: \fqn t -> { fqn, "type": t }
-  , onType:
-      { any: AST.TsAny
-      , application: AST.TsApplication
-      , array: AST.TsArray
-      , boolean: AST.TsBoolean
-      , booleanLiteral: AST.TsBooleanLiteral
-      , class: AST.TsClass
-      , intersection: AST.TsIntersection
-      , interface: AST.TsInterface
-      , object: AST.TsObject
-      , null: AST.TsNull
-      , number: AST.TsNumber
-      , numberLiteral: AST.TsNumberLiteral
-      , parameter: AST.TsParameter
-      , parametric: AST.TsParametric
-      , string: AST.TsString
-      , stringLiteral: AST.TsStringLiteral
-      , tuple: AST.TsTuple
-      , undefined: AST.TsUndefined
-      , unknown: AST.TsUnknown <<< AST.TSTyp
-      , union: AST.TsUnion
-      }
-  }
-
+_type :: forall a. Lens' { "type" :: a } a
 _type = Lens.Record.prop (Proxy :: Proxy "type")
 
-type TypeDeclaration t = { fqn :: FullyQualifiedName, "type" :: t }
+type Compile = Array FilePath -> Array InMemoryFile -> Aff Program
 
 -- https://www.typescriptlang.org/docs/handbook/declaration-files/templates/module-d-ts.html
+suite :: Compile -> TestSuite
 suite compile = do
   Test.suite "Simple types" do
     let
-      xDeclaration :: String -> Aff { program :: Program, x :: Maybe (AST.TsType Unit (Typ ())) }
+      xDeclaration ::
+        String ->
+        Aff { program :: Program, x :: Maybe (AST.TsType Nodes.Declaration (Typ ())) }
       xDeclaration source = do
         let
           rootName = "Root.ts"
           fqn = FullyQualifiedName "\"Root\".X"
 
-          getX :: forall t. Map _ (TypeDeclaration (AST.TsType Unit t)) -> Maybe (TypeDeclaration (AST.TsType Unit t))
+          getX ::
+            forall d t.
+            Map FullyQualifiedName (AST.TypeDeclaration (AST.TsType d t)) ->
+            Maybe (AST.TypeDeclaration (AST.TsType d t))
           getX
             = List.head
             <<< map snd
@@ -117,7 +72,7 @@ suite compile = do
           rootFile = file rootName source
         program <- compile [rootName] [rootFile]
         let
-          decls = readRootsDeclarations program visit
+          decls = readRootsDeclarations program AST.visitor
         pure { x: _.type <$> getX decls, program }
 
       testOnX source test = Test.test source do
@@ -128,7 +83,7 @@ suite compile = do
 
       testXShouldEqual source expected = testOnX source \{ x } -> do
         let
-          x' = map (const unit) x
+          x' = bimap (const unit) (const unit) x
         x' `shouldEqual` expected
 
     testXShouldEqual "export type X = any" AST.TsAny
@@ -184,10 +139,16 @@ suite compile = do
     testOnX "export type X<arg=number> = {prop: arg}" \{ program, x } -> do
       let
         checker = getTypeChecker program
-        readType' t = readType checker t [] visit.onType
+        readType' t = readType checker t [] AST.visitor.onType
 
         x' :: TsType Unit (TsType Unit (TsType Unit Unit))
-        x' = map (map (map (const unit) <<< readType') <<< readType') x
+        x'
+          = bimap
+            (const unit)
+            (bimap (const unit) (bimap (const unit) (const unit)))
+          <<< map (map readType')
+          <<< map readType'
+          $ x
         body = AST.TsObject $ Array.singleton
           { name: "prop"
           , optional: false
@@ -212,40 +173,6 @@ suite compile = do
     --   x' `shouldEqual` AST.TsAny
 
 
---   let
---     readTopLevel' = readTopLevel compilerHost
---   Test.suite "Simple types" do
---     Test.test "type X = any" do
---       let
---         root = file "Root.ts" "export type X = any"
---         fullyQualifiedName = ReadDTS.FullyQualifiedName "\"Root\".X"
---         expected = Map.singleton fullyQualifiedName $ AST.TypeDeclaration
---           { fullyQualifiedName
---           , type: AST.TsAny
---           }
---       { topLevel, declarations } ← readTopLevel' "Root.ts" [root]
---       Assert.equal expected declarations
---       Assert.equal [ fullyQualifiedName ] topLevel
--- 
---    Test.test "interface X {}" do
---      let
---        root = file "Root.ts" "export interface X {}"
---        expected = List.singleton $ AST.Interface
---          { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"Root\".X"
---          , props: []
---          }
---      readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
---     Test.test "single non empty declaration" do
---       let
---         file = dts "export interface NonEmpty { x : string }"
---         expected = List.singleton $ AST.Interface
---           { fullyQualifiedName: ReadDTS.FullyQualifiedName "\"inMemory\".NonEmpty"
---           , name: "NonEmpty"
---           , properties: [{ name: "x", optional: false, type: AST.String }]
---           , typeParameters: []
---           }
---       readTopLevel' file >>= snd >>> Map.values >>> Assert.equal expected
---
 --    Test.test "type X = Y" do
 --      let
 --        root = file'

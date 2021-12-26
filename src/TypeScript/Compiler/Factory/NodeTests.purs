@@ -9,1021 +9,1021 @@ import TypeScript.Compiler.Types (Node)
 import TypeScript.Compiler.Types.Nodes as Nodes
 
 -- Automatically converted by <Ctrl-C><Ctrl-V> of the NodeTests.ts content and "nearly" this regexp:
--- s/export const \([^ ]*\)Impl.*): ts.\([^ ]*\).*/\1 = toMaybe <<< runFn1 \1Impl\r\rforeign import \1Impl :: forall r. Fn1 (Node r) (Nullable Nodes.\2/)
+-- s/export const \([^ ]*\)Impl.*): ts.\([^ ]*\).*/\1 = toMaybe <<< runFn1 \1Impl\r\rforeign import \1Impl :: forall l r. Fn1 (Node l r) (Nullable Nodes.\2/)
 --
 -- Order of definitions in this file follows the original typescript module.
 -- All extra node testing funcitons are added at the end of the file.
 
-asNumericLiteral :: forall r. Node r -> Maybe Nodes.NumericLiteral
+asNumericLiteral :: forall l r. Node l r -> Maybe Nodes.NumericLiteral
 asNumericLiteral = toMaybe <<< runFn1 asNumericLiteralImpl
 
-foreign import asNumericLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NumericLiteral)
+foreign import asNumericLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NumericLiteral)
 
-asBigIntLiteral :: forall r. Node r -> Maybe Nodes.BigIntLiteral
+asBigIntLiteral :: forall l r. Node l r -> Maybe Nodes.BigIntLiteral
 asBigIntLiteral = toMaybe <<< runFn1 asBigIntLiteralImpl
 
-foreign import asBigIntLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.BigIntLiteral)
+foreign import asBigIntLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.BigIntLiteral)
 
-asStringLiteral :: forall r. Node r -> Maybe Nodes.StringLiteral
+asStringLiteral :: forall l r. Node l r -> Maybe Nodes.StringLiteral
 asStringLiteral = toMaybe <<< runFn1 asStringLiteralImpl
 
-foreign import asStringLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.StringLiteral)
+foreign import asStringLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.StringLiteral)
 
-asJsxText :: forall r. Node r -> Maybe Nodes.JsxText
+asJsxText :: forall l r. Node l r -> Maybe Nodes.JsxText
 asJsxText = toMaybe <<< runFn1 asJsxTextImpl
 
-foreign import asJsxTextImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxText)
+foreign import asJsxTextImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxText)
 
-asRegularExpressionLiteral :: forall r. Node r -> Maybe Nodes.RegularExpressionLiteral
+asRegularExpressionLiteral :: forall l r. Node l r -> Maybe Nodes.RegularExpressionLiteral
 asRegularExpressionLiteral = toMaybe <<< runFn1 asRegularExpressionLiteralImpl
 
-foreign import asRegularExpressionLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.RegularExpressionLiteral)
+foreign import asRegularExpressionLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.RegularExpressionLiteral)
 
-asNoSubstitutionTemplateLiteral :: forall r. Node r -> Maybe Nodes.NoSubstitutionTemplateLiteral
+asNoSubstitutionTemplateLiteral :: forall l r. Node l r -> Maybe Nodes.NoSubstitutionTemplateLiteral
 asNoSubstitutionTemplateLiteral = toMaybe <<< runFn1 asNoSubstitutionTemplateLiteralImpl
 
-foreign import asNoSubstitutionTemplateLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NoSubstitutionTemplateLiteral)
+foreign import asNoSubstitutionTemplateLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NoSubstitutionTemplateLiteral)
 
 -- Pseudo-literals
 
-asTemplateHead :: forall r. Node r -> Maybe Nodes.TemplateHead
+asTemplateHead :: forall l r. Node l r -> Maybe Nodes.TemplateHead
 asTemplateHead = toMaybe <<< runFn1 asTemplateHeadImpl
 
-foreign import asTemplateHeadImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateHead)
+foreign import asTemplateHeadImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateHead)
 
-asTemplateMiddle :: forall r. Node r -> Maybe Nodes.TemplateMiddle
+asTemplateMiddle :: forall l r. Node l r -> Maybe Nodes.TemplateMiddle
 asTemplateMiddle = toMaybe <<< runFn1 asTemplateMiddleImpl
 
-foreign import asTemplateMiddleImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateMiddle)
+foreign import asTemplateMiddleImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateMiddle)
 
-asTemplateTail :: forall r. Node r -> Maybe Nodes.TemplateTail
+asTemplateTail :: forall l r. Node l r -> Maybe Nodes.TemplateTail
 asTemplateTail = toMaybe <<< runFn1 asTemplateTailImpl
 
-foreign import asTemplateTailImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateTail)
+foreign import asTemplateTailImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateTail)
 
 -- Punctuation
 
-asDotDotDotToken :: forall r. Node r -> Maybe Nodes.DotDotDotToken
+asDotDotDotToken :: forall l r. Node l r -> Maybe Nodes.DotDotDotToken
 asDotDotDotToken = toMaybe <<< runFn1 asDotDotDotTokenImpl
 
-foreign import asDotDotDotTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.DotDotDotToken)
+foreign import asDotDotDotTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.DotDotDotToken)
 
 -- /*@internal*/
 -- asCommaToken = toMaybe <<< runFn1 asCommaTokenImpl
--- foreign import asCommaTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.Token<ts.SyntaxKind.CommaToken>)
+-- foreign import asCommaTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.Token<ts.SyntaxKind.CommaToken>)
 
-asPlusToken :: forall r. Node r -> Maybe Nodes.PlusToken
+asPlusToken :: forall l r. Node l r -> Maybe Nodes.PlusToken
 asPlusToken = toMaybe <<< runFn1 asPlusTokenImpl
 
-foreign import asPlusTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PlusToken)
+foreign import asPlusTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PlusToken)
 
-asMinusToken :: forall r. Node r -> Maybe Nodes.MinusToken
+asMinusToken :: forall l r. Node l r -> Maybe Nodes.MinusToken
 asMinusToken = toMaybe <<< runFn1 asMinusTokenImpl
 
-foreign import asMinusTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MinusToken)
+foreign import asMinusTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MinusToken)
 
-asAsteriskToken :: forall r. Node r -> Maybe Nodes.AsteriskToken
+asAsteriskToken :: forall l r. Node l r -> Maybe Nodes.AsteriskToken
 asAsteriskToken = toMaybe <<< runFn1 asAsteriskTokenImpl
 
-foreign import asAsteriskTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AsteriskToken)
+foreign import asAsteriskTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AsteriskToken)
 
 -- /*@internal*/
 -- asExclamationToken = toMaybe <<< runFn1 asExclamationTokenImpl
--- foreign import asExclamationTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExclamationToken)
+-- foreign import asExclamationTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExclamationToken)
 -- 
 -- /*@internal*/
 -- asQuestionToken = toMaybe <<< runFn1 asQuestionTokenImpl
--- foreign import asQuestionTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.QuestionToken)
+-- foreign import asQuestionTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.QuestionToken)
 -- 
 -- /*@internal*/
 -- asColonToken = toMaybe <<< runFn1 asColonTokenImpl
--- foreign import asColonTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ColonToken)
+-- foreign import asColonTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ColonToken)
 -- 
 -- /*@internal*/
 -- asQuestionDotToken = toMaybe <<< runFn1 asQuestionDotTokenImpl
--- foreign import asQuestionDotTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.QuestionDotToken)
+-- foreign import asQuestionDotTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.QuestionDotToken)
 -- 
 -- /*@internal*/
 -- asEqualsGreaterThanToken = toMaybe <<< runFn1 asEqualsGreaterThanTokenImpl
--- foreign import asEqualsGreaterThanTokenImpl :: forall r. Fn1 (Node r) (Nullable Nodes.EqualsGreaterThanToken)
+-- foreign import asEqualsGreaterThanTokenImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.EqualsGreaterThanToken)
 
 -- Identifiers
 
-asIdentifier :: forall r. Node r -> Maybe Nodes.Identifier
+asIdentifier :: forall l r. Node l r -> Maybe Nodes.Identifier
 asIdentifier = toMaybe <<< runFn1 asIdentifierImpl
 
-foreign import asIdentifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.Identifier)
+foreign import asIdentifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.Identifier)
 
-asPrivateIdentifier :: forall r. Node r -> Maybe Nodes.PrivateIdentifier
+asPrivateIdentifier :: forall l r. Node l r -> Maybe Nodes.PrivateIdentifier
 asPrivateIdentifier = toMaybe <<< runFn1 asPrivateIdentifierImpl
 
-foreign import asPrivateIdentifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PrivateIdentifier)
+foreign import asPrivateIdentifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PrivateIdentifier)
 
 -- Reserved Words
 
 -- /* @internal */
 -- asExportModifier = toMaybe <<< runFn1 asExportModifierImpl
--- foreign import asExportModifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExportKeyword)
+-- foreign import asExportModifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExportKeyword)
 -- 
 -- /* @internal */
 -- asAsyncModifier = toMaybe <<< runFn1 asAsyncModifierImpl
--- foreign import asAsyncModifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AsyncKeyword)
+-- foreign import asAsyncModifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AsyncKeyword)
 -- 
 -- /* @internal */
 -- asAssertsKeyword = toMaybe <<< runFn1 asAssertsKeywordImpl
--- foreign import asAssertsKeywordImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AssertsKeyword)
+-- foreign import asAssertsKeywordImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AssertsKeyword)
 -- 
 -- /* @internal */
 -- asAwaitKeyword = toMaybe <<< runFn1 asAwaitKeywordImpl
--- foreign import asAwaitKeywordImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AwaitKeyword)
+-- foreign import asAwaitKeywordImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AwaitKeyword)
 -- 
 -- /* @internal */
 -- asReadonlyKeyword = toMaybe <<< runFn1 asReadonlyKeywordImpl
--- foreign import asReadonlyKeywordImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ReadonlyKeyword)
+-- foreign import asReadonlyKeywordImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ReadonlyKeyword)
 -- 
 -- /* @internal */
 -- asStaticModifier = toMaybe <<< runFn1 asStaticModifierImpl
--- foreign import asStaticModifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.StaticKeyword)
+-- foreign import asStaticModifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.StaticKeyword)
 -- 
 -- /* @internal */
 -- asAbstractModifier = toMaybe <<< runFn1 asAbstractModifierImpl
--- foreign import asAbstractModifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AbstractKeyword)
+-- foreign import asAbstractModifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AbstractKeyword)
 -- 
 -- /*@internal*/
 -- asSuperKeyword = toMaybe <<< runFn1 asSuperKeywordImpl
 -- 
--- foreign import asSuperKeywordImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SuperExpression)
+-- foreign import asSuperKeywordImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SuperExpression)
 -- 
 -- /*@internal*/
 -- asImportKeyword = toMaybe <<< runFn1 asImportKeywordImpl
 -- 
--- foreign import asImportKeywordImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportExpression)
+-- foreign import asImportKeywordImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportExpression)
 
 -- Names
 
-asQualifiedName :: forall r. Node r -> Maybe Nodes.QualifiedName
+asQualifiedName :: forall l r. Node l r -> Maybe Nodes.QualifiedName
 asQualifiedName = toMaybe <<< runFn1 asQualifiedNameImpl
 
-foreign import asQualifiedNameImpl :: forall r. Fn1 (Node r) (Nullable Nodes.QualifiedName)
+foreign import asQualifiedNameImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.QualifiedName)
 
-asComputedPropertyName :: forall r. Node r -> Maybe Nodes.ComputedPropertyName
+asComputedPropertyName :: forall l r. Node l r -> Maybe Nodes.ComputedPropertyName
 asComputedPropertyName = toMaybe <<< runFn1 asComputedPropertyNameImpl
 
-foreign import asComputedPropertyNameImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ComputedPropertyName)
+foreign import asComputedPropertyNameImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ComputedPropertyName)
 
 -- Signature elements
 
-asTypeParameterDeclaration :: forall r. Node r -> Maybe Nodes.TypeParameterDeclaration
+asTypeParameterDeclaration :: forall l r. Node l r -> Maybe Nodes.TypeParameterDeclaration
 asTypeParameterDeclaration = toMaybe <<< runFn1 asTypeParameterDeclarationImpl
 
-foreign import asTypeParameterDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeParameterDeclaration)
+foreign import asTypeParameterDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeParameterDeclaration)
 
-asParameterDeclaration :: forall r. Node r -> Maybe Nodes.ParameterDeclaration
+asParameterDeclaration :: forall l r. Node l r -> Maybe Nodes.ParameterDeclaration
 asParameterDeclaration = toMaybe <<< runFn1 asParameterImpl
 
-foreign import asParameterImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ParameterDeclaration)
+foreign import asParameterImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ParameterDeclaration)
 
-asDecorator :: forall r. Node r -> Maybe Nodes.Decorator
+asDecorator :: forall l r. Node l r -> Maybe Nodes.Decorator
 asDecorator = toMaybe <<< runFn1 asDecoratorImpl
 
-foreign import asDecoratorImpl :: forall r. Fn1 (Node r) (Nullable Nodes.Decorator)
+foreign import asDecoratorImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.Decorator)
 
 -- TypeMember
 
-asPropertySignature :: forall r. Node r -> Maybe Nodes.PropertySignature
+asPropertySignature :: forall l r. Node l r -> Maybe Nodes.PropertySignature
 asPropertySignature = toMaybe <<< runFn1 asPropertySignatureImpl
 
-foreign import asPropertySignatureImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PropertySignature)
+foreign import asPropertySignatureImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PropertySignature)
 
-asPropertyDeclaration :: forall r. Node r -> Maybe Nodes.PropertyDeclaration
+asPropertyDeclaration :: forall l r. Node l r -> Maybe Nodes.PropertyDeclaration
 asPropertyDeclaration = toMaybe <<< runFn1 asPropertyDeclarationImpl
 
-foreign import asPropertyDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PropertyDeclaration)
+foreign import asPropertyDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PropertyDeclaration)
 
-asMethodSignature :: forall r. Node r -> Maybe Nodes.MethodSignature
+asMethodSignature :: forall l r. Node l r -> Maybe Nodes.MethodSignature
 asMethodSignature = toMaybe <<< runFn1 asMethodSignatureImpl
 
-foreign import asMethodSignatureImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MethodSignature)
+foreign import asMethodSignatureImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MethodSignature)
 
-asMethodDeclaration :: forall r. Node r -> Maybe Nodes.MethodDeclaration
+asMethodDeclaration :: forall l r. Node l r -> Maybe Nodes.MethodDeclaration
 asMethodDeclaration = toMaybe <<< runFn1 asMethodDeclarationImpl
 
-foreign import asMethodDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MethodDeclaration)
+foreign import asMethodDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MethodDeclaration)
 
-asClassStaticBlockDeclaration :: forall r. Node r -> Maybe Nodes.ClassStaticBlockDeclaration
+asClassStaticBlockDeclaration :: forall l r. Node l r -> Maybe Nodes.ClassStaticBlockDeclaration
 asClassStaticBlockDeclaration = toMaybe <<< runFn1 asClassStaticBlockDeclarationImpl
 
-foreign import asClassStaticBlockDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ClassStaticBlockDeclaration)
+foreign import asClassStaticBlockDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ClassStaticBlockDeclaration)
 
-asConstructorDeclaration :: forall r. Node r -> Maybe Nodes.ConstructorDeclaration
+asConstructorDeclaration :: forall l r. Node l r -> Maybe Nodes.ConstructorDeclaration
 asConstructorDeclaration = toMaybe <<< runFn1 asConstructorDeclarationImpl
 
-foreign import asConstructorDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ConstructorDeclaration)
+foreign import asConstructorDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ConstructorDeclaration)
 
-asGetAccessorDeclaration :: forall r. Node r -> Maybe Nodes.GetAccessorDeclaration
+asGetAccessorDeclaration :: forall l r. Node l r -> Maybe Nodes.GetAccessorDeclaration
 asGetAccessorDeclaration = toMaybe <<< runFn1 asGetAccessorDeclarationImpl
 
-foreign import asGetAccessorDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.GetAccessorDeclaration)
+foreign import asGetAccessorDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.GetAccessorDeclaration)
 
-asSetAccessorDeclaration :: forall r. Node r -> Maybe Nodes.SetAccessorDeclaration
+asSetAccessorDeclaration :: forall l r. Node l r -> Maybe Nodes.SetAccessorDeclaration
 asSetAccessorDeclaration = toMaybe <<< runFn1 asSetAccessorDeclarationImpl
 
-foreign import asSetAccessorDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SetAccessorDeclaration)
+foreign import asSetAccessorDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SetAccessorDeclaration)
 
-asCallSignatureDeclaration :: forall r. Node r -> Maybe Nodes.CallSignatureDeclaration
+asCallSignatureDeclaration :: forall l r. Node l r -> Maybe Nodes.CallSignatureDeclaration
 asCallSignatureDeclaration = toMaybe <<< runFn1 asCallSignatureDeclarationImpl
 
-foreign import asCallSignatureDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CallSignatureDeclaration)
+foreign import asCallSignatureDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CallSignatureDeclaration)
 
-asConstructSignatureDeclaration :: forall r. Node r -> Maybe Nodes.ConstructSignatureDeclaration
+asConstructSignatureDeclaration :: forall l r. Node l r -> Maybe Nodes.ConstructSignatureDeclaration
 asConstructSignatureDeclaration = toMaybe <<< runFn1 asConstructSignatureDeclarationImpl
 
-foreign import asConstructSignatureDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ConstructSignatureDeclaration)
+foreign import asConstructSignatureDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ConstructSignatureDeclaration)
 
-asIndexSignatureDeclaration :: forall r. Node r -> Maybe Nodes.IndexSignatureDeclaration
+asIndexSignatureDeclaration :: forall l r. Node l r -> Maybe Nodes.IndexSignatureDeclaration
 asIndexSignatureDeclaration = toMaybe <<< runFn1 asIndexSignatureDeclarationImpl
 
-foreign import asIndexSignatureDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.IndexSignatureDeclaration)
+foreign import asIndexSignatureDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.IndexSignatureDeclaration)
 
 -- Type
 
-asTypePredicateNode :: forall r. Node r -> Maybe Nodes.TypePredicateNode
+asTypePredicateNode :: forall l r. Node l r -> Maybe Nodes.TypePredicateNode
 asTypePredicateNode = toMaybe <<< runFn1 asTypePredicateNodeImpl
 
-foreign import asTypePredicateNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypePredicateNode)
+foreign import asTypePredicateNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypePredicateNode)
 
-asTypeReferenceNode :: forall r. Node r -> Maybe Nodes.TypeReferenceNode
+asTypeReferenceNode :: forall l r. Node l r -> Maybe Nodes.TypeReferenceNode
 asTypeReferenceNode = toMaybe <<< runFn1 asTypeReferenceNodeImpl
 
-foreign import asTypeReferenceNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeReferenceNode)
+foreign import asTypeReferenceNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeReferenceNode)
 
-asFunctionTypeNode :: forall r. Node r -> Maybe Nodes.FunctionTypeNode
+asFunctionTypeNode :: forall l r. Node l r -> Maybe Nodes.FunctionTypeNode
 asFunctionTypeNode = toMaybe <<< runFn1 asFunctionTypeNodeImpl
 
-foreign import asFunctionTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.FunctionTypeNode)
+foreign import asFunctionTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.FunctionTypeNode)
 
-asConstructorTypeNode :: forall r. Node r -> Maybe Nodes.ConstructorTypeNode
+asConstructorTypeNode :: forall l r. Node l r -> Maybe Nodes.ConstructorTypeNode
 asConstructorTypeNode = toMaybe <<< runFn1 asConstructorTypeNodeImpl
 
-foreign import asConstructorTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ConstructorTypeNode)
+foreign import asConstructorTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ConstructorTypeNode)
 
-asTypeQueryNode :: forall r. Node r -> Maybe Nodes.TypeQueryNode
+asTypeQueryNode :: forall l r. Node l r -> Maybe Nodes.TypeQueryNode
 asTypeQueryNode = toMaybe <<< runFn1 asTypeQueryNodeImpl
 
-foreign import asTypeQueryNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeQueryNode)
+foreign import asTypeQueryNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeQueryNode)
 
-asTypeLiteralNode :: forall r. Node r -> Maybe Nodes.TypeLiteralNode
+asTypeLiteralNode :: forall l r. Node l r -> Maybe Nodes.TypeLiteralNode
 asTypeLiteralNode = toMaybe <<< runFn1 asTypeLiteralNodeImpl
 
-foreign import asTypeLiteralNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeLiteralNode)
+foreign import asTypeLiteralNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeLiteralNode)
 
-asArrayTypeNode :: forall r. Node r -> Maybe Nodes.ArrayTypeNode
+asArrayTypeNode :: forall l r. Node l r -> Maybe Nodes.ArrayTypeNode
 asArrayTypeNode = toMaybe <<< runFn1 asArrayTypeNodeImpl
 
-foreign import asArrayTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ArrayTypeNode)
+foreign import asArrayTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ArrayTypeNode)
 
-asTupleTypeNode :: forall r. Node r -> Maybe Nodes.TupleTypeNode
+asTupleTypeNode :: forall l r. Node l r -> Maybe Nodes.TupleTypeNode
 asTupleTypeNode = toMaybe <<< runFn1 asTupleTypeNodeImpl
 
-foreign import asTupleTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TupleTypeNode)
+foreign import asTupleTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TupleTypeNode)
 
-asNamedTupleMember :: forall r. Node r -> Maybe Nodes.NamedTupleMember
+asNamedTupleMember :: forall l r. Node l r -> Maybe Nodes.NamedTupleMember
 asNamedTupleMember = toMaybe <<< runFn1 asNamedTupleMemberImpl
 
-foreign import asNamedTupleMemberImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamedTupleMember)
+foreign import asNamedTupleMemberImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamedTupleMember)
 
-asOptionalTypeNode :: forall r. Node r -> Maybe Nodes.OptionalTypeNode
+asOptionalTypeNode :: forall l r. Node l r -> Maybe Nodes.OptionalTypeNode
 asOptionalTypeNode = toMaybe <<< runFn1 asOptionalTypeNodeImpl
 
-foreign import asOptionalTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.OptionalTypeNode)
+foreign import asOptionalTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.OptionalTypeNode)
 
-asRestTypeNode :: forall r. Node r -> Maybe Nodes.RestTypeNode
+asRestTypeNode :: forall l r. Node l r -> Maybe Nodes.RestTypeNode
 asRestTypeNode = toMaybe <<< runFn1 asRestTypeNodeImpl
 
-foreign import asRestTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.RestTypeNode)
+foreign import asRestTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.RestTypeNode)
 
-asUnionTypeNode :: forall r. Node r -> Maybe Nodes.UnionTypeNode
+asUnionTypeNode :: forall l r. Node l r -> Maybe Nodes.UnionTypeNode
 asUnionTypeNode = toMaybe <<< runFn1 asUnionTypeNodeImpl
 
-foreign import asUnionTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.UnionTypeNode)
+foreign import asUnionTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.UnionTypeNode)
 
-asIntersectionTypeNode :: forall r. Node r -> Maybe Nodes.IntersectionTypeNode
+asIntersectionTypeNode :: forall l r. Node l r -> Maybe Nodes.IntersectionTypeNode
 asIntersectionTypeNode = toMaybe <<< runFn1 asIntersectionTypeNodeImpl
 
-foreign import asIntersectionTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.IntersectionTypeNode)
+foreign import asIntersectionTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.IntersectionTypeNode)
 
-asConditionalTypeNode :: forall r. Node r -> Maybe Nodes.ConditionalTypeNode
+asConditionalTypeNode :: forall l r. Node l r -> Maybe Nodes.ConditionalTypeNode
 asConditionalTypeNode = toMaybe <<< runFn1 asConditionalTypeNodeImpl
 
-foreign import asConditionalTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ConditionalTypeNode)
+foreign import asConditionalTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ConditionalTypeNode)
 
-asInferTypeNode :: forall r. Node r -> Maybe Nodes.InferTypeNode
+asInferTypeNode :: forall l r. Node l r -> Maybe Nodes.InferTypeNode
 asInferTypeNode = toMaybe <<< runFn1 asInferTypeNodeImpl
 
-foreign import asInferTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.InferTypeNode)
+foreign import asInferTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.InferTypeNode)
 
-asParenthesizedTypeNode :: forall r. Node r -> Maybe Nodes.ParenthesizedTypeNode
+asParenthesizedTypeNode :: forall l r. Node l r -> Maybe Nodes.ParenthesizedTypeNode
 asParenthesizedTypeNode = toMaybe <<< runFn1 asParenthesizedTypeNodeImpl
 
-foreign import asParenthesizedTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ParenthesizedTypeNode)
+foreign import asParenthesizedTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ParenthesizedTypeNode)
 
-asThisTypeNode :: forall r. Node r -> Maybe Nodes.ThisTypeNode
+asThisTypeNode :: forall l r. Node l r -> Maybe Nodes.ThisTypeNode
 asThisTypeNode = toMaybe <<< runFn1 asThisTypeNodeImpl
 
-foreign import asThisTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ThisTypeNode)
+foreign import asThisTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ThisTypeNode)
 
-asTypeOperatorNode :: forall r. Node r -> Maybe Nodes.TypeOperatorNode
+asTypeOperatorNode :: forall l r. Node l r -> Maybe Nodes.TypeOperatorNode
 asTypeOperatorNode = toMaybe <<< runFn1 asTypeOperatorNodeImpl
 
-foreign import asTypeOperatorNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeOperatorNode)
+foreign import asTypeOperatorNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeOperatorNode)
 
-asIndexedAccessTypeNode :: forall r. Node r -> Maybe Nodes.IndexedAccessTypeNode
+asIndexedAccessTypeNode :: forall l r. Node l r -> Maybe Nodes.IndexedAccessTypeNode
 asIndexedAccessTypeNode = toMaybe <<< runFn1 asIndexedAccessTypeNodeImpl
 
-foreign import asIndexedAccessTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.IndexedAccessTypeNode)
+foreign import asIndexedAccessTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.IndexedAccessTypeNode)
 
-asMappedTypeNode :: forall r. Node r -> Maybe Nodes.MappedTypeNode
+asMappedTypeNode :: forall l r. Node l r -> Maybe Nodes.MappedTypeNode
 asMappedTypeNode = toMaybe <<< runFn1 asMappedTypeNodeImpl
 
-foreign import asMappedTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MappedTypeNode)
+foreign import asMappedTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MappedTypeNode)
 
-asLiteralTypeNode :: forall r. Node r -> Maybe Nodes.LiteralTypeNode
+asLiteralTypeNode :: forall l r. Node l r -> Maybe Nodes.LiteralTypeNode
 asLiteralTypeNode = toMaybe <<< runFn1 asLiteralTypeNodeImpl
 
-foreign import asLiteralTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.LiteralTypeNode)
+foreign import asLiteralTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.LiteralTypeNode)
 
-asImportTypeNode :: forall r. Node r -> Maybe Nodes.ImportTypeNode
+asImportTypeNode :: forall l r. Node l r -> Maybe Nodes.ImportTypeNode
 asImportTypeNode = toMaybe <<< runFn1 asImportTypeNodeImpl
 
-foreign import asImportTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportTypeNode)
+foreign import asImportTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportTypeNode)
 
-asTemplateLiteralTypeSpan :: forall r. Node r -> Maybe Nodes.TemplateLiteralTypeSpan
+asTemplateLiteralTypeSpan :: forall l r. Node l r -> Maybe Nodes.TemplateLiteralTypeSpan
 asTemplateLiteralTypeSpan = toMaybe <<< runFn1 asTemplateLiteralTypeSpanImpl
 
-foreign import asTemplateLiteralTypeSpanImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateLiteralTypeSpan)
+foreign import asTemplateLiteralTypeSpanImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateLiteralTypeSpan)
 
-asTemplateLiteralTypeNode :: forall r. Node r -> Maybe Nodes.TemplateLiteralTypeNode
+asTemplateLiteralTypeNode :: forall l r. Node l r -> Maybe Nodes.TemplateLiteralTypeNode
 asTemplateLiteralTypeNode = toMaybe <<< runFn1 asTemplateLiteralTypeNodeImpl
 
-foreign import asTemplateLiteralTypeNodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateLiteralTypeNode)
+foreign import asTemplateLiteralTypeNodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateLiteralTypeNode)
 
 -- Binding patterns
 
-asObjectBindingPattern :: forall r. Node r -> Maybe Nodes.ObjectBindingPattern
+asObjectBindingPattern :: forall l r. Node l r -> Maybe Nodes.ObjectBindingPattern
 asObjectBindingPattern = toMaybe <<< runFn1 asObjectBindingPatternImpl
 
-foreign import asObjectBindingPatternImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ObjectBindingPattern)
+foreign import asObjectBindingPatternImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ObjectBindingPattern)
 
-asArrayBindingPattern :: forall r. Node r -> Maybe Nodes.ArrayBindingPattern
+asArrayBindingPattern :: forall l r. Node l r -> Maybe Nodes.ArrayBindingPattern
 asArrayBindingPattern = toMaybe <<< runFn1 asArrayBindingPatternImpl
 
-foreign import asArrayBindingPatternImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ArrayBindingPattern)
+foreign import asArrayBindingPatternImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ArrayBindingPattern)
 
-asBindingElement :: forall r. Node r -> Maybe Nodes.BindingElement
+asBindingElement :: forall l r. Node l r -> Maybe Nodes.BindingElement
 asBindingElement = toMaybe <<< runFn1 asBindingElementImpl
 
-foreign import asBindingElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.BindingElement)
+foreign import asBindingElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.BindingElement)
 
 -- Expression
 
-asArrayLiteralExpression :: forall r. Node r -> Maybe Nodes.ArrayLiteralExpression
+asArrayLiteralExpression :: forall l r. Node l r -> Maybe Nodes.ArrayLiteralExpression
 asArrayLiteralExpression = toMaybe <<< runFn1 asArrayLiteralExpressionImpl
 
-foreign import asArrayLiteralExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ArrayLiteralExpression)
+foreign import asArrayLiteralExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ArrayLiteralExpression)
 
-asObjectLiteralExpression :: forall r. Node r -> Maybe Nodes.ObjectLiteralExpression
+asObjectLiteralExpression :: forall l r. Node l r -> Maybe Nodes.ObjectLiteralExpression
 asObjectLiteralExpression = toMaybe <<< runFn1 asObjectLiteralExpressionImpl
 
-foreign import asObjectLiteralExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ObjectLiteralExpression)
+foreign import asObjectLiteralExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ObjectLiteralExpression)
 
-asPropertyAccessExpression :: forall r. Node r -> Maybe Nodes.PropertyAccessExpression
+asPropertyAccessExpression :: forall l r. Node l r -> Maybe Nodes.PropertyAccessExpression
 asPropertyAccessExpression = toMaybe <<< runFn1 asPropertyAccessExpressionImpl
 
-foreign import asPropertyAccessExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PropertyAccessExpression)
+foreign import asPropertyAccessExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PropertyAccessExpression)
 
-asElementAccessExpression :: forall r. Node r -> Maybe Nodes.ElementAccessExpression
+asElementAccessExpression :: forall l r. Node l r -> Maybe Nodes.ElementAccessExpression
 asElementAccessExpression = toMaybe <<< runFn1 asElementAccessExpressionImpl
 
-foreign import asElementAccessExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ElementAccessExpression)
+foreign import asElementAccessExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ElementAccessExpression)
 
-asCallExpression :: forall r. Node r -> Maybe Nodes.CallExpression
+asCallExpression :: forall l r. Node l r -> Maybe Nodes.CallExpression
 asCallExpression = toMaybe <<< runFn1 asCallExpressionImpl
 
-foreign import asCallExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CallExpression)
+foreign import asCallExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CallExpression)
 
-asNewExpression :: forall r. Node r -> Maybe Nodes.NewExpression
+asNewExpression :: forall l r. Node l r -> Maybe Nodes.NewExpression
 asNewExpression = toMaybe <<< runFn1 asNewExpressionImpl
 
-foreign import asNewExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NewExpression)
+foreign import asNewExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NewExpression)
 
-asTaggedTemplateExpression :: forall r. Node r -> Maybe Nodes.TaggedTemplateExpression
+asTaggedTemplateExpression :: forall l r. Node l r -> Maybe Nodes.TaggedTemplateExpression
 asTaggedTemplateExpression = toMaybe <<< runFn1 asTaggedTemplateExpressionImpl
 
-foreign import asTaggedTemplateExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TaggedTemplateExpression)
+foreign import asTaggedTemplateExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TaggedTemplateExpression)
 
-asTypeAssertionExpression :: forall r. Node r -> Maybe Nodes.TypeAssertion
+asTypeAssertionExpression :: forall l r. Node l r -> Maybe Nodes.TypeAssertion
 asTypeAssertionExpression = toMaybe <<< runFn1 asTypeAssertionExpressionImpl
 
-foreign import asTypeAssertionExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeAssertion)
+foreign import asTypeAssertionExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeAssertion)
 
-asParenthesizedExpression :: forall r. Node r -> Maybe Nodes.ParenthesizedExpression
+asParenthesizedExpression :: forall l r. Node l r -> Maybe Nodes.ParenthesizedExpression
 asParenthesizedExpression = toMaybe <<< runFn1 asParenthesizedExpressionImpl
 
-foreign import asParenthesizedExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ParenthesizedExpression)
+foreign import asParenthesizedExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ParenthesizedExpression)
 
-asFunctionExpression :: forall r. Node r -> Maybe Nodes.FunctionExpression
+asFunctionExpression :: forall l r. Node l r -> Maybe Nodes.FunctionExpression
 asFunctionExpression = toMaybe <<< runFn1 asFunctionExpressionImpl
 
-foreign import asFunctionExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.FunctionExpression)
+foreign import asFunctionExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.FunctionExpression)
 
-asArrowFunction :: forall r. Node r -> Maybe Nodes.ArrowFunction
+asArrowFunction :: forall l r. Node l r -> Maybe Nodes.ArrowFunction
 asArrowFunction = toMaybe <<< runFn1 asArrowFunctionImpl
 
-foreign import asArrowFunctionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ArrowFunction)
+foreign import asArrowFunctionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ArrowFunction)
 
-asDeleteExpression :: forall r. Node r -> Maybe Nodes.DeleteExpression
+asDeleteExpression :: forall l r. Node l r -> Maybe Nodes.DeleteExpression
 asDeleteExpression = toMaybe <<< runFn1 asDeleteExpressionImpl
 
-foreign import asDeleteExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.DeleteExpression)
+foreign import asDeleteExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.DeleteExpression)
 
-asTypeOfExpression :: forall r. Node r -> Maybe Nodes.TypeOfExpression
+asTypeOfExpression :: forall l r. Node l r -> Maybe Nodes.TypeOfExpression
 asTypeOfExpression = toMaybe <<< runFn1 asTypeOfExpressionImpl
 
-foreign import asTypeOfExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeOfExpression)
+foreign import asTypeOfExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeOfExpression)
 
-asVoidExpression :: forall r. Node r -> Maybe Nodes.VoidExpression
+asVoidExpression :: forall l r. Node l r -> Maybe Nodes.VoidExpression
 asVoidExpression = toMaybe <<< runFn1 asVoidExpressionImpl
 
-foreign import asVoidExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.VoidExpression)
+foreign import asVoidExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.VoidExpression)
 
-asAwaitExpression :: forall r. Node r -> Maybe Nodes.AwaitExpression
+asAwaitExpression :: forall l r. Node l r -> Maybe Nodes.AwaitExpression
 asAwaitExpression = toMaybe <<< runFn1 asAwaitExpressionImpl
 
-foreign import asAwaitExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AwaitExpression)
+foreign import asAwaitExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AwaitExpression)
 
-asPrefixUnaryExpression :: forall r. Node r -> Maybe Nodes.PrefixUnaryExpression
+asPrefixUnaryExpression :: forall l r. Node l r -> Maybe Nodes.PrefixUnaryExpression
 asPrefixUnaryExpression = toMaybe <<< runFn1 asPrefixUnaryExpressionImpl
 
-foreign import asPrefixUnaryExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PrefixUnaryExpression)
+foreign import asPrefixUnaryExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PrefixUnaryExpression)
 
-asPostfixUnaryExpression :: forall r. Node r -> Maybe Nodes.PostfixUnaryExpression
+asPostfixUnaryExpression :: forall l r. Node l r -> Maybe Nodes.PostfixUnaryExpression
 asPostfixUnaryExpression = toMaybe <<< runFn1 asPostfixUnaryExpressionImpl
 
-foreign import asPostfixUnaryExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PostfixUnaryExpression)
+foreign import asPostfixUnaryExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PostfixUnaryExpression)
 
-asBinaryExpression :: forall r. Node r -> Maybe Nodes.BinaryExpression
+asBinaryExpression :: forall l r. Node l r -> Maybe Nodes.BinaryExpression
 asBinaryExpression = toMaybe <<< runFn1 asBinaryExpressionImpl
 
-foreign import asBinaryExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.BinaryExpression)
+foreign import asBinaryExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.BinaryExpression)
 
-asConditionalExpression :: forall r. Node r -> Maybe Nodes.ConditionalExpression
+asConditionalExpression :: forall l r. Node l r -> Maybe Nodes.ConditionalExpression
 asConditionalExpression = toMaybe <<< runFn1 asConditionalExpressionImpl
 
-foreign import asConditionalExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ConditionalExpression)
+foreign import asConditionalExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ConditionalExpression)
 
-asTemplateExpression :: forall r. Node r -> Maybe Nodes.TemplateExpression
+asTemplateExpression :: forall l r. Node l r -> Maybe Nodes.TemplateExpression
 asTemplateExpression = toMaybe <<< runFn1 asTemplateExpressionImpl
 
-foreign import asTemplateExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateExpression)
+foreign import asTemplateExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateExpression)
 
-asYieldExpression :: forall r. Node r -> Maybe Nodes.YieldExpression
+asYieldExpression :: forall l r. Node l r -> Maybe Nodes.YieldExpression
 asYieldExpression = toMaybe <<< runFn1 asYieldExpressionImpl
 
-foreign import asYieldExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.YieldExpression)
+foreign import asYieldExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.YieldExpression)
 
-asSpreadElement :: forall r. Node r -> Maybe Nodes.SpreadElement
+asSpreadElement :: forall l r. Node l r -> Maybe Nodes.SpreadElement
 asSpreadElement = toMaybe <<< runFn1 asSpreadElementImpl
 
-foreign import asSpreadElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SpreadElement)
+foreign import asSpreadElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SpreadElement)
 
-asClassExpression :: forall r. Node r -> Maybe Nodes.ClassExpression
+asClassExpression :: forall l r. Node l r -> Maybe Nodes.ClassExpression
 asClassExpression = toMaybe <<< runFn1 asClassExpressionImpl
 
-foreign import asClassExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ClassExpression)
+foreign import asClassExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ClassExpression)
 
-asOmittedExpression :: forall r. Node r -> Maybe Nodes.OmittedExpression
+asOmittedExpression :: forall l r. Node l r -> Maybe Nodes.OmittedExpression
 asOmittedExpression = toMaybe <<< runFn1 asOmittedExpressionImpl
 
-foreign import asOmittedExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.OmittedExpression)
+foreign import asOmittedExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.OmittedExpression)
 
-asExpressionWithTypeArguments :: forall r. Node r -> Maybe Nodes.ExpressionWithTypeArguments
+asExpressionWithTypeArguments :: forall l r. Node l r -> Maybe Nodes.ExpressionWithTypeArguments
 asExpressionWithTypeArguments = toMaybe <<< runFn1 asExpressionWithTypeArgumentsImpl
 
-foreign import asExpressionWithTypeArgumentsImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExpressionWithTypeArguments)
+foreign import asExpressionWithTypeArgumentsImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExpressionWithTypeArguments)
 
-asAsExpression :: forall r. Node r -> Maybe Nodes.AsExpression
+asAsExpression :: forall l r. Node l r -> Maybe Nodes.AsExpression
 asAsExpression = toMaybe <<< runFn1 asAsExpressionImpl
 
-foreign import asAsExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AsExpression)
+foreign import asAsExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AsExpression)
 
-asNonNullExpression :: forall r. Node r -> Maybe Nodes.NonNullExpression
+asNonNullExpression :: forall l r. Node l r -> Maybe Nodes.NonNullExpression
 asNonNullExpression = toMaybe <<< runFn1 asNonNullExpressionImpl
 
-foreign import asNonNullExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NonNullExpression)
+foreign import asNonNullExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NonNullExpression)
 
-asMetaProperty :: forall r. Node r -> Maybe Nodes.MetaProperty
+asMetaProperty :: forall l r. Node l r -> Maybe Nodes.MetaProperty
 asMetaProperty = toMaybe <<< runFn1 asMetaPropertyImpl
 
-foreign import asMetaPropertyImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MetaProperty)
+foreign import asMetaPropertyImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MetaProperty)
 
-asSyntheticExpression :: forall r. Node r -> Maybe Nodes.SyntheticExpression
+asSyntheticExpression :: forall l r. Node l r -> Maybe Nodes.SyntheticExpression
 asSyntheticExpression = toMaybe <<< runFn1 asSyntheticExpressionImpl
 
-foreign import asSyntheticExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SyntheticExpression)
+foreign import asSyntheticExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SyntheticExpression)
 
-asPartiallyEmittedExpression :: forall r. Node r -> Maybe Nodes.PartiallyEmittedExpression
+asPartiallyEmittedExpression :: forall l r. Node l r -> Maybe Nodes.PartiallyEmittedExpression
 asPartiallyEmittedExpression = toMaybe <<< runFn1 asPartiallyEmittedExpressionImpl
 
-foreign import asPartiallyEmittedExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PartiallyEmittedExpression)
+foreign import asPartiallyEmittedExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PartiallyEmittedExpression)
 
-asCommaListExpression :: forall r. Node r -> Maybe Nodes.CommaListExpression
+asCommaListExpression :: forall l r. Node l r -> Maybe Nodes.CommaListExpression
 asCommaListExpression = toMaybe <<< runFn1 asCommaListExpressionImpl
 
-foreign import asCommaListExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CommaListExpression)
+foreign import asCommaListExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CommaListExpression)
 
 -- Misc
 
-asTemplateSpan :: forall r. Node r -> Maybe Nodes.TemplateSpan
+asTemplateSpan :: forall l r. Node l r -> Maybe Nodes.TemplateSpan
 asTemplateSpan = toMaybe <<< runFn1 asTemplateSpanImpl
 
-foreign import asTemplateSpanImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TemplateSpan)
+foreign import asTemplateSpanImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TemplateSpan)
 
-asSemicolonClassElement :: forall r. Node r -> Maybe Nodes.SemicolonClassElement
+asSemicolonClassElement :: forall l r. Node l r -> Maybe Nodes.SemicolonClassElement
 asSemicolonClassElement = toMaybe <<< runFn1 asSemicolonClassElementImpl
 
-foreign import asSemicolonClassElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SemicolonClassElement)
+foreign import asSemicolonClassElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SemicolonClassElement)
 
 -- Elements
 
-asBlock :: forall r. Node r -> Maybe Nodes.Block
+asBlock :: forall l r. Node l r -> Maybe Nodes.Block
 asBlock = toMaybe <<< runFn1 asBlockImpl
 
-foreign import asBlockImpl :: forall r. Fn1 (Node r) (Nullable Nodes.Block)
+foreign import asBlockImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.Block)
 
-asVariableStatement :: forall r. Node r -> Maybe Nodes.VariableStatement
+asVariableStatement :: forall l r. Node l r -> Maybe Nodes.VariableStatement
 asVariableStatement = toMaybe <<< runFn1 asVariableStatementImpl
 
-foreign import asVariableStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.VariableStatement)
+foreign import asVariableStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.VariableStatement)
 
-asEmptyStatement :: forall r. Node r -> Maybe Nodes.EmptyStatement
+asEmptyStatement :: forall l r. Node l r -> Maybe Nodes.EmptyStatement
 asEmptyStatement = toMaybe <<< runFn1 asEmptyStatementImpl
 
-foreign import asEmptyStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.EmptyStatement)
+foreign import asEmptyStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.EmptyStatement)
 
-asExpressionStatement :: forall r. Node r -> Maybe Nodes.ExpressionStatement
+asExpressionStatement :: forall l r. Node l r -> Maybe Nodes.ExpressionStatement
 asExpressionStatement = toMaybe <<< runFn1 asExpressionStatementImpl
 
-foreign import asExpressionStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExpressionStatement)
+foreign import asExpressionStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExpressionStatement)
 
-asIfStatement :: forall r. Node r -> Maybe Nodes.IfStatement
+asIfStatement :: forall l r. Node l r -> Maybe Nodes.IfStatement
 asIfStatement = toMaybe <<< runFn1 asIfStatementImpl
 
-foreign import asIfStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.IfStatement)
+foreign import asIfStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.IfStatement)
 
-asDoStatement :: forall r. Node r -> Maybe Nodes.DoStatement
+asDoStatement :: forall l r. Node l r -> Maybe Nodes.DoStatement
 asDoStatement = toMaybe <<< runFn1 asDoStatementImpl
 
-foreign import asDoStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.DoStatement)
+foreign import asDoStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.DoStatement)
 
-asWhileStatement :: forall r. Node r -> Maybe Nodes.WhileStatement
+asWhileStatement :: forall l r. Node l r -> Maybe Nodes.WhileStatement
 asWhileStatement = toMaybe <<< runFn1 asWhileStatementImpl
 
-foreign import asWhileStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.WhileStatement)
+foreign import asWhileStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.WhileStatement)
 
-asForStatement :: forall r. Node r -> Maybe Nodes.ForStatement
+asForStatement :: forall l r. Node l r -> Maybe Nodes.ForStatement
 asForStatement = toMaybe <<< runFn1 asForStatementImpl
 
-foreign import asForStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ForStatement)
+foreign import asForStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ForStatement)
 
-asForInStatement :: forall r. Node r -> Maybe Nodes.ForInStatement
+asForInStatement :: forall l r. Node l r -> Maybe Nodes.ForInStatement
 asForInStatement = toMaybe <<< runFn1 asForInStatementImpl
 
-foreign import asForInStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ForInStatement)
+foreign import asForInStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ForInStatement)
 
-asForOfStatement :: forall r. Node r -> Maybe Nodes.ForOfStatement
+asForOfStatement :: forall l r. Node l r -> Maybe Nodes.ForOfStatement
 asForOfStatement = toMaybe <<< runFn1 asForOfStatementImpl
 
-foreign import asForOfStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ForOfStatement)
+foreign import asForOfStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ForOfStatement)
 
-asContinueStatement :: forall r. Node r -> Maybe Nodes.ContinueStatement
+asContinueStatement :: forall l r. Node l r -> Maybe Nodes.ContinueStatement
 asContinueStatement = toMaybe <<< runFn1 asContinueStatementImpl
 
-foreign import asContinueStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ContinueStatement)
+foreign import asContinueStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ContinueStatement)
 
-asBreakStatement :: forall r. Node r -> Maybe Nodes.BreakStatement
+asBreakStatement :: forall l r. Node l r -> Maybe Nodes.BreakStatement
 asBreakStatement = toMaybe <<< runFn1 asBreakStatementImpl
 
-foreign import asBreakStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.BreakStatement)
+foreign import asBreakStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.BreakStatement)
 
-asReturnStatement :: forall r. Node r -> Maybe Nodes.ReturnStatement
+asReturnStatement :: forall l r. Node l r -> Maybe Nodes.ReturnStatement
 asReturnStatement = toMaybe <<< runFn1 asReturnStatementImpl
 
-foreign import asReturnStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ReturnStatement)
+foreign import asReturnStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ReturnStatement)
 
-asWithStatement :: forall r. Node r -> Maybe Nodes.WithStatement
+asWithStatement :: forall l r. Node l r -> Maybe Nodes.WithStatement
 asWithStatement = toMaybe <<< runFn1 asWithStatementImpl
 
-foreign import asWithStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.WithStatement)
+foreign import asWithStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.WithStatement)
 
-asSwitchStatement :: forall r. Node r -> Maybe Nodes.SwitchStatement
+asSwitchStatement :: forall l r. Node l r -> Maybe Nodes.SwitchStatement
 asSwitchStatement = toMaybe <<< runFn1 asSwitchStatementImpl
 
-foreign import asSwitchStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SwitchStatement)
+foreign import asSwitchStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SwitchStatement)
 
-asLabeledStatement :: forall r. Node r -> Maybe Nodes.LabeledStatement
+asLabeledStatement :: forall l r. Node l r -> Maybe Nodes.LabeledStatement
 asLabeledStatement = toMaybe <<< runFn1 asLabeledStatementImpl
 
-foreign import asLabeledStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.LabeledStatement)
+foreign import asLabeledStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.LabeledStatement)
 
-asThrowStatement :: forall r. Node r -> Maybe Nodes.ThrowStatement
+asThrowStatement :: forall l r. Node l r -> Maybe Nodes.ThrowStatement
 asThrowStatement = toMaybe <<< runFn1 asThrowStatementImpl
 
-foreign import asThrowStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ThrowStatement)
+foreign import asThrowStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ThrowStatement)
 
-asTryStatement :: forall r. Node r -> Maybe Nodes.TryStatement
+asTryStatement :: forall l r. Node l r -> Maybe Nodes.TryStatement
 asTryStatement = toMaybe <<< runFn1 asTryStatementImpl
 
-foreign import asTryStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TryStatement)
+foreign import asTryStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TryStatement)
 
-asDebuggerStatement :: forall r. Node r -> Maybe Nodes.DebuggerStatement
+asDebuggerStatement :: forall l r. Node l r -> Maybe Nodes.DebuggerStatement
 asDebuggerStatement = toMaybe <<< runFn1 asDebuggerStatementImpl
 
-foreign import asDebuggerStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.DebuggerStatement)
+foreign import asDebuggerStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.DebuggerStatement)
 
-asVariableDeclaration :: forall r. Node r -> Maybe Nodes.VariableDeclaration
+asVariableDeclaration :: forall l r. Node l r -> Maybe Nodes.VariableDeclaration
 asVariableDeclaration = toMaybe <<< runFn1 asVariableDeclarationImpl
 
-foreign import asVariableDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.VariableDeclaration)
+foreign import asVariableDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.VariableDeclaration)
 
-asVariableDeclarationList :: forall r. Node r -> Maybe Nodes.VariableDeclarationList
+asVariableDeclarationList :: forall l r. Node l r -> Maybe Nodes.VariableDeclarationList
 asVariableDeclarationList = toMaybe <<< runFn1 asVariableDeclarationListImpl
 
-foreign import asVariableDeclarationListImpl :: forall r. Fn1 (Node r) (Nullable Nodes.VariableDeclarationList)
+foreign import asVariableDeclarationListImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.VariableDeclarationList)
 
-asFunctionDeclaration :: forall r. Node r -> Maybe Nodes.FunctionDeclaration
+asFunctionDeclaration :: forall l r. Node l r -> Maybe Nodes.FunctionDeclaration
 asFunctionDeclaration = toMaybe <<< runFn1 asFunctionDeclarationImpl
 
-foreign import asFunctionDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.FunctionDeclaration)
+foreign import asFunctionDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.FunctionDeclaration)
 
-asClassDeclaration :: forall r. Node r -> Maybe Nodes.ClassLikeDeclaration
+asClassDeclaration :: forall l r. Node l r -> Maybe Nodes.ClassLikeDeclaration
 asClassDeclaration = toMaybe <<< runFn1 asClassDeclarationImpl
 
-foreign import asClassDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ClassDeclaration)
+foreign import asClassDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ClassDeclaration)
 
-asInterfaceDeclaration :: forall r. Node r -> Maybe Nodes.InterfaceDeclaration
+asInterfaceDeclaration :: forall l r. Node l r -> Maybe Nodes.InterfaceDeclaration
 asInterfaceDeclaration = toMaybe <<< runFn1 asInterfaceDeclarationImpl
 
-foreign import asInterfaceDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.InterfaceDeclaration)
+foreign import asInterfaceDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.InterfaceDeclaration)
 
-asTypeAliasDeclaration :: forall r. Node r -> Maybe Nodes.TypeAliasDeclaration
+asTypeAliasDeclaration :: forall l r. Node l r -> Maybe Nodes.TypeAliasDeclaration
 asTypeAliasDeclaration = toMaybe <<< runFn1 asTypeAliasDeclarationImpl
 
-foreign import asTypeAliasDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.TypeAliasDeclaration)
+foreign import asTypeAliasDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.TypeAliasDeclaration)
 
-asEnumDeclaration :: forall r. Node r -> Maybe Nodes.EnumDeclaration
+asEnumDeclaration :: forall l r. Node l r -> Maybe Nodes.EnumDeclaration
 asEnumDeclaration = toMaybe <<< runFn1 asEnumDeclarationImpl
 
-foreign import asEnumDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.EnumDeclaration)
+foreign import asEnumDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.EnumDeclaration)
 
-asModuleDeclaration :: forall r. Node r -> Maybe Nodes.ModuleDeclaration
+asModuleDeclaration :: forall l r. Node l r -> Maybe Nodes.ModuleDeclaration
 asModuleDeclaration = toMaybe <<< runFn1 asModuleDeclarationImpl
 
-foreign import asModuleDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ModuleDeclaration)
+foreign import asModuleDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ModuleDeclaration)
 
-asModuleBlock :: forall r. Node r -> Maybe Nodes.ModuleBlock
+asModuleBlock :: forall l r. Node l r -> Maybe Nodes.ModuleBlock
 asModuleBlock = toMaybe <<< runFn1 asModuleBlockImpl
 
-foreign import asModuleBlockImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ModuleBlock)
+foreign import asModuleBlockImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ModuleBlock)
 
-asCaseBlock :: forall r. Node r -> Maybe Nodes.CaseBlock
+asCaseBlock :: forall l r. Node l r -> Maybe Nodes.CaseBlock
 asCaseBlock = toMaybe <<< runFn1 asCaseBlockImpl
 
-foreign import asCaseBlockImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CaseBlock)
+foreign import asCaseBlockImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CaseBlock)
 
-asNamespaceExportDeclaration :: forall r. Node r -> Maybe Nodes.NamespaceExportDeclaration
+asNamespaceExportDeclaration :: forall l r. Node l r -> Maybe Nodes.NamespaceExportDeclaration
 asNamespaceExportDeclaration = toMaybe <<< runFn1 asNamespaceExportDeclarationImpl
 
-foreign import asNamespaceExportDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamespaceExportDeclaration)
+foreign import asNamespaceExportDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamespaceExportDeclaration)
 
-asImportEqualsDeclaration :: forall r. Node r -> Maybe Nodes.ImportEqualsDeclaration
+asImportEqualsDeclaration :: forall l r. Node l r -> Maybe Nodes.ImportEqualsDeclaration
 asImportEqualsDeclaration = toMaybe <<< runFn1 asImportEqualsDeclarationImpl
 
-foreign import asImportEqualsDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportEqualsDeclaration)
+foreign import asImportEqualsDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportEqualsDeclaration)
 
-asImportDeclaration :: forall r. Node r -> Maybe Nodes.ImportDeclaration
+asImportDeclaration :: forall l r. Node l r -> Maybe Nodes.ImportDeclaration
 asImportDeclaration = toMaybe <<< runFn1 asImportDeclarationImpl
 
-foreign import asImportDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportDeclaration)
+foreign import asImportDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportDeclaration)
 
-asImportClause :: forall r. Node r -> Maybe Nodes.ImportClause
+asImportClause :: forall l r. Node l r -> Maybe Nodes.ImportClause
 asImportClause = toMaybe <<< runFn1 asImportClauseImpl
 
-foreign import asImportClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportClause)
+foreign import asImportClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportClause)
 
-asAssertClause :: forall r. Node r -> Maybe Nodes.AssertClause
+asAssertClause :: forall l r. Node l r -> Maybe Nodes.AssertClause
 asAssertClause = toMaybe <<< runFn1 asAssertClauseImpl
 
-foreign import asAssertClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AssertClause)
+foreign import asAssertClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AssertClause)
 
-asAssertEntry :: forall r. Node r -> Maybe Nodes.AssertEntry
+asAssertEntry :: forall l r. Node l r -> Maybe Nodes.AssertEntry
 asAssertEntry = toMaybe <<< runFn1 asAssertEntryImpl
 
-foreign import asAssertEntryImpl :: forall r. Fn1 (Node r) (Nullable Nodes.AssertEntry)
+foreign import asAssertEntryImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.AssertEntry)
 
-asNamespaceImport :: forall r. Node r -> Maybe Nodes.NamespaceImport
+asNamespaceImport :: forall l r. Node l r -> Maybe Nodes.NamespaceImport
 asNamespaceImport = toMaybe <<< runFn1 asNamespaceImportImpl
 
-foreign import asNamespaceImportImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamespaceImport)
+foreign import asNamespaceImportImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamespaceImport)
 
-asNamespaceExport :: forall r. Node r -> Maybe Nodes.NamespaceExport
+asNamespaceExport :: forall l r. Node l r -> Maybe Nodes.NamespaceExport
 asNamespaceExport = toMaybe <<< runFn1 asNamespaceExportImpl
 
-foreign import asNamespaceExportImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamespaceExport)
+foreign import asNamespaceExportImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamespaceExport)
 
-asNamedImports :: forall r. Node r -> Maybe Nodes.NamedImports
+asNamedImports :: forall l r. Node l r -> Maybe Nodes.NamedImports
 asNamedImports = toMaybe <<< runFn1 asNamedImportsImpl
 
-foreign import asNamedImportsImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamedImports)
+foreign import asNamedImportsImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamedImports)
 
-asImportSpecifier :: forall r. Node r -> Maybe Nodes.ImportSpecifier
+asImportSpecifier :: forall l r. Node l r -> Maybe Nodes.ImportSpecifier
 asImportSpecifier = toMaybe <<< runFn1 asImportSpecifierImpl
 
-foreign import asImportSpecifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ImportSpecifier)
+foreign import asImportSpecifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ImportSpecifier)
 
-asExportAssignment :: forall r. Node r -> Maybe Nodes.ExportAssignment
+asExportAssignment :: forall l r. Node l r -> Maybe Nodes.ExportAssignment
 asExportAssignment = toMaybe <<< runFn1 asExportAssignmentImpl
 
-foreign import asExportAssignmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExportAssignment)
+foreign import asExportAssignmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExportAssignment)
 
-asExportDeclaration :: forall r. Node r -> Maybe Nodes.ExportDeclaration
+asExportDeclaration :: forall l r. Node l r -> Maybe Nodes.ExportDeclaration
 asExportDeclaration = toMaybe <<< runFn1 asExportDeclarationImpl
 
-foreign import asExportDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExportDeclaration)
+foreign import asExportDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExportDeclaration)
 
-asNamedExports :: forall r. Node r -> Maybe Nodes.NamedExports
+asNamedExports :: forall l r. Node l r -> Maybe Nodes.NamedExports
 asNamedExports = toMaybe <<< runFn1 asNamedExportsImpl
 
-foreign import asNamedExportsImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NamedExports)
+foreign import asNamedExportsImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NamedExports)
 
-asExportSpecifier :: forall r. Node r -> Maybe Nodes.ExportSpecifier
+asExportSpecifier :: forall l r. Node l r -> Maybe Nodes.ExportSpecifier
 asExportSpecifier = toMaybe <<< runFn1 asExportSpecifierImpl
 
-foreign import asExportSpecifierImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExportSpecifier)
+foreign import asExportSpecifierImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExportSpecifier)
 
-asMissingDeclaration :: forall r. Node r -> Maybe Nodes.MissingDeclaration
+asMissingDeclaration :: forall l r. Node l r -> Maybe Nodes.MissingDeclaration
 asMissingDeclaration = toMaybe <<< runFn1 asMissingDeclarationImpl
 
-foreign import asMissingDeclarationImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MissingDeclaration)
+foreign import asMissingDeclarationImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MissingDeclaration)
 
-asNotEmittedStatement :: forall r. Node r -> Maybe Nodes.NotEmittedStatement
+asNotEmittedStatement :: forall l r. Node l r -> Maybe Nodes.NotEmittedStatement
 asNotEmittedStatement = toMaybe <<< runFn1 asNotEmittedStatementImpl
 
-foreign import asNotEmittedStatementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.NotEmittedStatement)
+foreign import asNotEmittedStatementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.NotEmittedStatement)
 
 -- /* @internal */
 -- asSyntheticReference = toMaybe <<< runFn1 asSyntheticReferenceImpl
--- foreign import asSyntheticReferenceImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SyntheticReferenceExpression)
+-- foreign import asSyntheticReferenceImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SyntheticReferenceExpression)
 -- 
 -- /* @internal */
 -- asMergeDeclarationMarker = toMaybe <<< runFn1 asMergeDeclarationMarkerImpl
--- foreign import asMergeDeclarationMarkerImpl :: forall r. Fn1 (Node r) (Nullable Nodes.MergeDeclarationMarker)
+-- foreign import asMergeDeclarationMarkerImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.MergeDeclarationMarker)
 -- 
 -- /* @internal */
 -- asEndOfDeclarationMarker = toMaybe <<< runFn1 asEndOfDeclarationMarkerImpl
--- foreign import asEndOfDeclarationMarkerImpl :: forall r. Fn1 (Node r) (Nullable Nodes.EndOfDeclarationMarker)
+-- foreign import asEndOfDeclarationMarkerImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.EndOfDeclarationMarker)
 
 -- Module References
 
-asExternalModuleReference :: forall r. Node r -> Maybe Nodes.ExternalModuleReference
+asExternalModuleReference :: forall l r. Node l r -> Maybe Nodes.ExternalModuleReference
 asExternalModuleReference = toMaybe <<< runFn1 asExternalModuleReferenceImpl
 
-foreign import asExternalModuleReferenceImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ExternalModuleReference)
+foreign import asExternalModuleReferenceImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ExternalModuleReference)
 
 -- JSX
 
-asJsxElement :: forall r. Node r -> Maybe Nodes.JsxElement
+asJsxElement :: forall l r. Node l r -> Maybe Nodes.JsxElement
 asJsxElement = toMaybe <<< runFn1 asJsxElementImpl
 
-foreign import asJsxElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxElement)
+foreign import asJsxElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxElement)
 
-asJsxSelfClosingElement :: forall r. Node r -> Maybe Nodes.JsxSelfClosingElement
+asJsxSelfClosingElement :: forall l r. Node l r -> Maybe Nodes.JsxSelfClosingElement
 asJsxSelfClosingElement = toMaybe <<< runFn1 asJsxSelfClosingElementImpl
 
-foreign import asJsxSelfClosingElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxSelfClosingElement)
+foreign import asJsxSelfClosingElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxSelfClosingElement)
 
-asJsxOpeningElement :: forall r. Node r -> Maybe Nodes.JsxOpeningElement
+asJsxOpeningElement :: forall l r. Node l r -> Maybe Nodes.JsxOpeningElement
 asJsxOpeningElement = toMaybe <<< runFn1 asJsxOpeningElementImpl
 
-foreign import asJsxOpeningElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxOpeningElement)
+foreign import asJsxOpeningElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxOpeningElement)
 
-asJsxClosingElement :: forall r. Node r -> Maybe Nodes.JsxClosingElement
+asJsxClosingElement :: forall l r. Node l r -> Maybe Nodes.JsxClosingElement
 asJsxClosingElement = toMaybe <<< runFn1 asJsxClosingElementImpl
 
-foreign import asJsxClosingElementImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxClosingElement)
+foreign import asJsxClosingElementImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxClosingElement)
 
-asJsxFragment :: forall r. Node r -> Maybe Nodes.JsxFragment
+asJsxFragment :: forall l r. Node l r -> Maybe Nodes.JsxFragment
 asJsxFragment = toMaybe <<< runFn1 asJsxFragmentImpl
 
-foreign import asJsxFragmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxFragment)
+foreign import asJsxFragmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxFragment)
 
-asJsxOpeningFragment :: forall r. Node r -> Maybe Nodes.JsxOpeningFragment
+asJsxOpeningFragment :: forall l r. Node l r -> Maybe Nodes.JsxOpeningFragment
 asJsxOpeningFragment = toMaybe <<< runFn1 asJsxOpeningFragmentImpl
 
-foreign import asJsxOpeningFragmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxOpeningFragment)
+foreign import asJsxOpeningFragmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxOpeningFragment)
 
-asJsxClosingFragment :: forall r. Node r -> Maybe Nodes.JsxClosingFragment
+asJsxClosingFragment :: forall l r. Node l r -> Maybe Nodes.JsxClosingFragment
 asJsxClosingFragment = toMaybe <<< runFn1 asJsxClosingFragmentImpl
 
-foreign import asJsxClosingFragmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxClosingFragment)
+foreign import asJsxClosingFragmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxClosingFragment)
 
-asJsxAttribute :: forall r. Node r -> Maybe Nodes.JsxAttribute
+asJsxAttribute :: forall l r. Node l r -> Maybe Nodes.JsxAttribute
 asJsxAttribute = toMaybe <<< runFn1 asJsxAttributeImpl
 
-foreign import asJsxAttributeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxAttribute)
+foreign import asJsxAttributeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxAttribute)
 
-asJsxAttributes :: forall r. Node r -> Maybe Nodes.JsxAttributes
+asJsxAttributes :: forall l r. Node l r -> Maybe Nodes.JsxAttributes
 asJsxAttributes = toMaybe <<< runFn1 asJsxAttributesImpl
 
-foreign import asJsxAttributesImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxAttributes)
+foreign import asJsxAttributesImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxAttributes)
 
-asJsxSpreadAttribute :: forall r. Node r -> Maybe Nodes.JsxSpreadAttribute
+asJsxSpreadAttribute :: forall l r. Node l r -> Maybe Nodes.JsxSpreadAttribute
 asJsxSpreadAttribute = toMaybe <<< runFn1 asJsxSpreadAttributeImpl
 
-foreign import asJsxSpreadAttributeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxSpreadAttribute)
+foreign import asJsxSpreadAttributeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxSpreadAttribute)
 
-asJsxExpression :: forall r. Node r -> Maybe Nodes.JsxExpression
+asJsxExpression :: forall l r. Node l r -> Maybe Nodes.JsxExpression
 asJsxExpression = toMaybe <<< runFn1 asJsxExpressionImpl
 
-foreign import asJsxExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JsxExpression)
+foreign import asJsxExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JsxExpression)
 
 -- Clauses
 
-asCaseClause :: forall r. Node r -> Maybe Nodes.CaseClause
+asCaseClause :: forall l r. Node l r -> Maybe Nodes.CaseClause
 asCaseClause = toMaybe <<< runFn1 asCaseClauseImpl
 
-foreign import asCaseClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CaseClause)
+foreign import asCaseClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CaseClause)
 
-asDefaultClause :: forall r. Node r -> Maybe Nodes.DefaultClause
+asDefaultClause :: forall l r. Node l r -> Maybe Nodes.DefaultClause
 asDefaultClause = toMaybe <<< runFn1 asDefaultClauseImpl
 
-foreign import asDefaultClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.DefaultClause)
+foreign import asDefaultClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.DefaultClause)
 
-asHeritageClause :: forall r. Node r -> Maybe Nodes.HeritageClause
+asHeritageClause :: forall l r. Node l r -> Maybe Nodes.HeritageClause
 asHeritageClause = toMaybe <<< runFn1 asHeritageClauseImpl
 
-foreign import asHeritageClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.HeritageClause)
+foreign import asHeritageClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.HeritageClause)
 
-asCatchClause :: forall r. Node r -> Maybe Nodes.CatchClause
+asCatchClause :: forall l r. Node l r -> Maybe Nodes.CatchClause
 asCatchClause = toMaybe <<< runFn1 asCatchClauseImpl
 
-foreign import asCatchClauseImpl :: forall r. Fn1 (Node r) (Nullable Nodes.CatchClause)
+foreign import asCatchClauseImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.CatchClause)
 
 -- Property assignments
 
-asPropertyAssignment :: forall r. Node r -> Maybe Nodes.PropertyAssignment
+asPropertyAssignment :: forall l r. Node l r -> Maybe Nodes.PropertyAssignment
 asPropertyAssignment = toMaybe <<< runFn1 asPropertyAssignmentImpl
 
-foreign import asPropertyAssignmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.PropertyAssignment)
+foreign import asPropertyAssignmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.PropertyAssignment)
 
-asShorthandPropertyAssignment :: forall r. Node r -> Maybe Nodes.ShorthandPropertyAssignment
+asShorthandPropertyAssignment :: forall l r. Node l r -> Maybe Nodes.ShorthandPropertyAssignment
 asShorthandPropertyAssignment = toMaybe <<< runFn1 asShorthandPropertyAssignmentImpl
 
-foreign import asShorthandPropertyAssignmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.ShorthandPropertyAssignment)
+foreign import asShorthandPropertyAssignmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.ShorthandPropertyAssignment)
 
-asSpreadAssignment :: forall r. Node r -> Maybe Nodes.SpreadAssignment
+asSpreadAssignment :: forall l r. Node l r -> Maybe Nodes.SpreadAssignment
 asSpreadAssignment = toMaybe <<< runFn1 asSpreadAssignmentImpl
 
-foreign import asSpreadAssignmentImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SpreadAssignment)
+foreign import asSpreadAssignmentImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SpreadAssignment)
 
 -- Enum
 
-asEnumMember :: forall r. Node r -> Maybe Nodes.EnumMember
+asEnumMember :: forall l r. Node l r -> Maybe Nodes.EnumMember
 asEnumMember = toMaybe <<< runFn1 asEnumMemberImpl
 
-foreign import asEnumMemberImpl :: forall r. Fn1 (Node r) (Nullable Nodes.EnumMember)
+foreign import asEnumMemberImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.EnumMember)
 
 -- Unparsed
 
 -- TODO(rbuckton): isUnparsedPrologue
 
-asUnparsedPrepend :: forall r. Node r -> Maybe Nodes.UnparsedPrepend
+asUnparsedPrepend :: forall l r. Node l r -> Maybe Nodes.UnparsedPrepend
 asUnparsedPrepend = toMaybe <<< runFn1 asUnparsedPrependImpl
 
-foreign import asUnparsedPrependImpl :: forall r. Fn1 (Node r) (Nullable Nodes.UnparsedPrepend)
+foreign import asUnparsedPrependImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.UnparsedPrepend)
 
 -- TODO(rbuckton): isUnparsedText
 -- TODO(rbuckton): isUnparsedInternalText
 -- TODO(rbuckton): isUnparsedSyntheticReference
 
 -- Top-level nodes
-asSourceFile :: forall r. Node r -> Maybe Nodes.SourceFile
+asSourceFile :: forall l r. Node l r -> Maybe Nodes.SourceFile
 asSourceFile = toMaybe <<< runFn1 asSourceFileImpl
 
-foreign import asSourceFileImpl :: forall r. Fn1 (Node r) (Nullable Nodes.SourceFile)
+foreign import asSourceFileImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.SourceFile)
 
-asBundle :: forall r. Node r -> Maybe Nodes.Bundle
+asBundle :: forall l r. Node l r -> Maybe Nodes.Bundle
 asBundle = toMaybe <<< runFn1 asBundleImpl
 
-foreign import asBundleImpl :: forall r. Fn1 (Node r) (Nullable Nodes.Bundle)
+foreign import asBundleImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.Bundle)
 
-asUnparsedSource :: forall r. Node r -> Maybe Nodes.UnparsedSource
+asUnparsedSource :: forall l r. Node l r -> Maybe Nodes.UnparsedSource
 asUnparsedSource = toMaybe <<< runFn1 asUnparsedSourceImpl
 
-foreign import asUnparsedSourceImpl :: forall r. Fn1 (Node r) (Nullable Nodes.UnparsedSource)
+foreign import asUnparsedSourceImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.UnparsedSource)
 
 -- TODO(rbuckton): isInputFiles
 
 -- JSDoc Elements
 
-asJSDocTypeExpression :: forall r. Node r -> Maybe Nodes.JSDocTypeExpression
+asJSDocTypeExpression :: forall l r. Node l r -> Maybe Nodes.JSDocTypeExpression
 asJSDocTypeExpression = toMaybe <<< runFn1 asJSDocTypeExpressionImpl
 
-foreign import asJSDocTypeExpressionImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocTypeExpression)
+foreign import asJSDocTypeExpressionImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocTypeExpression)
 
-asJSDocNameReference :: forall r. Node r -> Maybe Nodes.JSDocNameReference
+asJSDocNameReference :: forall l r. Node l r -> Maybe Nodes.JSDocNameReference
 asJSDocNameReference = toMaybe <<< runFn1 asJSDocNameReferenceImpl
 
-foreign import asJSDocNameReferenceImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocNameReference)
+foreign import asJSDocNameReferenceImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocNameReference)
 
-asJSDocMemberName :: forall r. Node r -> Maybe Nodes.JSDocMemberName
+asJSDocMemberName :: forall l r. Node l r -> Maybe Nodes.JSDocMemberName
 asJSDocMemberName = toMaybe <<< runFn1 asJSDocMemberNameImpl
 
-foreign import asJSDocMemberNameImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocMemberName)
+foreign import asJSDocMemberNameImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocMemberName)
 
-asJSDocLink :: forall r. Node r -> Maybe Nodes.JSDocLink
+asJSDocLink :: forall l r. Node l r -> Maybe Nodes.JSDocLink
 asJSDocLink = toMaybe <<< runFn1 asJSDocLinkImpl
 
-foreign import asJSDocLinkImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocLink)
+foreign import asJSDocLinkImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocLink)
 
-asJSDocLinkCode :: forall r. Node r -> Maybe Nodes.JSDocLinkCode
+asJSDocLinkCode :: forall l r. Node l r -> Maybe Nodes.JSDocLinkCode
 asJSDocLinkCode = toMaybe <<< runFn1 asJSDocLinkCodeImpl
 
-foreign import asJSDocLinkCodeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocLinkCode)
+foreign import asJSDocLinkCodeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocLinkCode)
 
-asJSDocLinkPlain :: forall r. Node r -> Maybe Nodes.JSDocLinkPlain
+asJSDocLinkPlain :: forall l r. Node l r -> Maybe Nodes.JSDocLinkPlain
 asJSDocLinkPlain = toMaybe <<< runFn1 asJSDocLinkPlainImpl
 
-foreign import asJSDocLinkPlainImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocLinkPlain)
+foreign import asJSDocLinkPlainImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocLinkPlain)
 
-asJSDocAllType :: forall r. Node r -> Maybe Nodes.JSDocAllType
+asJSDocAllType :: forall l r. Node l r -> Maybe Nodes.JSDocAllType
 asJSDocAllType = toMaybe <<< runFn1 asJSDocAllTypeImpl
 
-foreign import asJSDocAllTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocAllType)
+foreign import asJSDocAllTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocAllType)
 
-asJSDocUnknownType :: forall r. Node r -> Maybe Nodes.JSDocUnknownType
+asJSDocUnknownType :: forall l r. Node l r -> Maybe Nodes.JSDocUnknownType
 asJSDocUnknownType = toMaybe <<< runFn1 asJSDocUnknownTypeImpl
 
-foreign import asJSDocUnknownTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocUnknownType)
+foreign import asJSDocUnknownTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocUnknownType)
 
-asJSDocNullableType :: forall r. Node r -> Maybe Nodes.JSDocNullableType
+asJSDocNullableType :: forall l r. Node l r -> Maybe Nodes.JSDocNullableType
 asJSDocNullableType = toMaybe <<< runFn1 asJSDocNullableTypeImpl
 
-foreign import asJSDocNullableTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocNullableType)
+foreign import asJSDocNullableTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocNullableType)
 
-asJSDocNonNullableType :: forall r. Node r -> Maybe Nodes.JSDocNonNullableType
+asJSDocNonNullableType :: forall l r. Node l r -> Maybe Nodes.JSDocNonNullableType
 asJSDocNonNullableType = toMaybe <<< runFn1 asJSDocNonNullableTypeImpl
 
-foreign import asJSDocNonNullableTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocNonNullableType)
+foreign import asJSDocNonNullableTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocNonNullableType)
 
-asJSDocOptionalType :: forall r. Node r -> Maybe Nodes.JSDocOptionalType
+asJSDocOptionalType :: forall l r. Node l r -> Maybe Nodes.JSDocOptionalType
 asJSDocOptionalType = toMaybe <<< runFn1 asJSDocOptionalTypeImpl
 
-foreign import asJSDocOptionalTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocOptionalType)
+foreign import asJSDocOptionalTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocOptionalType)
 
-asJSDocFunctionType :: forall r. Node r -> Maybe Nodes.JSDocFunctionType
+asJSDocFunctionType :: forall l r. Node l r -> Maybe Nodes.JSDocFunctionType
 asJSDocFunctionType = toMaybe <<< runFn1 asJSDocFunctionTypeImpl
 
-foreign import asJSDocFunctionTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocFunctionType)
+foreign import asJSDocFunctionTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocFunctionType)
 
-asJSDocVariadicType :: forall r. Node r -> Maybe Nodes.JSDocVariadicType
+asJSDocVariadicType :: forall l r. Node l r -> Maybe Nodes.JSDocVariadicType
 asJSDocVariadicType = toMaybe <<< runFn1 asJSDocVariadicTypeImpl
 
-foreign import asJSDocVariadicTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocVariadicType)
+foreign import asJSDocVariadicTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocVariadicType)
 
-asJSDocNamepathType :: forall r. Node r -> Maybe Nodes.JSDocNamepathType
+asJSDocNamepathType :: forall l r. Node l r -> Maybe Nodes.JSDocNamepathType
 asJSDocNamepathType = toMaybe <<< runFn1 asJSDocNamepathTypeImpl
 
-foreign import asJSDocNamepathTypeImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocNamepathType)
+foreign import asJSDocNamepathTypeImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocNamepathType)
 
-asJSDoc :: forall r. Node r -> Maybe Nodes.JSDoc
+asJSDoc :: forall l r. Node l r -> Maybe Nodes.JSDoc
 asJSDoc = toMaybe <<< runFn1 asJSDocImpl
 
-foreign import asJSDocImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDoc)
+foreign import asJSDocImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDoc)
 
-asJSDocTypeLiteral :: forall r. Node r -> Maybe Nodes.JSDocTypeLiteral
+asJSDocTypeLiteral :: forall l r. Node l r -> Maybe Nodes.JSDocTypeLiteral
 asJSDocTypeLiteral = toMaybe <<< runFn1 asJSDocTypeLiteralImpl
 
-foreign import asJSDocTypeLiteralImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocTypeLiteral)
+foreign import asJSDocTypeLiteralImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocTypeLiteral)
 
-asJSDocSignature :: forall r. Node r -> Maybe Nodes.JSDocSignature
+asJSDocSignature :: forall l r. Node l r -> Maybe Nodes.JSDocSignature
 asJSDocSignature = toMaybe <<< runFn1 asJSDocSignatureImpl
 
-foreign import asJSDocSignatureImpl :: forall r. Fn1 (Node r) (Nullable Nodes.JSDocSignature)
+foreign import asJSDocSignatureImpl :: forall l r. Fn1 (Node l r) (Nullable Nodes.JSDocSignature)
 
--- Our extras
+-- Our contrib
 
-asSyntaxList :: forall k. Node k -> Maybe Nodes.SyntaxList
+asSyntaxList :: forall l r. Node l r -> Maybe Nodes.SyntaxList
 asSyntaxList = toMaybe <<< asSyntaxListImpl
 
-foreign import asSyntaxListImpl :: forall k. Node k -> Nullable Nodes.SyntaxList
+foreign import asSyntaxListImpl :: forall l r. Node l r -> Nullable Nodes.SyntaxList
 

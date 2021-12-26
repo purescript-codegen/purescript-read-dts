@@ -468,4 +468,3 @@ export const asSyntaxListImpl = (node: ts.Node) : ts.SyntaxList | null => {
 }
 
 
-

@@ -13,20 +13,20 @@ typeToString = runFn2 typeToStringImpl
 
 foreign import typeToStringImpl :: forall r. Fn2 TypeChecker (Typ r) String
 
-getSymbolAtLocation :: forall r. TypeChecker -> Node r -> Maybe Symbol_
+getSymbolAtLocation :: forall l r. TypeChecker -> Node l r -> Maybe Symbol_
 getSymbolAtLocation c = toMaybe <<< runFn2 getSymbolAtLocationImpl c
 
-foreign import getSymbolAtLocationImpl :: forall k. Fn2 TypeChecker (Node k) (Nullable Symbol_)
+foreign import getSymbolAtLocationImpl :: forall l r. Fn2 TypeChecker (Node l r) (Nullable Symbol_)
 
-getTypeAtLocation :: forall k. TypeChecker -> Node k -> Maybe (Typ ())
+getTypeAtLocation :: forall l r. TypeChecker -> Node l r -> Maybe (Typ ())
 getTypeAtLocation c = toMaybe <<< runFn2 getTypeAtLocationImpl c
 
-foreign import getTypeAtLocationImpl :: forall k. Fn2 TypeChecker (Node k) (Nullable (Typ ()))
+foreign import getTypeAtLocationImpl :: forall l r. Fn2 TypeChecker (Node l r) (Nullable (Typ ()))
 
-getTypeOfSymbolAtLocation :: forall k. TypeChecker -> Symbol_ -> Node k -> Maybe (Typ ())
+getTypeOfSymbolAtLocation :: forall l r. TypeChecker -> Symbol_ -> Node l r -> Maybe (Typ ())
 getTypeOfSymbolAtLocation c s = toMaybe <<< runFn3 getTypeOfSymbolAtLocationImpl c s
 
-foreign import getTypeOfSymbolAtLocationImpl :: forall i. Fn3 TypeChecker Symbol_ (Node i) (Nullable (Typ ()))
+foreign import getTypeOfSymbolAtLocationImpl :: forall l r. Fn3 TypeChecker Symbol_ (Node l r) (Nullable (Typ ()))
 
 getFullyQualifiedName :: TypeChecker -> Symbol_ -> FullyQualifiedName
 getFullyQualifiedName c = FullyQualifiedName <<< runFn2 getFullyQualifiedNameImpl c
