@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatTypeFlags = exports.showSyntaxKind = exports.isNodeExportedImpl = void 0;
+exports.toDeclarationStatementImpl = exports.formatTypeFlags = exports.showSyntaxKind = exports.isNodeExportedImpl = void 0;
 var ts = __importStar(require("typescript"));
 function isNodeExportedImpl(checker, node) {
     var sym = checker.getSymbolAtLocation(node);
@@ -35,4 +35,8 @@ var formatTypeFlags = function (t) {
     return Debug.formatTypeFlags(t);
 };
 exports.formatTypeFlags = formatTypeFlags;
+var toDeclarationStatementImpl = function (n) {
+    return n;
+};
+exports.toDeclarationStatementImpl = toDeclarationStatementImpl;
 //# sourceMappingURL=TypeScript.js.map

@@ -18,3 +18,7 @@ export const formatTypeFlags = (t: ts.Type): string => {
   let Debug = (<{ Debug: Debug }>(<unknown>ts)).Debug;
   return Debug.formatTypeFlags(t);
 }
+
+export const toDeclarationStatementImpl = (n: ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration): ts.DeclarationStatement => {
+  return n;
+}

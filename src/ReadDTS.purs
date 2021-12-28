@@ -2,18 +2,20 @@ module ReadDTS where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State (execState, modify_)
 import Control.Monad.State.Trans (execStateT)
-import Data.Array (elem, filter, uncons) as Array
+import Data.Array (catMaybes, elem, filter, uncons) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Either (Either)
 import Data.Foldable (foldMap)
 import Data.Int.Bits ((.&.))
+import Data.List (List)
 import Data.Map (Map)
-import Data.Map (empty, insert) as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Map (empty, fromFoldable, insert) as Map
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.NonEmpty (NonEmpty(..))
 import Data.Nullable (toMaybe)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverse_)
@@ -23,13 +25,13 @@ import Data.Undefined.NoProblem (toMaybe) as NoProblem
 import Debug (traceM)
 import Effect (Effect)
 import Effect.Class.Console (info)
-import ReadDTS.TypeScript (formatTypeFlags, isNodeExported, showSyntaxKind)
+import ReadDTS.TypeScript (formatTypeFlags, isNodeExported, showSyntaxKind, toDeclarationStatement)
 import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isArrayType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
-import TypeScript.Compiler.Types.Nodes (Declaration, TypeParameterDeclaration, interface) as Nodes
+import TypeScript.Compiler.Types.Nodes (Declaration, TypeParameterDeclaration, DeclarationStatement, interface) as Nodes
 import TypeScript.Compiler.Types.Nodes (getChildren)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
 import TypeScript.Compiler.Types.Symbol (getDeclarations, getFlags, getName, symbolFlags) as Symbol
@@ -137,16 +139,8 @@ type Declarations d =
   , readDeclaration :: TsDeclaration -> Effect d
   }
 
--- exportedDeclarations :: Program -> List (FullyQualifiedName /\ Nodes.Declaration)
--- exportedDeclarations = do
---   let
---     checker = getTypeChecker program
---     rootNames = getRootFileNames program
---     fileName = Node.interface >>> _.fileName
---     rootFiles = Array.filter ((\fn -> fn `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
-
-readRootsDeclarations :: forall d t. Program -> Visit d t -> Map FullyQualifiedName d
-readRootsDeclarations program visit = do
+rootsDeclarationNodes :: Program -> Array Nodes.DeclarationStatement
+rootsDeclarationNodes program = do
   let
     checker = getTypeChecker program
     rootNames = getRootFileNames program
@@ -156,17 +150,27 @@ readRootsDeclarations program visit = do
   -- | * We are not interested in this particular child.
   -- | * We should probably recurse into any container like
   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
-  flip execState Map.empty $ (rootFiles >>= (getChildren >=> getChildren)) # traverse_ \node -> do
-      when (isNodeExported checker node) do
-        -- | Ignore "semicolons"
-        case asEmptyStatement node of
-          Just _ -> pure unit
-          Nothing -> do
-            -- traceM $ "Reading node: " <> showSyntaxKind node
-            case readDeclaration checker node visit of
-              Just (fqn /\ d) -> modify_ (Map.insert fqn d)
-              Nothing -> do
-                traceM "Unable to parse node as declaration. Skipping node..."
+  Array.catMaybes $ rootFiles >>= getChildren >>= getChildren <#> \(node :: Node "" ())-> do
+      -- | Ignore non exported declarations and "semicolons"
+      if isNodeExported checker node && isNothing (asEmptyStatement node)
+        then
+            (toDeclarationStatement <$> asTypeAliasDeclaration node)
+            <|> (toDeclarationStatement <$> asInterfaceDeclaration node)
+            <|> (toDeclarationStatement <$> asClassDeclaration node)
+        else
+          Nothing
+
+readRootsDeclarations :: forall d t. Program -> Visit d t -> Map FullyQualifiedName d
+readRootsDeclarations program visit = do
+  let
+    checker = getTypeChecker program
+    decls = rootsDeclarationNodes program
+  Map.fromFoldable $ Array.catMaybes $ decls <#> \node -> do
+      case readDeclaration checker node visit of
+        Just r -> Just r
+        Nothing -> do
+          traceM "Unable to parse node as declaration. Skipping node..."
+          Nothing
 
 readDeclaration :: forall l r d t. TypeChecker -> Node l r -> Visit d t -> Maybe (FullyQualifiedName /\ d)
 readDeclaration checker = do
