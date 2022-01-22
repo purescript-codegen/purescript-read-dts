@@ -66,7 +66,7 @@ handleMemoryFiles realHost inMemoryFiles = do
 
     host :: CompilerHost'
     host = realHost'
-      { fileExists = mkEffectFn1 \p ->
+      { fileExists = mkEffectFn1 \p -> do
           ((Array.any (eq p) paths) || _) <$> runEffectFn1 realHost'.fileExists p
       , getSourceFile = mkEffectFn2 \fileName scriptTarget -> do
           case find (eq fileName <<< _.fileName <<< Node.interface) sourceFiles of
@@ -109,10 +109,12 @@ compilerHost opts = do
   let
     host :: CompilerHost'
     host =
-      { fileExists: mkEffectFn1 \p -> pure (Array.any (eq p <<< _.path) sourceFiles)
-      , directoryExists: opt $ mkEffectFn1 \d -> pure (d == "/")
-      , getCurrentDirectory: opt $ pure "/"
-      , getDirectories: opt $ mkEffectFn1 $ const (pure [])
+      { fileExists: mkEffectFn1 \p -> do
+          pure (Array.any (eq p <<< _.path) sourceFiles)
+      , directoryExists: opt $ mkEffectFn1 \d -> do
+          pure (d == "")
+      , getCurrentDirectory: opt $ pure ""
+      , getDirectories: opt $ mkEffectFn1 $ const (pure [""])
       , getCanonicalFileName: mkEffectFn1 pure
       , getNewLine: pure "\n"
       , getDefaultLibFileName: mkEffectFn1 (const $ pure defaultLibFile)
@@ -129,29 +131,3 @@ compilerHost opts = do
       }
   pure $ toCompilerHost host
 
-type RootModule = String
-
-
--- exportedNodes :: forall d t. Program -> List (SourceFile /\ List (Node ()))
--- exportedNodes program visit = do
---   let
---     checker = getTypeChecker program
---     rootNames = getRootFileNames program
---     fileName = Node.interface >>> _.fileName
---     rootFiles = Array.filter ((\fn -> fn `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
---   -- | `SourceFile` "usually" has as a single root child of type `SyntaxList`.
---   -- | * We are not interested in this particular child.
---   -- | * We should probably recurse into any container like
---   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
---   rootFiles >>= traverse_ \sf -> do
---     nodes <- for (getChildren sf >>= getChildren) \node -> do
---       when (isNodeExported checker node) do
---         pure node
---     pure $ sf /\ nodes
--- --   
--- --   traceM $ "Reading node: " <> showSyntaxKind node
--- --   case readDeclaration checker node visit of
--- --     Just (fqn /\ d) -> modify_ (Map.insert fqn d)
--- --     Nothing -> do
--- --       traceM "Unable to parse node as declaration. Skipping node..."
--- 
