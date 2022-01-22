@@ -17,4 +17,4 @@ var bindCompilerHost = function (host) {
     };
 };
 exports.bindCompilerHost = bindCompilerHost;
-//# sourceMappingURL=Testing.js.map
+//# sourceMappingURL=InMemory.js.map

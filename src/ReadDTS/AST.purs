@@ -29,9 +29,8 @@ import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
-import Debug (traceM)
 import Matryoshka (CoalgebraM, anaM, cata)
-import ReadDTS (Param, Prop, asTypeRef, readDeclaration, readType, sequenceProp) as ReadDTS
+import ReadDTS (Args, Param, Prop, Props, asTypeRef, readDeclaration, readType, sequenceArg, sequenceProp) as ReadDTS
 import ReadDTS (Visit, foldMapParam, fqnToString, readRootDeclarationNodes, sequenceParam)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
 import Type.Prelude (Proxy(..))
@@ -59,14 +58,14 @@ data TsType decl ref
   | TsArray ref
   | TsBoolean
   | TsBooleanLiteral Boolean
-  | TsClass (Array (ReadDTS.Prop ref))
-  -- | TsFunction (ReadDTS.Function ref)
-  | TsInterface (Array (ReadDTS.Prop ref))
+  | TsClass (ReadDTS.Props ref)
+  | TsFunction (ReadDTS.Args ref) ref
+  | TsInterface (ReadDTS.Props ref)
   | TsIntersection (Array ref)
   | TsNull
   | TsNumber
   | TsNumberLiteral Number
-  | TsObject (Array (ReadDTS.Prop ref))
+  | TsObject (ReadDTS.Props ref)
   | TsString
   | TsStringLiteral String
   | TsTuple (Array ref)
@@ -97,11 +96,9 @@ instance Foldable (TsType decl) where
   foldMap _ TsBoolean = mempty
   foldMap _ (TsBooleanLiteral _) = mempty
   foldMap f (TsClass ts) = foldMap (f <<< _.type) ts
-  -- foldMap f (Function r)
-  --   = foldMap (foldMap f <<< _.type) r.parameters
-  --   <> foldMap f r.returnType
-  -- -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
+  foldMap f (TsFunction args r) = foldMap (f <<< _.type) args <> f r
   foldMap f (TsInterface ts) = foldMap (f <<< _.type) ts
+  -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f (TsApplication _ ps) = foldMap f ps
   foldMap f (TsIntersection ts) = foldMap f ts
   foldMap _ TsNull = mempty
@@ -134,12 +131,9 @@ instance Traversable (TsType decl) where
   sequence TsBoolean = pure TsBoolean
   sequence (TsBooleanLiteral b) = pure $ TsBooleanLiteral b
   sequence (TsClass props) = map TsClass $ sequence $ map ReadDTS.sequenceProp props
-  --   sequence (Function r) = map Function
-  --     $ { parameters: _, returnType: _ }
-  --     <$> traverse sequenceParameter r.parameters
-  --     <*> sequence r.returnType
-  --     where
-  --       sequenceParameter { name, "type": t } = { name, "type": _ } <$> sequence t
+  sequence (TsFunction args r) = TsFunction
+    <$> traverse ReadDTS.sequenceArg args
+    <*> r
   sequence (TsInterface props) = map TsInterface $ sequence $ map ReadDTS.sequenceProp props
   sequence (TsIntersection ts) = TsIntersection <$> sequence ts
   sequence TsNull = pure TsNull
@@ -180,6 +174,7 @@ visitor =
       , boolean: TsBoolean
       , booleanLiteral: TsBooleanLiteral
       , class: TsClass
+      , function: TsFunction
       , intersection: TsIntersection
       , interface: TsInterface
       , object: TsObject

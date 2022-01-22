@@ -12,7 +12,10 @@ export interface PlainObjectType extends ts.Type {
 
 
 export const asObjectTypeImpl = (t: ts.Type): ts.ObjectType | null => {
-  if (t.flags & ts.TypeFlags.Object)
+  let Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
+  let ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
+
+  if (t.flags & ObjectFlagsType)
     return <ts.ObjectType>t;
   return null;
 }
@@ -25,17 +28,14 @@ export const asTypeParameterImpl = (t: ts.Type): ts.TypeParameter | null => t.is
 
 export const asTypeReferenceImpl = (t: ts.Type): ts.TypeReference | null => {
   // There is no sens at the moment to expose ObjectType casting I think to the PS side...
-  const isObjectType = (t: ts.Type): t is ts.ObjectType => {
-    let Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
-    let ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
-    return !!(t.flags & ObjectFlagsType);
-  }
-
-  if(isObjectType(t) && !!(t.objectFlags & ts.ObjectFlags.Reference))
-    return <ts.TypeReference>t;
+  let s = asObjectTypeImpl(t);
+  if(s && s.objectFlags & ts.ObjectFlags.Reference)
+    return <ts.TypeReference>s;
 
   return null;
 }
+
+export const getCallSignatures = (t: ts.Type): readonly ts.Signature[] => t.getCallSignatures();
 
 export const getPropertiesImpl = (t: ts.Type): ts.Symbol[] => t.getProperties();
 

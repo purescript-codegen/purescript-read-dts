@@ -91,3 +91,5 @@ derive instance Eq FullyQualifiedName
 derive instance Ord FullyQualifiedName
 derive newtype instance Show FullyQualifiedName
 
+foreign import data Signature :: Type
+

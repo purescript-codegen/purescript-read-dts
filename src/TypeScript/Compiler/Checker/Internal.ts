@@ -47,5 +47,3 @@ export const isUndefinedTypeImpl = (checker: TypeChecker, type: ts.Type): boolea
 
 export const getTypeOfPropertyOfTypeImpl = (checker: TypeChecker, type: ts.Type, propertyName: string): ts.Type | null => checker.getTypeOfPropertyOfType(type, propertyName) || null;
 
-
-
