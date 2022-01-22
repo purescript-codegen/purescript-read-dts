@@ -19,14 +19,16 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
+exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.getCallSignatures = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
 var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
 exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
 var asIntersectionTypeImpl = function (t) { return t.isIntersection() ? t : null; };
 exports.asIntersectionTypeImpl = asIntersectionTypeImpl;
 var asObjectTypeImpl = function (t) {
-    if (t.flags & ts.TypeFlags.Object)
+    var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
+    var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
+    if (t.flags & ObjectFlagsType)
         return t;
     return null;
 };
@@ -39,21 +41,14 @@ var asTypeParameterImpl = function (t) { return t.isTypeParameter() ? t : null; 
 exports.asTypeParameterImpl = asTypeParameterImpl;
 var asTypeReferenceImpl = function (t) {
     // There is no sens at the moment to expose ObjectType casting I think to the PS side...
-    var isObjectType = function (t) {
-        var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
-        var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
-        return !!(t.flags & ObjectFlagsType);
-    };
-    // console.log("isObjectType(t):");
-    // console.log(isObjectType(t));
-    // console.log("t.objectFlags & ts.ObjectFlags.Reference:");
-    // console.log(t.objectFlags & ts.ObjectFlags.Reference);
-
-    if (isObjectType(t) && !!(t.objectFlags & ts.ObjectFlags.Reference))
-        return t;
+    var s = (0, exports.asObjectTypeImpl)(t);
+    if (s && s.objectFlags & ts.ObjectFlags.Reference)
+        return s;
     return null;
 };
 exports.asTypeReferenceImpl = asTypeReferenceImpl;
+var getCallSignatures = function (t) { return t.getCallSignatures(); };
+exports.getCallSignatures = getCallSignatures;
 var getPropertiesImpl = function (t) { return t.getProperties(); };
 exports.getPropertiesImpl = getPropertiesImpl;
 var asInterfaceTypeImpl = function (t) {

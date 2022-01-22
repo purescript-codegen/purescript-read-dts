@@ -7,7 +7,7 @@ import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import Data.Undefined.NoProblem (Opt)
 import Type.Row (type (+))
-import TypeScript.Compiler.Types (Symbol_, Typ, TypeFlags)
+import TypeScript.Compiler.Types (Signature, Symbol_, Typ, TypeFlags)
 import Unsafe.Coerce (unsafeCoerce)
 
 type TypRow r =
@@ -76,6 +76,8 @@ asObjectType = toMaybe <<< runFn1 asObjectTypeImpl
 
 foreign import asObjectTypeImpl :: forall r. Fn1 (Typ r) (Nullable ObjectType)
 
+foreign import getCallSignatures :: forall r. Typ r -> Array Signature
+
 type StringLiteralType = Typ (value :: String)
 
 asStringLiteralType :: forall r. Typ r -> Maybe StringLiteralType
@@ -123,3 +125,4 @@ getDefault :: forall i. Typ i -> Maybe (Typ ())
 getDefault = toMaybe <<< runFn1 getDefaultImpl
 
 foreign import getDefaultImpl :: forall i. Fn1 (Typ i) (Nullable (Typ ()))
+

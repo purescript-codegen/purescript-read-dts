@@ -53,7 +53,13 @@ suite = Test.suite "Non recursive ts type layer" do
     testXShouldEqual = testTypeShouldEqual (TypeName "X")
     testOnX = testOnType (TypeName "X")
 
-  testXShouldEqual "export type X = any" AST.TsAny
+  testXShouldEqual "export function X(nonOpt: number, opt?: string): number { return 0; }" $
+    AST.TsFunction
+      [{ name: "nonOpt", type: unit, optional: false }
+      ,{ name: "opt", type: unit, optional: true }
+      ]
+      unit
+
   testXShouldEqual "export type X = Array<number>;" (AST.TsArray unit)
   testXShouldEqual "export type X = boolean" AST.TsBoolean
   testXShouldEqual "export type X = true" (AST.TsBooleanLiteral true)

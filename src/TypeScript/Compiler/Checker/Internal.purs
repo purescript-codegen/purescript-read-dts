@@ -5,7 +5,7 @@ import Prelude
 import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
-import TypeScript.Compiler.Types (TypeChecker, Typ)
+import TypeScript.Compiler.Types (Typ, TypeChecker)
 
 isAnyType ∷ forall i. TypeChecker -> Typ i -> Boolean
 isAnyType = runFn2 isAnyTypeImpl

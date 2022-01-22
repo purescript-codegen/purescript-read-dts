@@ -13,7 +13,6 @@ import Data.String (joinWith) as String
 import Effect.Aff (Aff)
 import Matryoshka (cata)
 import ReadDTS.AST (TsType)
-import ReadDTS.AST (unfoldType) as ReadDTS.AST
 import ReadDTS.AST as AST
 import Test.Compile (TypeName(..), compileType)
 import Test.Unit (TestSuite, failure)
@@ -41,7 +40,7 @@ testOnType typeName source test = Test.test source do
         checker = getTypeChecker program
         stripTypeRefs = cata (Mu.In <<< lmap _.fullyQualifiedName)
 
-      case ReadDTS.AST.unfoldType checker { level: 0, ref: typ } of
+      case AST.unfoldType checker { level: 0, ref: typ } of
         Right (type'@(In _)) -> test { type: stripTypeRefs type', program }
         Left err -> failure $ "FAILURE: " <> show err
 
@@ -150,6 +149,12 @@ suite = Test.suite "Recursive type repr" do
           , { name: "right", optional: false, type: roll $ AST.TsTypeRef fqn }
           ]
         ]
+  testXShouldEqual "export function X(nonOpt: number, opt?: string): number { return 0; }" $
+    roll $ AST.TsFunction
+      [{ name: "nonOpt", type: roll AST.TsNumber, optional: false }
+      ,{ name: "opt", type: roll AST.TsString, optional: true }
+      ]
+      (roll AST.TsNumber)
 
   -- | This fails but on our unfold recursion...
   -- | It should probably anyway or maybe...

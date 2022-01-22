@@ -96,7 +96,15 @@ type ExternalModuleReference = Node "ExternalModuleReference" ()
 type ForInStatement = Node "ForInStatement" ()
 type ForOfStatement = Node "ForOfStatement" ()
 type ForStatement = Node "ForStatement" ()
-type FunctionDeclaration = Node "FunctionDeclaration" ()
+
+-- | There is more to FunctionDeclaration
+--  export interface FunctionLikeDeclarationBase extends SignatureDeclarationBase {
+--      readonly asteriskToken?: AsteriskToken;
+--      readonly questionToken?: QuestionToken;
+--      readonly exclamationToken?: ExclamationToken;
+--      readonly body?: Block | Expression;
+--  }
+type FunctionDeclaration = Node "FunctionDeclaration" (name :: Opt Identifier)
 type FunctionExpression = Node "FunctionExpression" ()
 type FunctionTypeNode = Node "FunctionTypeNode" ()
 type GetAccessorDeclaration = Node "GetAccessorDeclaration" ()
@@ -179,7 +187,13 @@ type ObjectBindingPattern = Node "ObjectBindingPattern" ()
 type ObjectLiteralExpression = Node "ObjectLiteralExpression" ()
 type OmittedExpression = Node "OmittedExpression" ()
 type OptionalTypeNode = Node "OptionalTypeNode" ()
-type ParameterDeclaration = Node "ParameterDeclaration" ()
+
+-- type BindingName = Identifier | BindingPattern;
+type ParameterDeclaration = Node "ParameterDeclaration"
+  ( name :: Node "BindingName" ()
+  , questionToken :: Opt QuestionToken
+  , "type" :: Opt TypeNode
+  )
 type ParenthesizedExpression = Node "ParenthesizedExpression" ()
 type ParenthesizedTypeNode = Node "ParenthesizedTypeNode" ()
 type PartiallyEmittedExpression = Node "PartiallyEmittedExpression" ()
@@ -261,6 +275,17 @@ type TypeParameterDeclaration = Node "TypeParameterDeclaration"
 type TypePredicateNode = Node "TypePredicateNode" ()
 type TypeQueryNode = Node "TypeQueryNode" ()
 type TypeReferenceNode = Node "TypeReferenceNode" ()
+
+-- | Not a real node kind but rather a union
+-- | export type SignatureDeclaration =
+-- |   | CallSignatureDeclaration | ConstructSignatureDeclaration
+-- |   | MethodSignature | IndexSignatureDeclaration
+-- |   | FunctionTypeNode | ConstructorTypeNode
+-- |   | JSDocFunctionType | FunctionDeclaration
+-- |   | MethodDeclaration | ConstructorDeclaration
+-- |   | AccessorDeclaration | FunctionExpression
+-- |   | ArrowFunction
+type SignatureDeclaration = Node "SignatureDeclaration" ()
 type UnionTypeNode = Node "UnionTypeNode" ()
 type Unparsed = Node "Unparsed" ()
 type UnparsedPrepend = Node "UnparsedPrepend" ()

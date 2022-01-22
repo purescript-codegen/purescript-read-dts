@@ -8,7 +8,7 @@ import Data.Maybe (Maybe, fromJust)
 import Partial.Unsafe (unsafePartial)
 import Prim.Row (class Cons, class Union) as Row
 import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation)
-import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
+import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asFunctionDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Types (FullyQualifiedName, Node, Typ, TypeChecker, TypeFlags)
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement)
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement, interface) as Nodes
@@ -36,6 +36,7 @@ toDeclarationStatement ::
     tagRow_
     ( "ClassDeclaration" :: Void
     , "ClassLikeDeclaration" :: Void
+    , "FunctionDeclaration" :: Void
     , "InterfaceDeclaration" :: Void
     , "TypeAliasDeclaration" :: Void
     ) =>
@@ -51,6 +52,7 @@ asDeclarationStatement node =
   (toDeclarationStatement <$> asTypeAliasDeclaration node)
   <|> (toDeclarationStatement <$> asInterfaceDeclaration node)
   <|> (toDeclarationStatement <$> asClassDeclaration node)
+  <|> (toDeclarationStatement  <$> asFunctionDeclaration node)
 
 getDeclarationStatementFqn :: TypeChecker -> DeclarationStatement -> FullyQualifiedName
 getDeclarationStatementFqn checker node = unsafePartial $ fromJust do
@@ -58,6 +60,7 @@ getDeclarationStatementFqn checker node = unsafePartial $ fromJust do
     (getSymbolAtLocation checker <<< _.name <<< Nodes.interface =<< asTypeAliasDeclaration node)
     <|> (getSymbolAtLocation checker =<< asInterfaceDeclaration node)
     <|> (getSymbolAtLocation checker =<< asClassDeclaration node)
+    <|> (getSymbolAtLocation checker =<< asFunctionDeclaration node)
   pure $ getFullyQualifiedName checker symbol
 
 
