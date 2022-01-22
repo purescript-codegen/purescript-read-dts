@@ -14,46 +14,33 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports._readDTS = void 0;
+exports._readTypes = void 0;
 var ts = __importStar(require("typescript"));
-exports.eqIdentifierImpl = function (i1) {
-    return function (i2) {
-        return i1 === i2;
-    };
-};
 var formatHost = {
     getCanonicalFileName: function (path) { return path; },
     getCurrentDirectory: ts.sys.getCurrentDirectory,
     getNewLine: function () { return ts.sys.newLine; }
 };
-function _readDTS(options, visit, file, either) {
-    var sourceFile = undefined;
-    var compilerOptions = {
-        target: ts.ScriptTarget.ES5,
-        module: ts.ModuleKind.CommonJS,
-        strictNullChecks: options.strictNullChecks
-    };
-    var program = createProgram(file, compilerOptions);
+var log = function (msg) { console.log(msg); };
+function _readTypes(_a) {
+    var options = _a.options, visit = _a.visit, rootNames = _a.rootNames, inMemoryFiles = _a.inMemoryFiles, compilerHost = _a.compilerHost, either = _a.either;
+    log = options.debug ? log : (function (msg) { msg; });
+    var program = createProgram(rootNames, inMemoryFiles, compilerHost);
     var checker = program.getTypeChecker();
     var onDeclaration = visit.onDeclaration;
     var onTypeNode = visit.onTypeNode;
     var declarations = [];
-    for (var _i = 0, _a = program.getSourceFiles(); _i < _a.length; _i++) {
-        var sf = _a[_i];
-        if (sf.isDeclarationFile && sf.fileName === file.path) {
-            sourceFile = sf;
-        }
-    }
-    if (sourceFile !== undefined) {
-        if (sourceFile !== undefined) {
-            var x = program.getSyntacticDiagnostics(sourceFile);
+    if (options.compile) {
+        var emitResult = program.emit();
+        if (emitResult.emitSkipped) {
+            var allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
             var errors_1 = [];
-            x.forEach(function (d) {
+            allDiagnostics.forEach(function (d) {
                 if (d.category === ts.DiagnosticCategory.Error) {
                     errors_1.push(ts.formatDiagnostic(d, formatHost));
                 }
@@ -62,89 +49,156 @@ function _readDTS(options, visit, file, either) {
                 return either.left(errors_1);
             }
         }
-        ts.forEachChild(sourceFile, function (d) {
-            if (isNodeExported(checker, d))
-                declarations.push(visitDeclaration(d));
-        });
     }
-    else {
-        return either.left(["Source file not found"]);
+    var _loop_1 = function (sourceFile) {
+        if (!(rootNames.some(function (n) { return sourceFile.fileName === n; })))
+            return "continue";
+        if (!options.compile && sourceFile !== undefined) {
+            var x = program.getSyntacticDiagnostics(sourceFile);
+            var errors_2 = [];
+            x.forEach(function (d) {
+                if (d.category === ts.DiagnosticCategory.Error) {
+                    errors_2.push(ts.formatDiagnostic(d, formatHost));
+                }
+            });
+            if (errors_2.length > 0) {
+                return { value: either.left(errors_2) };
+            }
+        }
+        try {
+            ts.forEachChild(sourceFile, function (d) {
+                // if (isNodeExported(check//App/appcler, d))
+                declarations.push(visitDeclaration(d));
+            });
+        }
+        catch (e) {
+            return { value: either.left(e) };
+        }
+    };
+    for (var _i = 0, _b = program.getSourceFiles(); _i < _b.length; _i++) {
+        var sourceFile = _b[_i];
+        var state_1 = _loop_1(sourceFile);
+        if (typeof state_1 === "object")
+            return state_1.value;
     }
     return either.right({
         topLevel: declarations,
         readDeclaration: function (v) { return function () { return visitDeclaration(v); }; }
     });
+    function processTypeParameters(typeParameters) {
+        return (!typeParameters) ? [] : typeParameters.map(function (p) {
+            var d = p.default ? getTSType(checker.getTypeAtLocation(p.default)) : null;
+            return { name: p.name.escapedText, default: d };
+        });
+    }
+    ;
+    function visitDeclaration(node) {
+        var t, fqn;
+        var typeNode = checker.getTypeAtLocation(node);
+        if (ts.isInterfaceDeclaration(node)) {
+            var props = typeNode.getProperties().map(function (sym) { return property(sym, node); });
+            var body = onTypeNode.interface(props);
+            var params = processTypeParameters(node.typeParameters);
+            t = onTypeNode.parametric({ body: body, params: params });
+            fqn = checker.getFullyQualifiedName(typeNode.symbol);
+            // } else if(ts.isClassDeclaration(node) && node.name) {
+            //   let props = typeNode.getProperties().map((sym: ts.Symbol) => property(sym, node));
+            //   let body = onTypeNode.class(props);
+            //   let params = processTypeParameters(node.typeParameters)
+            //   t = onTypeNode.parametric({ body, params })
+            //   fqn = checker.getFullyQualifiedName(typeNode.symbol);
+        }
+        else if (ts.isTypeAliasDeclaration(node)) {
+            // let AllMeanings = ts.SymbolFlags.Value | ts.SymbolFlags.Type | ts.SymbolFlags.Namespace | ts.SymbolFlags.Alias;
+            // let node2:number = checker.getTypeAtLocation(node);
+            // TODO: would this work in the case of external modules?
+            var symbol = checker.getSymbolAtLocation(node.name);
+            log("Alias symbol:");
+            log(symbol);
+            // log("Alias symbol is undefined:");
+            // log(symbol == undefined);
+            // log("typeNode:");
+            // log(typeNode);
+            // log("fqn of symbol:")
+            // log(symbol?checker.getFullyQualifiedName(symbol):"WTF");//node.name.text;
+            // log("fqn of exported symbol:")
+            // log(symbol?checker.getFullyQualifiedName(checker.getExportSymbolOfSymbol(symbol)):"WTF");//node.name.text;
+            t = getTSType(typeNode);
+            fqn = symbol ? checker.getFullyQualifiedName(checker.getExportSymbolOfSymbol(symbol)) : "WTF"; //node.name.text;
+            // } else if(ts.isModuleDeclaration(node)) {
+            //   log("Module declaration found:" + node.name);
+            //   // let moduleType = checker.getTypeAtLocation(node.name)
+            //   let declarations:d[] = [];
+            //   // let m = checker.getSymbolAtLocation(moduleType);
+            //   console.log("Iterating module: " + node.name)
+            //   ts.forEachChild(node, function(d){
+            //     if(ts.isModuleBlock(d)) {
+            //       d.statements.forEach(function(s) {
+            //         // XXX: isNodeExported fails in case of ambient modules - why?
+            //         // if (isNodeExported(checker, d)) {
+            //         declarations.push(visitDeclaration(s));
+            //       });
+            //     }
+            //   })
+            //  let symbol = node.name?checker.getSymbolAtLocation(node.name):undefined;
+            //  let fqn = symbol?checker.getFullyQualifiedName(symbol):undefined;
+            //  if(fqn) {
+            //    return onDeclaration.module_({
+            //        fqn,
+            //        declarations
+            //    });
+            //  }
+            // }
+            //} else if(ts.isMethodDeclaration(node)) {
+            //  let signature = checker.getSignatureFromDeclaration(node);
+        }
+        if (t && fqn) {
+            return onDeclaration(fqn)(t);
+        }
+        if (typeNode) {
+            try {
+                fqn = checker.getFullyQualifiedName(typeNode.symbol);
+            }
+            catch (e) {
+                throw (["Unable to resolve node: " + fqn]);
+            }
+        }
+        throw (["Unable to resolve node: " + node]);
+    }
     function property(sym, dec) {
         var optional = (sym.flags & ts.SymbolFlags.Optional) == ts.SymbolFlags.Optional;
         var memType = dec ? checker.getTypeOfSymbolAtLocation(sym, dec) : checker.getDeclaredTypeOfSymbol(sym);
-        var t = getTSType(memType);
+        var t = getTSType(memType, true);
         return { name: sym.name, type: t, optional: optional };
     }
-    function visitDeclaration(node) {
-        var processTypeParameters = function (typeParameters) {
-            return (!typeParameters) ? [] : typeParameters.map(function (p) {
-                var d = p.default ? getTSType(checker.getTypeAtLocation(p.default)) : null;
-                return { name: p.name.escapedText, default: d };
-            });
-        };
-        if (ts.isInterfaceDeclaration(node)) {
-            var nodeType_1 = checker.getTypeAtLocation(node);
-            var properties = nodeType_1.getProperties().map(function (sym) { return property(sym, node); });
-            var fullyQualifiedName_1 = checker.getFullyQualifiedName(nodeType_1.symbol);
-            var i = {
-                name: node.name.text,
-                fullyQualifiedName: fullyQualifiedName_1,
-                properties: properties,
-                typeParameters: processTypeParameters(node.typeParameters)
-            };
-            return onDeclaration.interface(i);
+    function getMemberTSType(memType) {
+        return getTSType(memType, true);
+    }
+    function getTSType(memType, member) {
+        var _a;
+        if (member === void 0) { member = false; }
+        if (memType.isLiteral()) {
+            memType.isStringLiteral();
         }
-        else if (ts.isTypeAliasDeclaration(node)) {
-            var nodeType_2 = checker.getTypeAtLocation(node);
-            var x = {
-                name: node.name.text,
-                type: getTSType(nodeType_2),
-                typeParameters: processTypeParameters(node.typeParameters)
-            };
-            return onDeclaration.typeAlias(x);
-        }
-        else if (ts.isFunctionDeclaration(node)) {
-            var functionType = checker.getTypeAtLocation(node);
-            var signature = checker.getSignatureFromDeclaration(node);
-            if (signature) {
-                return onDeclaration.function({
-                    fullyQualifiedName: checker.getFullyQualifiedName(functionType.symbol),
-                    parameters: signature.parameters.map(function (parameterSymbol) {
-                        return {
-                            name: parameterSymbol.getName(),
-                            type: getTSType(checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol === null || parameterSymbol === void 0 ? void 0 : parameterSymbol.valueDeclaration))
-                        };
-                    }),
-                    returnType: getTSType(signature.getReturnType())
-                });
+        if (memType.aliasSymbol && member) {
+            var s = memType.aliasSymbol;
+            var fqn = checker.getFullyQualifiedName(s);
+            var params = ((_a = memType.aliasTypeArguments) === null || _a === void 0 ? void 0 : _a.map(getMemberTSType)) || [];
+            var ref = (s && s.valueDeclaration) ? s.valueDeclaration : (s && s.declarations && s.declarations.length === 1) ? s.declarations[0] : null;
+            if (ref) {
+                var t = onTypeNode.ref({ fqn: fqn, ref: ref });
+                if (params) {
+                    t = onTypeNode.application({ params: params, t: t });
+                }
+                return t;
             }
         }
-        var nodeType = checker.getTypeAtLocation(node);
-        var fullyQualifiedName = null;
-        try {
-            fullyQualifiedName = checker.getFullyQualifiedName(nodeType.symbol);
-        }
-        catch (e) {
-        }
-        return onDeclaration.unknown({ fullyQualifiedName: fullyQualifiedName, msg: "Unknown declaration node" });
-    }
-    function getTSType(memType) {
-        // Because we are processing only typelevel
-        // declarations we can be sure that
-        // these literals are type level entities.
-        if (memType.isStringLiteral()) {
+        else if (memType.isStringLiteral()) {
             return onTypeNode.stringLiteral(memType.value);
         }
         else if (memType.isNumberLiteral()) {
             return onTypeNode.numberLiteral(memType.value);
         }
-        // XXX: I haven't found any other way to access
-        // BooleanLiteral value...
         else if ((memType.flags & ts.TypeFlags.BooleanLiteral) &&
             (memType.intrinsicName == "true" ||
                 memType.intrinsicName == "false")) {
@@ -155,89 +209,116 @@ function _readDTS(options, visit, file, either) {
                 return onTypeNode.booleanLiteral(false);
             }
         }
-        else if (memType.flags & (ts.TypeFlags.String
-            | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
-            | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
-            return onTypeNode.primitive(checker.typeToString(memType));
-        }
         else if (memType.isUnion()) {
-            var types = memType.types.map(getTSType);
+            var types = memType.types.map(function (t) {
+                return getMemberTSType(t);
+            });
             return onTypeNode.union(types);
         }
         else if (memType.isIntersection()) {
-            var types = memType.types.map(getTSType);
+            var types = memType.types.map(getMemberTSType);
             return onTypeNode.intersection(types);
+        }
+        else if (memType.flags & ts.TypeFlags.Any) {
+            return onTypeNode.any;
+            // } else if (memType.flags & (ts.TypeFlags.String
+            //         | ts.TypeFlags.BooleanLike | ts.TypeFlags.Number
+            //         | ts.TypeFlags.Null | ts.TypeFlags.VoidLike | ts.TypeFlags.Any)) {
+            // // XXX: I haven't found any other way to access
+            // // BooleanLiteral value...
+            //   return onTypeNode.primitive(checker.typeToString(memType));
         }
         else if (memType.flags & (ts.TypeFlags.Object | ts.TypeFlags.NonPrimitive)) {
             var memObjectType = memType;
-            var onInterfaceReference = function (target, typeArguments) {
-                var ref = (target.symbol && target.symbol.valueDeclaration)
-                    ? target.symbol.valueDeclaration
-                    : (target.symbol && target.symbol.declarations.length === 1)
-                        ? target.symbol.declarations[0]
-                        : null;
-                var fullyQualifiedName = checker.getFullyQualifiedName(target.symbol);
-                return ref
-                    ? onTypeNode.typeReference({ typeArguments: typeArguments, fullyQualifiedName: fullyQualifiedName, ref: ref })
-                    : onTypeNode.unknown("Unable to get type declaration for:" + fullyQualifiedName + "<" + typeArguments + ">");
-            };
-            if (memObjectType.objectFlags & ts.ObjectFlags.Reference) {
-                var reference = memObjectType;
-                if (checker.isArrayType(reference)) {
-                    var elem = checker.getElementTypeOfArrayType(reference);
-                    if (elem)
-                        return onTypeNode.array(getTSType(elem));
-                }
-                if (checker.isTupleType(reference)) {
-                    var e = void 0, elem = void 0, elems = [];
-                    for (var i = 0;; i++) {
-                        // Hack source:
-                        // https://github.com/microsoft/TypeScript/blob/v3.6.3/src/compiler/checker.ts + getTupleElementType
-                        e = "" + i;
-                        elem = checker.getTypeOfPropertyOfType(reference, e);
-                        if (elem) {
-                            elems.push(getTSType(elem));
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    ;
-                    return onTypeNode.tuple(elems);
-                }
-                if (reference.target.isClassOrInterface()) {
-                    var typeArguments = reference.typeArguments ? reference.typeArguments.map(getTSType) : [];
-                    return onInterfaceReference(reference.target, typeArguments);
-                }
-            }
-            if (memObjectType.isClassOrInterface()) {
-                return onInterfaceReference(memObjectType, []);
-            }
-            // This __seems__ to work in case of Pick<..> and Record<..>
-            if ((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
-                (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
-                var objDeclarations_1 = memObjectType.symbol.getDeclarations();
-                var props = memObjectType.getProperties().map(function (sym) {
-                    return property(sym, objDeclarations_1 ? objDeclarations_1[0] : sym.declarations ? sym.declarations[1] : sym.valueDeclaration);
-                });
-                var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
-                return onTypeNode.anonymousObject({ properties: props, fullyQualifiedName: fullyQualifiedName });
-            }
+            // let onInterfaceReference = function(target: ts.InterfaceType, typeArguments: t[]) {
+            //   let ref = (target.symbol && target.symbol.valueDeclaration)
+            //       ?target.symbol.valueDeclaration
+            //       :(target.symbol && target.symbol.declarations.length === 1)
+            //         ?target.symbol.declarations[0]
+            //         :null;
+            //   let fqn = checker.getFullyQualifiedName(target.symbol);
+            //   return ref
+            //     ?onTypeNode.typeReference({typeArguments, fqn, ref})
+            //     :onTypeNode.unknown("Unable to get type declaration for:" + fqn + "<" + typeArguments + ">")
+            // }
+            // if(memObjectType.objectFlags & ts.ObjectFlags.Reference) {
+            //   let reference = <ts.TypeReference>memObjectType;
+            //  if(checker.isArrayType(reference)) {
+            //    log("Trying array")
+            //    let elem = checker.getElementTypeOfArrayType(reference);
+            //    if(elem)
+            //      return onTypeNode.array(getMemberTSType(elem));
+            //   }
+            //   if(checker.isTupleType(reference)) {
+            //     log("Tuple")
+            //     let e: string, elem:ts.Type | undefined, elems:t[] = [];
+            //     let MAX_TUPLE_LENGTH = 20;
+            //     for(let i=0; i<MAX_TUPLE_LENGTH; i++) {
+            //       // Hack source:
+            //       // https://github.com/microsoft/TypeScript/blob/v3.6.3/src/compiler/checker.ts + getTupleElementType
+            //       e = "" + i as string;
+            //       elem = checker.getTypeOfPropertyOfType(reference, e);
+            //       if(elem) {
+            //         elems.push(getMemberTSType(elem));
+            //       } else {
+            //         break;
+            //       }
+            //     };
+            //     return onTypeNode.tuple(elems);
+            //   }
+            //   if (reference.target.isClassOrInterface()) {
+            //     log("Interface")
+            //     let typeArguments = reference.typeArguments?reference.typeArguments.map(getMemberTSType):[];
+            //     return onInterfaceReference(reference.target, typeArguments);
+            //   }
+            // } else if(memObjectType.isClassOrInterface()) {
+            //   log("Interface 2?")
+            //   return onInterfaceReference(memObjectType, []);
+            // // This __seems__ to work in the case of Pick<..> and Record<..>
+            // } else if((memObjectType.objectFlags & ts.ObjectFlags.Mapped) &&
+            //    (memObjectType.objectFlags & ts.ObjectFlags.Instantiated)) {
+            //   let objDeclarations = memObjectType.symbol.getDeclarations();
+            //   let props = memObjectType.getProperties().map((sym: ts.Symbol) =>
+            //     property(sym, objDeclarations?objDeclarations[0]:sym.declarations?sym.declarations[1]:sym.valueDeclaration)
+            //   );
+            //   return onTypeNode.object(props);
+            // }
+            // } else
             if (memObjectType.objectFlags & ts.ObjectFlags.Anonymous) {
+                //     log("Anonymous")
+                //     // TODO: Currently any object which is "callable" is interpreted
+                //     // as a plain function
+                //     let signature = memObjectType.getCallSignatures()[0];
+                //     if(signature) {
+                //       log("Treating this as function: " + memObjectType.symbol.getName());
+                //       let functionType = {
+                //         parameters: signature.parameters.map((parameterSymbol) => {
+                //           return {
+                //             name: parameterSymbol.getName(),
+                //             type: getMemberTSType(
+                //               checker.getTypeOfSymbolAtLocation(parameterSymbol, parameterSymbol?.valueDeclaration),
+                //             )
+                //           };
+                //         }),
+                //         returnType: getMemberTSType(signature.getReturnType())
+                //       };
+                //       log("Returning funciton type:" + functionType);
+                //       return onTypeNode.function(functionType);
+                //     }
                 var props = memObjectType.getProperties().map(function (sym) { return property(sym, sym.valueDeclaration); });
-                var fullyQualifiedName = checker.getFullyQualifiedName(memObjectType.symbol);
-                return onTypeNode.anonymousObject({ fullyQualifiedName: fullyQualifiedName, properties: props });
+                return onTypeNode.object(props);
             }
-            return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
+            //   return onTypeNode.unknown("Uknown object type node (flags = " + memObjectType.objectFlags + "):" + checker.typeToString(memObjectType));
+            // }
+            // else if (memType.isTypeParameter()) {
+            //   log("Type parameter?")
+            //   let d = memType.getDefault();
+            //   return onTypeNode.typeParameter({ name: memType.symbol.escapedName, default: d?getTSType(d):null });
         }
-        else if (memType.isTypeParameter()) {
-            var d = memType.getDefault();
-            return onTypeNode.typeParameter({ name: memType.symbol.escapedName, default: d ? getTSType(d) : null });
-        }
-        return onTypeNode.unknown(checker.typeToString(memType));
+        throw (["Unable to process type: " + checker.typeToString(memType)]);
     }
 }
-exports._readDTS = _readDTS;
+exports._readTypes = _readTypes;
 // https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API#using-the-type-checker
 function isNodeExported(checker, node) {
     var sym = checker.getSymbolAtLocation(node);
@@ -246,29 +327,32 @@ function isNodeExported(checker, node) {
 }
 ;
 // https://stackoverflow.com/questions/53733138/how-do-i-type-check-a-snippet-of-typescript-code-in-memory
-function createProgram(file, options) {
-    var realHost = ts.createCompilerHost(options, true);
+function createProgram(rootNames, inMemoryFiles, realHost) {
     var host = realHost;
-    if (file.source) {
-        var sourceFile_1 = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.ES5, true);
+    if (inMemoryFiles) {
+        var paths_1 = inMemoryFiles.map(function (m) { return m.path; });
+        var sourceFiles_1 = inMemoryFiles.map(function (m) { return { module: m, file: ts.createSourceFile(m.path, m.source, ts.ScriptTarget.ES5, true) }; });
         host = {
-            fileExists: function (filePath) { return filePath === file.path || realHost.fileExists(filePath); },
+            fileExists: function (filePath) { return paths_1.some(function (p) { return filePath == p; }) || realHost.fileExists(filePath); },
             directoryExists: realHost.directoryExists && realHost.directoryExists.bind(realHost),
             getCurrentDirectory: realHost.getCurrentDirectory.bind(realHost),
             getDirectories: realHost.getDirectories ? realHost.getDirectories.bind(realHost) : undefined,
             getCanonicalFileName: function (fileName) { return realHost.getCanonicalFileName(fileName); },
             getNewLine: realHost.getNewLine.bind(realHost),
             getDefaultLibFileName: realHost.getDefaultLibFileName.bind(realHost),
-            getSourceFile: function (fileName, languageVersion, onError, shouldCreateNewSourceFile) { return fileName === file.path
-                ? sourceFile_1
-                : realHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile); },
-            readFile: function (filePath) { return filePath === file.path
-                ? file.source ? file.source : undefined
-                : realHost.readFile(filePath); },
+            getSourceFile: function (fileName, languageVersion, onError, shouldCreateNewSourceFile) {
+                var m = sourceFiles_1.find(function (f) { return f.module.path == fileName; });
+                return m ? m.file : realHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+            },
+            readFile: function (fileName) {
+                var f = sourceFiles_1.find(function (f) { return f.module.path == fileName; });
+                return f ? f.module.source : realHost.readFile(fileName);
+            },
             useCaseSensitiveFileNames: function () { return realHost.useCaseSensitiveFileNames(); },
             writeFile: function (_, data) { data; },
         };
     }
-    return ts.createProgram([file.path], options, host);
+    var options = {};
+    return ts.createProgram(rootNames, options, host);
 }
 //# sourceMappingURL=ReadDTS.js.map
