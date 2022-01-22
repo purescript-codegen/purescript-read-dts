@@ -6,7 +6,7 @@ import TypeScript.Compiler.Types (ScriptTarget)
 import TypeScript.Compiler.Types.Nodes (SourceFile)
 
 type FileName = String
-type SourceCode = String
+newtype SourceCode = SourceCode String
 type SetParentNode = Boolean
 
 -- export function createSourceFile(fileName: string, sourceText: string, languageVersion: ScriptTarget, setParentNodes = false, scriptKind?: ScriptKind): SourceFile ∷

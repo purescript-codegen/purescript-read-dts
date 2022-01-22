@@ -44,6 +44,11 @@ var asTypeReferenceImpl = function (t) {
         var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
         return !!(t.flags & ObjectFlagsType);
     };
+    // console.log("isObjectType(t):");
+    // console.log(isObjectType(t));
+    // console.log("t.objectFlags & ts.ObjectFlags.Reference:");
+    // console.log(t.objectFlags & ts.ObjectFlags.Reference);
+
     if (isObjectType(t) && !!(t.objectFlags & ts.ObjectFlags.Reference))
         return t;
     return null;

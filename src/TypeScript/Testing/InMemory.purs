@@ -1,24 +1,23 @@
-module ReadDTS.TypeScript.Testing where
+module TypeScript.Testing.InMemory where
 
 import Prelude
 
 import Data.Array (any, cons) as Array
 import Data.Array (find)
-import Data.List (List)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, un)
 import Data.Traversable (for)
--- import Data.Tuple ((/\))
-import Data.Undefined.NoProblem (Opt, opt, undefined)
-import Debug (traceM)
+import Data.Undefined.NoProblem (Opt, opt, undefined, (!))
+import Data.Undefined.NoProblem.Closed (class Coerce, coerce) as Closed
 import Effect (Effect)
 import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn1, EffectFn2, EffectFn3, mkEffectFn1, mkEffectFn2, mkEffectFn3, runEffectFn1, runEffectFn2)
 import Node.Buffer (toString) as Buffer
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (exists, readFile)
-import Node.Path (FilePath, basename, dirname)
-import TypeScript.Compiler.Parser (FileName, SourceCode, createSourceFile)
-import TypeScript.Compiler.Types (CompilerHost, CompilerOptions, Program, ScriptTarget, scriptTarget)
+import Node.Path (FilePath)
+import TypeScript.Compiler.Parser (FileName, SourceCode(..), createSourceFile)
+import TypeScript.Compiler.Types (CompilerHost, CompilerOptions, ScriptTarget, scriptTarget)
 import TypeScript.Compiler.Types.Nodes (SourceFile)
 import TypeScript.Compiler.Types.Nodes (interface) as Node
 import Unsafe.Coerce (unsafeCoerce)
@@ -47,15 +46,22 @@ foreign import bindCompilerHost :: CompilerHost -> CompilerHost'
 toCompilerHost :: CompilerHost' -> CompilerHost
 toCompilerHost = unsafeCoerce
 
-type InMemoryFile = { path :: FileName, source :: SourceCode }
+newtype File = File { path :: FileName, source :: SourceCode }
+derive instance Newtype File _
 
-handleMemoryFiles :: CompilerHost -> Array InMemoryFile -> Effect CompilerHost
+mkFile :: FilePath -> SourceCode -> File
+mkFile name source = File
+  { path: name
+  , source: source
+  }
+
+handleMemoryFiles :: CompilerHost -> Array File -> Effect CompilerHost
 handleMemoryFiles realHost inMemoryFiles = do
-  sourceFiles <- for inMemoryFiles \{ path, source } -> do
+  sourceFiles <- for inMemoryFiles \(File { path, source }) -> do
     createSourceFile path source scriptTarget."ES5" true
 
   let
-    paths = map _.path inMemoryFiles
+    paths = map (_.path <<< un File) inMemoryFiles
     realHost' = bindCompilerHost realHost
 
     host :: CompilerHost'
@@ -68,14 +74,23 @@ handleMemoryFiles realHost inMemoryFiles = do
             Nothing -> runEffectFn2 realHost'.getSourceFile fileName scriptTarget
       , readFile = mkEffectFn1 \fileName -> do
           case find (eq fileName <<< _.fileName <<< Node.interface) sourceFiles of
-            Just sourceFile -> pure $ opt (Node.interface sourceFile # _.text)
+            Just sourceFile -> pure $ opt (Node.interface sourceFile # SourceCode <<< _.text)
             Nothing -> runEffectFn1 realHost'.readFile fileName
       , writeFile = mkEffectFn3 (\_ _ _ -> pure unit)
       }
   pure $ toCompilerHost host
 
-inMemoryCompilerHost :: Array InMemoryFile -> FilePath -> Effect CompilerHost
-inMemoryCompilerHost inMemoryFiles defaultLibFile = do
+type Opts =
+  { files :: Array File
+  , defaultLib :: Opt FilePath
+  }
+
+compilerHost :: forall opts. Closed.Coerce opts Opts => opts -> Effect CompilerHost
+compilerHost opts = do
+  let
+    { defaultLib, files } = Closed.coerce opts :: Opts
+    defaultLibFile = defaultLib ! "node_modules/typescript/lib/lib.es5.d.ts"
+
   defaultLibFileSrc <- exists defaultLibFile >>= if _
     then do
       b <- readFile defaultLibFile
@@ -84,11 +99,11 @@ inMemoryCompilerHost inMemoryFiles defaultLibFile = do
       throw $
         "inMemoryCompilerHost: Unable to find default `CompilerHost` library file:" <> defaultLibFile
   let
-    inMemoryFiles' = Array.cons
-      { path: defaultLibFile, source: defaultLibFileSrc }
-      inMemoryFiles
+    files' = Array.cons
+      (File { path: defaultLibFile, source: SourceCode defaultLibFileSrc })
+      files
 
-  sourceFiles <- for inMemoryFiles' \{ path, source } -> do
+  sourceFiles <- for files' \(File { path, source }) -> do
     file <- createSourceFile path source scriptTarget."ES5" true
     pure { path, source, file }
   let
@@ -113,6 +128,9 @@ inMemoryCompilerHost inMemoryFiles defaultLibFile = do
       , writeFile: mkEffectFn3 (\_ _ _ -> pure unit)
       }
   pure $ toCompilerHost host
+
+type RootModule = String
+
 
 -- exportedNodes :: forall d t. Program -> List (SourceFile /\ List (Node ()))
 -- exportedNodes program visit = do
