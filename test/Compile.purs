@@ -39,7 +39,7 @@ compile opts = do
   let
     compilerOpts :: CompilerOptions
     compilerOpts = NoProblem.coerce
-      { module: moduleKind."CommonJS"
+      { module: moduleKind."ES2015"
       , target: scriptTarget."ES5"
       , strictNullChecks: true
       }
@@ -49,6 +49,7 @@ compile opts = do
   host <- liftEffect $ InMemory.compilerHost { files: opts.modules }
   createProgram opts.roots compilerOpts (Just host)
 
+-- | Compile source code and extract particular type information.
 compileType ::
   TypeName ->
   SourceCode ->

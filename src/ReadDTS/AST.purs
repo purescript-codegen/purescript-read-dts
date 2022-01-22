@@ -3,60 +3,42 @@ module ReadDTS.AST where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Control.Monad.Except (ExceptT(..), runExcept, runExceptT)
-import Control.Monad.Rec.Loops (unfoldrM) as Rec.Loops
+import Control.Monad.Except (runExceptT)
 import Control.Monad.Rec.Loops (whileJust_)
-import Control.Monad.State (StateT, execState, execStateT, runStateT)
-import Control.Monad.State.Class (gets, modify_)
-import Data.Array (catMaybes)
-import Data.Array (catMaybes) as Array
-import Data.Array as A
+import Control.Monad.State (execStateT)
 import Data.Array.NonEmpty (NonEmptyArray)
-import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldl, bifoldlDefault, bifoldr, bifoldrDefault)
+import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
 import Data.Bifunctor (class Bifunctor, lmap)
-import Data.Bifunctor (lmap) as Bifunctor
-import Data.Divide (divided)
-import Data.Either (Either(..))
-import Data.Eq (class Eq1, eq1)
-import Data.Foldable (class Foldable, fold, foldMap, foldlDefault, foldr, foldrDefault)
-import Data.FoldableWithIndex (forWithIndex_)
-import Data.Functor.Contravariant ((>$<))
+import Data.Either (Either)
+import Data.Eq (class Eq1)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Mu (Mu(..)) as Mu
-import Data.Functor.Mu (Mu(..), roll)
+import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
-import Data.Lens (Lens, over, use)
-import Data.Lens (over) as Lens
+import Data.Identity (Identity(..))
+import Data.Lens (use)
 import Data.Lens.Record (prop)
-import Data.Lens.Setter ((.=), (.~), (%=))
+import Data.Lens.Setter ((%=), (.=))
 import Data.List (List(..), fromFoldable, singleton) as List
 import Data.List (List, (:))
-import Data.Map (Map)
-import Data.Map (empty, filter, filterKeys, fromFoldable, insert, keys, lookup, singleton, toUnfoldableUnordered, union) as Map
-import Data.Maybe (Maybe(..), isJust, isNothing)
-import Data.Monoid (guard) as Monoid
+import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
-import Data.Predicate (Predicate(..))
 import Data.Profunctor.Strong ((&&&))
-import Data.Set (Set)
-import Data.Set (empty, fromFoldable, insert, member) as Set
+import Data.Set (fromFoldable, insert, member) as Set
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
-import Data.TraversableWithIndex (forWithIndex, traverseWithIndex)
 import Data.Tuple (fst)
-import Data.Tuple.Nested ((/\))
+import Data.Tuple.Nested ((/\), type (/\))
 import Debug (traceM)
-import Effect (Effect)
-import Effect.Class (liftEffect)
 import Matryoshka (CoalgebraM, anaM, cata)
-import ReadDTS (Application, Param, Prop, Props, asTypeRef, readDeclaration, readType, sequenceProp) as ReadDTS
-import ReadDTS (Options, Visit, foldMapParam, fqnToString, readRootDeclarationNodes, readRootDeclarations, readType, sequenceParam)
+import ReadDTS (Param, Prop, asTypeRef, readDeclaration, readType, sequenceProp) as ReadDTS
+import ReadDTS (Visit, foldMapParam, fqnToString, readRootDeclarationNodes, sequenceParam)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
-import Type.Prelude (Proxy(..), SProxy(..))
+import Type.Prelude (Proxy(..))
 import TypeScript.Compiler.Program (getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Typ)
+import TypeScript.Compiler.Types (FullyQualifiedName, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types (Typ) as TS
-import TypeScript.Compiler.Types.Nodes (Declaration, DeclarationStatement) as Nodes
-import TypeScript.Compiler.Types.Nodes (DeclarationStatement)
+import TypeScript.Compiler.Types.Nodes (DeclarationStatement) as Nodes
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -78,7 +60,7 @@ data TsType decl ref
   | TsBoolean
   | TsBooleanLiteral Boolean
   | TsClass (Array (ReadDTS.Prop ref))
-  -- | Function (ReadDTS.Function ref)
+  -- | TsFunction (ReadDTS.Function ref)
   | TsInterface (Array (ReadDTS.Prop ref))
   | TsIntersection (Array ref)
   | TsNull
@@ -94,13 +76,12 @@ data TsType decl ref
   | TsUndefined
   | TsUnion (Array ref)
   | TsUnknown TSTyp
--- | Void
+-- | TsVoid
 
 derive instance functorTsType :: Functor (TsType decl)
 derive instance eqTsType :: (Eq decl, Eq ref) => Eq (TsType decl ref)
 instance eq1TsType :: Eq decl => Eq1 (TsType decl) where
   eq1 = eq
--- derive instance (Ord decl, Ord ref) => Ord (TsType decl ref)
 derive instance genericTsType :: Generic (TsType decl ref) _
 instance showTsType :: (Show decl, Show ref) => Show (TsType decl ref) where
   show s = genericShow s
@@ -136,8 +117,6 @@ instance Foldable (TsType decl) where
   foldMap _ TsUndefined = mempty
   foldMap f (TsUnion ts) = foldMap f ts
   foldMap _ (TsUnknown _) = mempty
-  -- foldMap _ Void = mempty
-
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
@@ -221,29 +200,16 @@ visitor =
 
 type TsType' = TsType { fullyQualifiedName :: FullyQualifiedName, ref :: Nodes.DeclarationStatement }
 
-type KnownDeclarations = Map FullyQualifiedName (Mu TsType')
-
-type UnknownDeclarations = Map FullyQualifiedName DeclarationStatement
-
-type Context = { current :: Maybe FullyQualifiedName, known :: KnownDeclarations, unknown ::  UnknownDeclarations }
-
--- seen :: Context -> Set FullyQualifiedName
--- seen { current, known, unknown } = Set.fromFoldable current <> Map.keys known <> Map.keys unknown
-
-type VisitMonad a = ExceptT (Array String) (StateT Context Effect) a
-
-type Seed =
-  { level :: Int, ref :: TS.Typ () }
+type Seed = { level :: Int, ref :: TS.Typ () }
 
 type ReadTsType m = Seed -> m (TsType' (TS.Typ ()))
-
 
 coalgebra ::
   forall m.
   MonadError (Array String) m =>
   ReadTsType m ->
-  CoalgebraM m _ Seed
-coalgebra readTsType seed@{ level, ref } = do
+  CoalgebraM m (TsType') Seed
+coalgebra readTsType seed@{ level } = do
   let
     maxDepth = 10
     seed' = { level: level + 1, ref: _ }
@@ -254,12 +220,26 @@ coalgebra readTsType seed@{ level, ref } = do
   else
     throwError [ "Maximum recursion depth (max depth is " <> show maxDepth <> ") in ReadDTS.AST.visitor coalgebra" ]
 
-_unknowns = prop (Proxy :: Proxy "unknowns")
-_knowns = prop (Proxy :: Proxy "knowns")
-_seen = prop (Proxy :: Proxy "seen")
+unfoldType
+  :: forall m
+  . MonadError (Array String) m
+  => TypeChecker
+  -> { level :: Int , ref :: Typ () }
+  -> m (Mu TsType')
+unfoldType checker = anaM $ coalgebra \{ level, ref: t } -> pure
+  if level == 0
+  then ReadDTS.readType checker t [] visitor.onType
+  else case ReadDTS.asTypeRef checker t visitor.onType of
+    Just t' -> t'
+    Nothing -> ReadDTS.readType checker t [] visitor.onType
 
-visit program = do
+types :: Program -> Either (Array String) (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)))
+types program = un Identity $ runExceptT do
   let
+    _unknowns = prop (Proxy :: Proxy "unknowns")
+    _knowns = prop (Proxy :: Proxy "knowns")
+    _seen = prop (Proxy :: Proxy "seen")
+
     checker = getTypeChecker program
     roots = List.fromFoldable $ readRootDeclarationNodes program
     unknowns = map (getDeclarationStatementFqn checker &&& identity) roots
@@ -276,27 +256,20 @@ visit program = do
           pure $ Just head
         List.Nil -> pure Nothing
 
-    foldTypeDecls = bifoldMap
+    foldTypeDecls = cata $ bifoldMap
       (\{ fullyQualifiedName: fqn, ref } -> List.singleton (fqn /\ ref))
       (identity)
-    stripTypeRefs = lmap _.fullyQualifiedName
+    stripTypeRefs = cata $ Mu.In <<< lmap _.fullyQualifiedName
 
-  flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
+  map _.knowns $ flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
     case ReadDTS.readDeclaration checker node of
       Nothing -> throwError ["Problem reading " <> fqnToString fqn ]
       Just { typ } -> do
-        typ'@(In _) <- unfoldType checker { level: 0, ref: typ }
-        _knowns %= List.Cons (fqn /\ cata (\t -> Mu.In (stripTypeRefs t)) typ')
-        for (cata foldTypeDecls typ') \decl@(fqn' /\ _) -> do
+        typ' <- unfoldType checker { level: 0, ref: typ }
+        _knowns %= List.Cons (fqn /\ stripTypeRefs typ')
+        for (foldTypeDecls typ') \decl@(fqn' /\ _) -> do
           seen <- use _seen
           when (not $ fqn' `Set.member` seen) do
             _seen %= Set.insert fqn'
             _unknowns %= List.Cons decl
-
-unfoldType checker = anaM $ coalgebra \{ level, ref: t } -> pure
-  if level == 0
-  then ReadDTS.readType checker t [] visitor.onType
-  else case ReadDTS.asTypeRef checker t visitor.onType of
-    Just t' -> t'
-    Nothing -> ReadDTS.readType checker t [] visitor.onType
 
