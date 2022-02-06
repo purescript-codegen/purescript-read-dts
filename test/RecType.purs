@@ -12,7 +12,7 @@ import Data.Maybe (Maybe(..))
 import Data.String (joinWith) as String
 import Effect.Aff (Aff)
 import Matryoshka (cata)
-import ReadDTS.AST (TsType)
+import ReadDTS.AST (TsType(..))
 import ReadDTS.AST as AST
 import Test.Compile (TypeName(..), compileType)
 import Test.Unit (TestSuite, failure)
@@ -25,22 +25,22 @@ import TypeScript.Compiler.Types (FullyQualifiedName(..), Program)
 testOnType
   :: TypeName
   -> String
-  -> ({ program :: Program
-     , type :: Mu (TsType FullyQualifiedName)
-     }
-     -> Aff Unit
-    )
+  -> ( { program :: Program
+       , type :: Mu (TsType FullyQualifiedName)
+       }
+       -> Aff Unit
+     )
   -> TestSuite
 testOnType typeName source test = Test.test source do
   r <- compileType typeName (SourceCode source)
   case r of
     { type: Nothing } -> failure "Unable to find exported type X"
-    { type: Just { typ }, program } -> do
+    { type: Just { typ, params }, program } -> do
       let
         checker = getTypeChecker program
         stripTypeRefs = cata (Mu.In <<< lmap _.fullyQualifiedName)
 
-      case AST.unfoldType checker { level: 0, ref: typ } of
+      case AST.unfoldType checker params { level: 0, ref: typ } of
         Right (type'@(In _)) -> test { type: stripTypeRefs type', program }
         Left err -> failure $ "FAILURE: " <> show err
 
@@ -48,21 +48,22 @@ testTypeShouldEqual :: TypeName -> String -> Mu (TsType FullyQualifiedName) -> T
 testTypeShouldEqual typeName source expected = testOnType typeName source \{ type: t } ->
   t `shouldEqual` expected
 
-
 suite :: TestSuite
 suite = Test.suite "Recursive type repr" do
   let
     testXShouldEqual = testTypeShouldEqual (TypeName "X")
-  testXShouldEqual "export interface X{ m: { n: number }}" $
-    roll $ AST.TsInterface $ Array.singleton
-      { name: "m"
-      , optional: false
-      , type: roll $ AST.TsObject $ Array.singleton
-          { name: "n"
-          , optional: false
-          , type: roll AST.TsNumber
-          }
-      }
+  testXShouldEqual "export interface X{ m: { n: number }}"
+    $ roll
+    $ AST.TsInterface
+    $ Array.singleton
+        { name: "m"
+        , optional: false
+        , type: roll $ AST.TsObject $ Array.singleton
+            { name: "n"
+            , optional: false
+            , type: roll AST.TsNumber
+            }
+        }
 
   do
     let
@@ -70,14 +71,16 @@ suite = Test.suite "Recursive type repr" do
         [ "export type Y<n> = { m: number, n: n }"
         , "export interface X{ y: Y<number> }"
         ]
-    testXShouldEqual program $
-      roll $ AST.TsInterface $ Array.singleton
-        { name: "y"
-        , optional: false
-        , type: roll $ AST.TsApplication
-            (FullyQualifiedName "\"Root\".Y")
-            (Array.NonEmpty.singleton $ roll AST.TsNumber)
-        }
+    testXShouldEqual program
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
+          , optional: false
+          , type: roll $ AST.TsApplication
+              (FullyQualifiedName "\"Root\".Y")
+              (Array.NonEmpty.singleton $ roll AST.TsNumber)
+          }
 
   do
     let
@@ -86,14 +89,16 @@ suite = Test.suite "Recursive type repr" do
         , "export interface X{ y: Y<number> }"
         ]
     testXShouldEqual
-      program $
-      roll $ AST.TsInterface $ Array.singleton
-        { name: "y"
-        , optional: false
-        , type: roll $ AST.TsApplication
-            (FullyQualifiedName "\"Root\".Y")
-            (Array.NonEmpty.singleton $ roll AST.TsNumber)
-        }
+      program
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
+          , optional: false
+          , type: roll $ AST.TsApplication
+              (FullyQualifiedName "\"Root\".Y")
+              (Array.NonEmpty.singleton $ roll AST.TsNumber)
+          }
   do
     let
       program = String.joinWith "; "
@@ -101,14 +106,16 @@ suite = Test.suite "Recursive type repr" do
         , "export interface X{ y: Y<number> }"
         ]
     testXShouldEqual
-      program $
-      roll $ AST.TsInterface $ Array.singleton
-        { name: "y"
-        , optional: false
-        , type: roll $ AST.TsApplication
-            (FullyQualifiedName "\"Root\".Y")
-            (Array.NonEmpty.singleton $ roll AST.TsNumber)
-        }
+      program
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
+          , optional: false
+          , type: roll $ AST.TsApplication
+              (FullyQualifiedName "\"Root\".Y")
+              (Array.NonEmpty.singleton $ roll AST.TsNumber)
+          }
 
   do
     let
@@ -117,35 +124,40 @@ suite = Test.suite "Recursive type repr" do
         , "export interface X{ y: Y }"
         ]
     testXShouldEqual
-      program $
-      roll $ AST.TsInterface $ Array.singleton
-        { name: "y"
-        , optional: false
-        , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
-        }
-
-  testXShouldEqual "export type Y = { yp: string }; export interface X{ xp: { xpp: Y }}" $
-    roll $ AST.TsInterface $ Array.singleton
-      { name: "xp"
-      , optional: false
-      , type: roll $ AST.TsObject $ Array.singleton
-          { name: "xpp"
+      program
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
           , optional: false
           , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
           }
-      }
 
-  testXShouldEqual "export type Y = { m: number }; export interface X extends Y { n: string }" $
-    roll $ AST.TsInterface
-      [ { name: "n"
+  testXShouldEqual "export type Y = { yp: string }; export interface X{ xp: { xpp: Y }}"
+    $ roll
+    $ AST.TsInterface
+    $ Array.singleton
+        { name: "xp"
         , optional: false
-        , type: roll $ AST.TsString
+        , type: roll $ AST.TsObject $ Array.singleton
+            { name: "xpp"
+            , optional: false
+            , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
+            }
         }
-      , { name: "m"
-        , optional: false
-        , "type": roll AST.TsNumber
-        }
-      ]
+
+  testXShouldEqual "export type Y = { m: number }; export interface X extends Y { n: string }"
+    $ roll
+    $ AST.TsInterface
+        [ { name: "n"
+          , optional: false
+          , type: roll $ AST.TsString
+          }
+        , { name: "m"
+          , optional: false
+          , "type": roll AST.TsNumber
+          }
+        ]
 
   do
     let
@@ -153,33 +165,46 @@ suite = Test.suite "Recursive type repr" do
         "export type MonoTree = { left: MonoTree, right: MonoTree } | number;"
       fqn = FullyQualifiedName "\"Root\".MonoTree"
 
-    testTypeShouldEqual (TypeName "MonoTree") program $
-      roll $ AST.TsUnion
-        [ roll AST.TsNumber
-        , roll $ AST.TsObject
-          [ { name: "left", optional: false, type: roll $ AST.TsTypeRef fqn }
-          , { name: "right", optional: false, type: roll $ AST.TsTypeRef fqn }
+    testTypeShouldEqual (TypeName "MonoTree") program
+      $ roll
+      $ AST.TsUnion
+          [ roll AST.TsNumber
+          , roll $ AST.TsObject
+              [ { name: "left", optional: false, type: roll $ AST.TsTypeRef fqn }
+              , { name: "right", optional: false, type: roll $ AST.TsTypeRef fqn }
+              ]
           ]
+  testXShouldEqual "export function X(nonOpt: number, opt?: string): number { return 0; }"
+    $ roll
+    $ AST.TsFunction
+        [ { name: "nonOpt", type: roll AST.TsNumber, optional: false }
+        , { name: "opt", type: roll AST.TsString, optional: true }
         ]
-  testXShouldEqual "export function X(nonOpt: number, opt?: string): number { return 0; }" $
-    roll $ AST.TsFunction
-      [{ name: "nonOpt", type: roll AST.TsNumber, optional: false }
-      ,{ name: "opt", type: roll AST.TsString, optional: true }
-      ]
-      (roll AST.TsNumber)
+        (roll AST.TsNumber)
 
-  -- | This fails but on our unfold recursion...
-  -- | It should probably anyway or maybe...
-  -- | we want to handle this invalid type?
-  -- testXShouldEqual "export interface X{ m: { n: X }}" $
-  --   roll $ AST.TsInterface $ Array.singleton
-  --     { name: "m"
-  --     , optional: false
-  --     , type: roll $ AST.TsObject $ Array.singleton
-  --         { name: "n"
-  --         , optional: false
-  --         , type: roll AST.TsNumber
-  --         }
-  --     }
+  -- do
+  --   let
+  --     body = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsParameter "param") }
+  --     params = Array.NonEmpty.singleton { default: Just $ roll AST.TsNumber, name: "param" }
+  --     expected = roll $ TsParametric body params
 
+  --   testXShouldEqual "export interface X<param=number>{ x: param }" $ expected
 
+  do
+    let
+      expected = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsArray $ roll AST.TsNumber) }
+    testXShouldEqual "export interface X{ x: number[] }" expected
+
+-- | This fails but on our unfold recursion...
+-- | It should probably anyway or maybe...
+-- | we want to handle this invalid type?
+-- testXShouldEqual "export interface X{ m: { n: X }}" $
+--   roll $ AST.TsInterface $ Array.singleton
+--     { name: "m"
+--     , optional: false
+--     , type: roll $ AST.TsObject $ Array.singleton
+--         { name: "n"
+--         , optional: false
+--         , type: roll AST.TsNumber
+--         }
+--     }

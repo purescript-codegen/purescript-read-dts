@@ -18,8 +18,8 @@ module ReadDTS.Specialization where
 -- import Data.Tuple (Tuple(..)) as Tuple
 -- import JS.Unsafe.Stringify (unsafeStringify)
 -- import Matryoshka (Algebra, cata)
--- import ReadDTS (FullyQualifiedName, fqnToString)
--- import ReadDTS.AST (TypeDeclaration, TypeNode)
+-- import ReadDTS (fqnToString)
+-- import ReadDTS.AST (TypeDeclaration, TsType)
 -- import ReadDTS.AST as AST
 -- 
 -- type Property a = { type ∷ a, optional ∷ Boolean }

@@ -72,6 +72,9 @@ foreign import data TypeReference :: Type
 -- | * We use `Symbol` tag to distinguish between different types
 -- | of nodes (with the same exposed public props). They in some
 -- | sens represent all the private stuff.
+-- |
+-- | For a list of `Nodes` and specific fields methods
+-- | please check `Compiler.Types.Nodes` and `Compiler.Factory.NodeTests`.
 foreign import data Node :: Symbol -> Row Type -> Type
 
 -- | FIXME: we should add symbol tag similar to the one above
@@ -92,4 +95,3 @@ derive instance Ord FullyQualifiedName
 derive newtype instance Show FullyQualifiedName
 
 foreign import data Signature :: Type
-

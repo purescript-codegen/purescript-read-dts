@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bindCompilerHost = void 0;
-var bindCompilerHost = function (host) {
+exports.fromCompilerHost = void 0;
+var fromCompilerHost = function (host) {
     return {
         fileExists: host.fileExists.bind(host),
         directoryExists: host.directoryExists && host.directoryExists.bind(host),
@@ -16,5 +16,5 @@ var bindCompilerHost = function (host) {
         writeFile: host.writeFile.bind(host),
     };
 };
-exports.bindCompilerHost = bindCompilerHost;
-//# sourceMappingURL=InMemory.js.map
+exports.fromCompilerHost = fromCompilerHost;
+//# sourceMappingURL=BoundedCompilerHost.js.map

@@ -23,28 +23,28 @@ import Test.Unit (suite, test) as Test
 import Test.Unit.Assert (shouldEqual)
 import TypeScript.Compiler.Parser (SourceCode(..))
 import TypeScript.Compiler.Types (FullyQualifiedName(..))
-import TypeScript.Testing.InMemory (mkFile)
+import TypeScript.Testing.Types (mkInMemoryFile)
 
 testOnTypes
-  :: { modules :: Array
-                     { path :: String
-                     , source :: String
-                     }
-      , roots :: Array String
-      }
+  :: { modules ::
+         Array
+           { path :: String
+           , source :: String
+           }
+     , roots :: Array String
+     }
   -> (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)) -> Aff Unit)
   -> TestSuite
 testOnTypes opts test = do
   let
-    labelStep ({ path, source: source })
-      = "/* "
+    labelStep ({ path, source: source }) = "/* "
       <> path
       <> " */"
       <> String.replace (String.Pattern "\n") (String.Replacement ";") source
 
     label = String.joinWith ";" $ map labelStep opts.modules
 
-    toFile { path, source } = mkFile path (SourceCode source)
+    toFile { path, source } = mkInMemoryFile path (SourceCode source)
     opts' = opts
       { modules = map toFile opts.modules
       , roots = opts.roots
@@ -57,10 +57,9 @@ testOnTypes opts test = do
       Left err -> failure $ "FAILURE: " <> show err
 
 suite :: TestSuite
-suite = Test.suite "Recursive type repr" do
+suite = Test.suite "Cross module definitions" do
   let
-    fromHomogeneous
-      = (Map.fromFoldable :: Array _ -> _)
+    fromHomogeneous = (Map.fromFoldable :: Array _ -> _)
       <<< map (over _1 FullyQualifiedName)
       <<< Object.toUnfoldable
       <<< Object.fromHomogeneous
@@ -70,7 +69,7 @@ suite = Test.suite "Recursive type repr" do
     testFromRootTypes rootSource modules test = do
       let
         root = { source: rootSource, path: "Root.ts" }
-      testOnTypes { roots: ["Root.ts"], modules: Array.cons root modules } test
+      testOnTypes { roots: [ "Root.ts" ], modules: Array.cons root modules } test
   do
     let
       modules = Array.singleton $ mkModule
@@ -81,12 +80,31 @@ suite = Test.suite "Recursive type repr" do
       shouldEqual 2 (length types)
       Map.fromFoldable types `flip shouldEqual` fromHomogeneous
         { "\"A\".A": roll $ AST.TsObject
-          [ { type: roll AST.TsNumber, name: "p1", optional: false }
-          , { type: roll AST.TsString, name: "p2", optional: false }
-          ]
+            [ { type: roll AST.TsNumber, name: "p1", optional: false }
+            , { type: roll AST.TsString, name: "p2", optional: false }
+            ]
         , "\"Root\".B": roll $ AST.TsObject $ Array.singleton $
-          { type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"A\".A"
-          , name: "a"
-          , optional: false
-          }
+            { type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"A\".A"
+            , name: "a"
+            , optional: false
+            }
         }
+
+-- do
+--   let
+--     modules = Array.singleton $ mkModule
+--       "A.ts"
+--       "export type A = { p1: number, p2: string };"
+--   testFromRootTypes """import { A } from "A"; export type B<a=A> = { a: a }""" modules \types -> do
+--     -- shouldEqual 2 (length types)
+--     Map.fromFoldable types `shouldEqual` fromHomogeneous
+--       { "\"A\".A": roll $ AST.TsObject
+--         [ { type: roll AST.TsNumber, name: "p1", optional: false }
+--         , { type: roll AST.TsString, name: "p2", optional: false }
+--         ]
+--       , "\"Root\".B": roll $ AST.TsObject $ Array.singleton $
+--         { type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"A\".A"
+--         , name: "a"
+--         , optional: false
+--         }
+--       }

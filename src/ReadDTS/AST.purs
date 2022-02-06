@@ -4,9 +4,11 @@ import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.Except (runExceptT)
+import Control.Monad.Free (Free, wrap)
 import Control.Monad.Rec.Loops (whileJust_)
 import Control.Monad.State (execStateT)
 import Data.Array.NonEmpty (NonEmptyArray)
+import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Either (Either)
@@ -29,9 +31,9 @@ import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
-import Matryoshka (CoalgebraM, anaM, cata)
-import ReadDTS (Args, Param, Prop, Props, asTypeRef, readDeclaration, readType, sequenceArg, sequenceProp) as ReadDTS
-import ReadDTS (Visit, foldMapParam, fqnToString, readRootDeclarationNodes, sequenceParam)
+import Matryoshka (cata, futuM)
+import ReadDTS (Args, Params, Prop, Props, asTypeRef, readDeclaration, readType, sequenceArg, sequenceProp) as ReadDTS
+import ReadDTS (Param, Params(..), Visit, fqnToString, readRootDeclarationNodes)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compiler.Program (getTypeChecker)
@@ -47,8 +49,10 @@ type Prop decl ref = ReadDTS.Prop (TsType decl ref)
 -- | for it.
 -- | Some of them are just required for testing purposes.
 newtype TSTyp = TSTyp (TS.Typ ())
+
 instance Show TSTyp where
   show (TSTyp _) = "TSTyp"
+
 instance Eq TSTyp where
   eq (TSTyp t1) (TSTyp t2) = unsafeRefEq t1 t2
 
@@ -69,18 +73,20 @@ data TsType decl ref
   | TsString
   | TsStringLiteral String
   | TsTuple (Array ref)
-  | TsParametric ref (NonEmptyArray (ReadDTS.Param ref))
+  | TsParametric ref (ReadDTS.Params ref)
   | TsParameter String
   | TsTypeRef decl
   | TsUndefined
   | TsUnion (Array ref)
   | TsUnknown TSTyp
+
 -- | TsVoid
 
 derive instance functorTsType :: Functor (TsType decl)
 derive instance eqTsType :: (Eq decl, Eq ref) => Eq (TsType decl ref)
 instance eq1TsType :: Eq decl => Eq1 (TsType decl) where
   eq1 = eq
+
 derive instance genericTsType :: Generic (TsType decl ref) _
 instance showTsType :: (Show decl, Show ref) => Show (TsType decl ref) where
   show s = genericShow s
@@ -106,7 +112,7 @@ instance Foldable (TsType decl) where
   foldMap _ (TsNumberLiteral _) = mempty
   foldMap f (TsObject ts) = foldMap (f <<< _.type) ts
   foldMap _ (TsParameter _) = mempty
-  foldMap f (TsParametric body params) = f body <> foldMap (foldMapParam f) params
+  foldMap f (TsParametric body params) = f body <> foldMap f params
   foldMap _ TsString = mempty
   foldMap _ (TsStringLiteral _) = mempty
   foldMap f (TsTuple ts) = foldMap f ts
@@ -143,7 +149,7 @@ instance Traversable (TsType decl) where
   sequence (TsParameter t) = pure $ TsParameter t
   sequence (TsParametric body params) = TsParametric
     <$> body
-    <*> traverse sequenceParam params
+    <*> sequence params
   sequence TsString = pure $ TsString
   sequence (TsStringLiteral s) = pure $ TsStringLiteral s
   sequence (TsTuple ts) = TsTuple <$> sequence ts
@@ -193,40 +199,78 @@ visitor =
       }
   }
 
-type TsType' = TsType { fullyQualifiedName :: FullyQualifiedName, ref :: Nodes.DeclarationStatement }
+foldMapRec :: forall a m. Monoid m => (a -> m) -> Mu (TsType a) -> m
+foldMapRec f = cata (bifoldMap f identity)
 
-type Seed = { level :: Int, ref :: TS.Typ () }
+mapRec :: forall a b. (a -> b) -> Mu (TsType a) -> Mu (TsType b)
+mapRec f = cata $ Mu.In <<< lmap f
 
-type ReadTsType m = Seed -> m (TsType' (TS.Typ ()))
+type Decl = { fullyQualifiedName :: FullyQualifiedName, ref :: Nodes.DeclarationStatement }
 
-coalgebra ::
-  forall m.
-  MonadError (Array String) m =>
-  ReadTsType m ->
-  CoalgebraM m (TsType') Seed
-coalgebra readTsType seed@{ level } = do
-  let
-    maxDepth = 10
-    seed' = { level: level + 1, ref: _ }
+type Seed = { level :: Int, ref :: Typ () }
 
-  if level < 10 then do
-    td <- readTsType seed
-    pure $ map seed' td
-  else
+type ReadTsType m = Seed -> m (TsType Decl (TS.Typ ()))
+
+asParametric :: Typ () -> Array (Param (Typ ())) -> Maybe (Typ () /\ Params (Typ ()))
+asParametric t params = do
+  params' <- Array.NonEmpty.fromArray params
+  pure $ t /\ (Params params')
+
+-- | Our unfold step function which handles some initial corner cases.
+-- |
+-- | * We want to "resolve" type ref during the top layer read
+-- | because a lot of types are type refs (like arrays, tuples or
+-- | even class/interface declaration) so we run `readTypeRef` only
+-- | when `level > 0`.
+-- |
+-- | * We have to unfold manually parametric type because I have not found
+-- | a way to properly detect and disambiguate this case based only on
+-- | the `Typ ()` (it is self referencing `typeReference`...)
+mkCoalgebra
+  :: forall m
+   . MonadError (Array String) m
+  => Int
+  -> TypeChecker
+  -> Maybe (Params (Typ ()))
+  -> (Seed -> m (TsType Decl (Free (TsType Decl) Seed)))
+mkCoalgebra maxDepth checker params seed = do
+  -- FIXME: We should probably provide a dedicated construction
+  -- for *unread* constructor (probably a different one than
+  -- `TsUnknown` because ts complier possibly uses that construction)
+  -- and use it here instead of throwing exception here.
+  when (seed.level > maxDepth) do
     throwError [ "Maximum recursion depth (max depth is " <> show maxDepth <> ") in ReadDTS.AST.visitor coalgebra" ]
+
+  let
+    mkSeed = { level: seed.level + 1, ref: _ }
+
+    mapSeed :: forall decl. TsType decl (Typ ()) -> TsType decl (Free (TsType decl) Seed)
+    mapSeed = map (pure <<< mkSeed)
+
+    readType ref = ReadDTS.readType checker ref visitor.onType
+
+    readTypeRefOrType ref = case ReadDTS.asTypeRef checker ref visitor.onType of
+      Just t' -> mapSeed t'
+      Nothing -> mapSeed $ ReadDTS.readType checker ref visitor.onType
+
+  pure $
+    if seed.level == 0 then case params of
+      Just params' -> do
+        TsParametric
+          (wrap $ mapSeed $ readType seed.ref)
+          (map (wrap <<< readTypeRefOrType) params')
+      Nothing ->
+        mapSeed $ readType seed.ref
+    else readTypeRefOrType seed.ref
 
 unfoldType
   :: forall m
-  . MonadError (Array String) m
+   . MonadError (Array String) m
   => TypeChecker
-  -> { level :: Int , ref :: Typ () }
-  -> m (Mu TsType')
-unfoldType checker = anaM $ coalgebra \{ level, ref: t } -> pure
-  if level == 0
-  then ReadDTS.readType checker t [] visitor.onType
-  else case ReadDTS.asTypeRef checker t visitor.onType of
-    Just t' -> t'
-    Nothing -> ReadDTS.readType checker t [] visitor.onType
+  -> Maybe (Params (Typ ()))
+  -> Seed
+  -> m (Mu (TsType Decl))
+unfoldType checker params = futuM (mkCoalgebra 10 checker params)
 
 types :: Program -> Either (Array String) (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)))
 types program = un Identity $ runExceptT do
@@ -251,20 +295,18 @@ types program = un Identity $ runExceptT do
           pure $ Just head
         List.Nil -> pure Nothing
 
-    foldTypeDecls = cata $ bifoldMap
-      (\{ fullyQualifiedName: fqn, ref } -> List.singleton (fqn /\ ref))
-      (identity)
-    stripTypeRefs = cata $ Mu.In <<< lmap _.fullyQualifiedName
+    foldTypeDecls = foldMapRec (\{ fullyQualifiedName: fqn, ref } -> List.singleton (fqn /\ ref))
+    stripTypeRefs = mapRec _.fullyQualifiedName
 
   map _.knowns $ flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
     case ReadDTS.readDeclaration checker node of
-      Nothing -> throwError ["Problem reading " <> fqnToString fqn ]
-      Just { typ } -> do
-        typ' <- unfoldType checker { level: 0, ref: typ }
-        _knowns %= List.Cons (fqn /\ stripTypeRefs typ')
-        for (foldTypeDecls typ') \decl@(fqn' /\ _) -> do
+      Nothing -> throwError [ "Problem reading " <> fqnToString fqn ]
+      Just { typ, params } -> do
+        type_ <- unfoldType checker params { level: 0, ref: typ }
+
+        _knowns %= List.Cons (fqn /\ stripTypeRefs type_)
+        for (foldTypeDecls type_) \decl@(fqn' /\ _) -> do
           seen <- use _seen
           when (not $ fqn' `Set.member` seen) do
             _seen %= Set.insert fqn'
             _unknowns %= List.Cons decl
-

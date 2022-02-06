@@ -8,30 +8,6 @@ export function isNodeExportedImpl(checker:ts.TypeChecker, node: ts.Node): boole
     )
 };
 
-export const showSyntaxKind = (node: ts.Node): string => ts.SyntaxKind[node.kind];
-
-type Debug = {
-  formatTypeFlags: (t: ts.Type) => string
-  formatSyntaxKind: (kind: ts.SyntaxKind) => string
-  formatObjectFlags: (o: ts.ObjectFlags | undefined) => string
-};
-
-export const formatTypeFlags = (t: ts.Type): string => {
-  let Debug = (<{ Debug: Debug }>(<unknown>ts)).Debug;
-  return Debug.formatTypeFlags(t);
-}
-
-export const formatSyntaxKind = (node: ts.Node): string => {
-  let Debug = (<{ Debug: Debug }>(<unknown>ts)).Debug;
-  return Debug.formatSyntaxKind(node.kind);
-}
-
-export const formatObjectFlags = (o: ts.Node): string => {
-  let Debug = (<{ Debug: Debug }>(<unknown>ts)).Debug;
-  let objectFlags = ts.isObject(o)?o.objectFlags:undefined;
-  return Debug.formatObjectFlags(objectFlags);
-}
-
 export const toDeclarationStatementImpl = (n: ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration): ts.DeclarationStatement => {
   return n;
 }

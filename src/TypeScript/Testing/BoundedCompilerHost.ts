@@ -1,6 +1,6 @@
 import * as ts from "typescript";
 
-export const bindCompilerHost = (host: ts.CompilerHost) => {
+export const fromCompilerHost = (host: ts.CompilerHost) => {
   return {
     fileExists: host.fileExists.bind(host),
     directoryExists: host.directoryExists && host.directoryExists.bind(host),
@@ -15,3 +15,4 @@ export const bindCompilerHost = (host: ts.CompilerHost) => {
     writeFile: host.writeFile.bind(host),
   };
 }
+

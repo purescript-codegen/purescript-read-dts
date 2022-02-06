@@ -1,20 +1,32 @@
 module TypeScript.Compiler.Types.Nodes where
 
 import Data.Undefined.NoProblem (Opt)
+import Type.Row (type (+))
 import TypeScript.Compiler.Types (Node, ScriptTarget, Typ)
 import Unsafe.Coerce (unsafeCoerce)
 
-interface :: forall l k. Node l k -> { | k }
+-- | We can debug print these values using
+-- | `TypeScript.Compiler.Debug.formatSyntaxKind`
+-- | and `TypeScript.Compiler.Debug.formatNodeFlags`
+-- |
+-- | We should rather avoid casting on the PS based on flags.
+-- | Casting functions are provided by ts compiler itself and we
+-- | bind to them (please check `TypeScript.Compiler.Factory.NodeTests`.
+foreign import data SyntaxKind :: Type
+foreign import data NodeFlags :: Type
+
+type NodeRow r = (nodeFlags :: NodeFlags, syntaxKind :: SyntaxKind | r)
+
+interface :: forall l r. Node l r -> { | NodeRow + r }
 interface = unsafeCoerce
 
 foreign import getChildren :: forall l k. Node l k -> Array (Node "" ())
 
--- | Semiautomatically generated stubs which are required
+-- | Types and stubs which are required
 -- | by `Compiler.Factory.NodeTests`.
--- | Some of them probably doesn't make sens (there is no coresponding
--- | Every such alias makes no sens on its own
--- | be if we fill it makes `NodeTests` functions
--- | really useful.
+-- |
+-- | A lot of them are still not correctly filled
+-- | and provide only the `NodeRow` now.
 type AbstractKeyword = Node "AbstractKeyword" ()
 type ArrayBindingPattern = Node "ArrayBindingPattern" ()
 type ArrayLiteralExpression = Node "ArrayLiteralExpression" ()
@@ -43,7 +55,7 @@ type CatchClause = Node "CatchClause" ()
 -- | given `Compalier.Factory.asClassExpression`
 -- | and `Compalier.Factory.asClassDeclaration`
 type ClassDeclaration = ClassLikeDeclaration
-type ClassElement = Node "ClassElement" (name :: PropertyName)
+type ClassElement = Node "ClassElement" (name :: PropertyName | ())
 type ClassExpression = ClassLikeDeclaration
 type ClassLikeDeclaration = Node "ClassLikeDeclaration"
   ( name :: Opt Identifier
@@ -187,13 +199,13 @@ type ObjectBindingPattern = Node "ObjectBindingPattern" ()
 type ObjectLiteralExpression = Node "ObjectLiteralExpression" ()
 type OmittedExpression = Node "OmittedExpression" ()
 type OptionalTypeNode = Node "OptionalTypeNode" ()
-
 -- type BindingName = Identifier | BindingPattern;
 type ParameterDeclaration = Node "ParameterDeclaration"
   ( name :: Node "BindingName" ()
   , questionToken :: Opt QuestionToken
   , "type" :: Opt TypeNode
   )
+
 type ParenthesizedExpression = Node "ParenthesizedExpression" ()
 type ParenthesizedTypeNode = Node "ParenthesizedTypeNode" ()
 type PartiallyEmittedExpression = Node "PartiallyEmittedExpression" ()
@@ -272,6 +284,7 @@ type TypeParameterDeclaration = Node "TypeParameterDeclaration"
   , constraint :: Opt TypeNode
   , default :: Opt TypeNode
   )
+
 type TypePredicateNode = Node "TypePredicateNode" ()
 type TypeQueryNode = Node "TypeQueryNode" ()
 type TypeReferenceNode = Node "TypeReferenceNode" ()

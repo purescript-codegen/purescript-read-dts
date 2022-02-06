@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toDeclarationStatementImpl = exports.formatObjectFlags = exports.formatSyntaxKind = exports.formatTypeFlags = exports.showSyntaxKind = exports.isNodeExportedImpl = void 0;
+exports.toDeclarationStatementImpl = exports.isNodeExportedImpl = void 0;
 var ts = __importStar(require("typescript"));
 function isNodeExportedImpl(checker, node) {
     var sym = checker.getSymbolAtLocation(node);
@@ -28,24 +28,6 @@ function isNodeExportedImpl(checker, node) {
 }
 exports.isNodeExportedImpl = isNodeExportedImpl;
 ;
-var showSyntaxKind = function (node) { return ts.SyntaxKind[node.kind]; };
-exports.showSyntaxKind = showSyntaxKind;
-var formatTypeFlags = function (t) {
-    var Debug = ts.Debug;
-    return Debug.formatTypeFlags(t);
-};
-exports.formatTypeFlags = formatTypeFlags;
-var formatSyntaxKind = function (node) {
-    var Debug = ts.Debug;
-    return Debug.formatSyntaxKind(node.kind);
-};
-exports.formatSyntaxKind = formatSyntaxKind;
-var formatObjectFlags = function (o) {
-    var Debug = ts.Debug;
-    var objectFlags = ts.isObject(o) ? o.objectFlags : undefined;
-    return Debug.formatObjectFlags(objectFlags);
-};
-exports.formatObjectFlags = formatObjectFlags;
 var toDeclarationStatementImpl = function (n) {
     return n;
 };

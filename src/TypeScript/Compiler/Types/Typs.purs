@@ -2,6 +2,7 @@ module TypeScript.Compiler.Types.Typs where
 
 import Prelude
 
+import Control.Alternative (guard) as Alternative
 import Data.Function.Uncurried (Fn1, runFn1)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
@@ -9,6 +10,7 @@ import Data.Undefined.NoProblem (Opt)
 import Type.Row (type (+))
 import TypeScript.Compiler.Types (Signature, Symbol_, Typ, TypeFlags)
 import Unsafe.Coerce (unsafeCoerce)
+import Unsafe.Reference (unsafeRefEq)
 
 type TypRow r =
   ( aliasSymbol :: Opt Symbol_
@@ -43,7 +45,8 @@ foreign import asIntersectionTypeImpl :: forall r. Fn1 (Typ r) (Nullable Interse
 -- | Interface or Class
 type InterfaceTypeRow r
   = ObjectTypeRow
-  + ( typeParameters :: Opt (Array TypeParameter)
+  +
+    ( typeParameters :: Opt (Array TypeParameter)
     , outerTypeParameters :: Opt (Array TypeParameter)
     , localTypeParameters :: Opt (Array TypeParameter)
     , thisType :: Opt TypeParameter
@@ -95,8 +98,14 @@ type TypeReference = Typ
 asTypeReference :: forall r. Typ r -> Maybe TypeReference
 asTypeReference = toMaybe <<< runFn1 asTypeReferenceImpl
 
-foreign import asTypeReferenceImpl :: forall r. Fn1 (Typ r) (Nullable TypeReference)
+asNonCyclicTypeReference :: forall r. Typ r -> Maybe TypeReference
+asNonCyclicTypeReference t = do
+  ref <- asTypeReference t
+  let
+    { target: t' } = interface ref
+  Alternative.guard (not $ unsafeRefEq (forget t') (forget t)) *> pure ref
 
+foreign import asTypeReferenceImpl :: forall r. Fn1 (Typ r) (Nullable TypeReference)
 
 type UnionType = Typ (types :: Array (Typ ()))
 
@@ -125,4 +134,3 @@ getDefault :: forall i. Typ i -> Maybe (Typ ())
 getDefault = toMaybe <<< runFn1 getDefaultImpl
 
 foreign import getDefaultImpl :: forall i. Fn1 (Typ i) (Nullable (Typ ()))
-

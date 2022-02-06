@@ -16,33 +16,35 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Node.Path (FilePath)
-import ReadDTS (Param, readRootDeclarations)
+import ReadDTS (Params, readRootDeclarations)
 import TypeScript.Compiler.Parser (SourceCode(..))
 import TypeScript.Compiler.Program (createProgram)
 import TypeScript.Compiler.Types (CompilerOptions, moduleKind, scriptTarget, FullyQualifiedName(..), Program, Typ)
-import TypeScript.Testing.InMemory (File, compilerHost, mkFile) as InMemory
+import TypeScript.Testing.InMemory (compilerHost) as InMemory
+import TypeScript.Testing.Types (InMemoryFile, mkInMemoryFile)
 
 type SourceLine = String
 
-mkFile' :: FilePath -> Array SourceLine -> InMemory.File
-mkFile' name = InMemory.mkFile name <<< SourceCode <<< String.joinWith "\n"
+mkFile' :: FilePath -> Array SourceLine -> InMemoryFile
+mkFile' name = mkInMemoryFile name <<< SourceCode <<< String.joinWith "\n"
 
 newtype TypeName = TypeName String
 
 type CompileOpts =
   { roots :: Array FilePath
-  , modules :: Array InMemory.File
+  , modules :: Array InMemoryFile
   , strictNullChecks :: Opt Boolean
   }
 
 compile
   :: forall opts
-  . Closed.Coerce opts CompileOpts
+   . Closed.Coerce opts CompileOpts
   => opts
   -> Effect Program
 compile opts = do
   let
     opts' = Closed.coerce opts :: CompileOpts
+
     compilerOpts :: CompilerOptions
     compilerOpts = NoProblem.coerce
       { module: moduleKind."ES2015"
@@ -52,43 +54,42 @@ compile opts = do
 
   -- | We have to load es library because without it we are not
   -- | able to handle even `Array` type.
-  host <- liftEffect $ InMemory.compilerHost { files: opts'.modules }
+  host <- liftEffect $ InMemory.compilerHost { files: opts'.modules, defaultLib: Nothing }
   createProgram opts'.roots compilerOpts (Just host)
 
 newtype StrictNullChecks = StrictNullChecks Boolean
 
 -- | Compile source code and extract particular type information.
-compileType ::
-  TypeName ->
-  SourceCode ->
-  Aff
-    { program :: Program
-    , type :: Maybe
-      { typ :: Typ ()
-      , params :: Array (Param (Typ ()))
-      }
-    }
+compileType
+  :: TypeName
+  -> SourceCode
+  -> Aff
+       { program :: Program
+       , type ::
+           Maybe
+             { typ :: Typ ()
+             , params :: Maybe (Params (Typ ()))
+             }
+       }
 compileType (TypeName name) source = do
   let
     rootName = "Root.ts"
     fqn = FullyQualifiedName $ "\"Root\"." <> name
 
-    getType ::
-      forall t.
-      Map FullyQualifiedName t ->
-      Maybe (FullyQualifiedName /\ t)
     getType
-      = List.head
+      :: forall t
+       . Map FullyQualifiedName t
+      -> Maybe (FullyQualifiedName /\ t)
+    getType = List.head
       <<< List.filter (eq fqn <<< fst)
       <<< Map.toUnfoldableUnordered
 
-    rootFile = InMemory.mkFile rootName source
+    rootFile = mkInMemoryFile rootName source
   program <- liftEffect $ compile
-    { roots: [rootName]
-    , modules: [rootFile]
+    { roots: [ rootName ]
+    , modules: [ rootFile ]
     , strictNullChecks: false
     }
   let
     decls = readRootDeclarations program
   pure { type: snd <$> getType decls, program }
-
