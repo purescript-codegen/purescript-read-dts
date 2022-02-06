@@ -12,7 +12,6 @@ import Node.Buffer (toString) as Buffer
 import Node.Encoding (Encoding(..))
 import Node.FS.Stats (isDirectory)
 import Node.FS.Sync (exists, readFile, stat)
-import Node.Path (concat) as Path
 import TypeScript.Compiler.Parser (SourceCode(..), createSourceFile)
 import TypeScript.Compiler.Types (CompilerHost, scriptTarget)
 import TypeScript.Testing.BoundedCompilerHost (BoundedCompilerHost)
@@ -29,7 +28,7 @@ compilerHost opts = BoundedCompilerHost.toCompilerHost <$> boundedCompilerHost o
 boundedCompilerHost :: forall r. Opts r -> Effect BoundedCompilerHost
 boundedCompilerHost opts@{ dir: DirName dirName } = do
   let
-    fullPath p = Path.concat [ dirName, p ]
+    fullPath p = dirName <> "/" <> p
   host <- InMemory.boundedCompilerHost opts
   let
     readSource p = do
@@ -52,8 +51,8 @@ boundedCompilerHost opts@{ dir: DirName dirName } = do
             _, Just fallback -> runEffectFn1 fallback d
             _, Nothing -> pure false
 
-      , getCurrentDirectory = opt $ pure dirName
-      , getDirectories = opt $ mkEffectFn1 $ const (pure [ dirName ])
+      -- , getCurrentDirectory = opt $ pure dirName
+      -- , getDirectories = opt $ mkEffectFn1 $ const (pure [ dirName ])
       , getSourceFile = mkEffectFn2 \p x -> do
           let
             p' = fullPath p
@@ -61,9 +60,10 @@ boundedCompilerHost opts@{ dir: DirName dirName } = do
             Just source -> do
               sf <- createSourceFile p source scriptTarget."ES5" true
               pure $ opt sf
-            Nothing -> runEffectFn2 host.getSourceFile p x
+            Nothing -> do
+              runEffectFn2 host.getSourceFile p x
       , readFile = mkEffectFn1 \p -> do
-          readSource p >>= case _ of
+          readSource (fullPath p) >>= case _ of
             Just source -> pure $ opt source
             Nothing -> runEffectFn1 host.readFile p
       }

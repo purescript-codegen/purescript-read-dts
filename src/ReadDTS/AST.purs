@@ -7,6 +7,7 @@ import Control.Monad.Except (runExceptT)
 import Control.Monad.Free (Free, wrap)
 import Control.Monad.Rec.Loops (whileJust_)
 import Control.Monad.State (execStateT)
+import Data.Array (catMaybes) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
@@ -21,7 +22,7 @@ import Data.Identity (Identity(..))
 import Data.Lens (use)
 import Data.Lens.Record (prop)
 import Data.Lens.Setter ((%=), (.=))
-import Data.List (List(..), fromFoldable, singleton) as List
+import Data.List (List(..), catMaybes, fromFoldable, singleton) as List
 import Data.List (List, (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
@@ -31,6 +32,7 @@ import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
+import Debug (traceM)
 import Matryoshka (cata, futuM)
 import ReadDTS (Args, Params, Prop, Props, asTypeRef, readDeclaration, readType, sequenceArg, sequenceProp) as ReadDTS
 import ReadDTS (Param, Params(..), Visit, fqnToString, readRootDeclarationNodes)
@@ -234,34 +236,34 @@ mkCoalgebra
   -> Maybe (Params (Typ ()))
   -> (Seed -> m (TsType Decl (Free (TsType Decl) Seed)))
 mkCoalgebra maxDepth checker params seed = do
-  -- FIXME: We should probably provide a dedicated construction
-  -- for *unread* constructor (probably a different one than
-  -- `TsUnknown` because ts complier possibly uses that construction)
-  -- and use it here instead of throwing exception here.
-  when (seed.level > maxDepth) do
-    throwError [ "Maximum recursion depth (max depth is " <> show maxDepth <> ") in ReadDTS.AST.visitor coalgebra" ]
+  -- FIXME: We should probably provide a dedicated constructor
+  -- for *unread* scenario - probably a different one than
+  -- `TsUnknown` because ts complier possibly uses that.
+  if (seed.level > maxDepth) then pure (TsUnknown $ TSTyp seed.ref)
+  -- throwError [ "Maximum recursion depth (max depth is " <> show maxDepth <> ") in ReadDTS.AST.visitor coalgebra" ]
+  else do
 
-  let
-    mkSeed = { level: seed.level + 1, ref: _ }
+    let
+      mkSeed = { level: seed.level + 1, ref: _ }
 
-    mapSeed :: forall decl. TsType decl (Typ ()) -> TsType decl (Free (TsType decl) Seed)
-    mapSeed = map (pure <<< mkSeed)
+      mapSeed :: forall decl. TsType decl (Typ ()) -> TsType decl (Free (TsType decl) Seed)
+      mapSeed = map (pure <<< mkSeed)
 
-    readType ref = ReadDTS.readType checker ref visitor.onType
+      readType ref = ReadDTS.readType checker ref visitor.onType
 
-    readTypeRefOrType ref = case ReadDTS.asTypeRef checker ref visitor.onType of
-      Just t' -> mapSeed t'
-      Nothing -> mapSeed $ ReadDTS.readType checker ref visitor.onType
+      readTypeRefOrType ref = case ReadDTS.asTypeRef checker ref visitor.onType of
+        Just t' -> mapSeed t'
+        Nothing -> mapSeed $ ReadDTS.readType checker ref visitor.onType
 
-  pure $
-    if seed.level == 0 then case params of
-      Just params' -> do
-        TsParametric
-          (wrap $ mapSeed $ readType seed.ref)
-          (map (wrap <<< readTypeRefOrType) params')
-      Nothing ->
-        mapSeed $ readType seed.ref
-    else readTypeRefOrType seed.ref
+    pure $
+      if seed.level == 0 then case params of
+        Just params' -> do
+          TsParametric
+            (wrap $ mapSeed $ readType seed.ref)
+            (map (wrap <<< readTypeRefOrType) params')
+        Nothing ->
+          mapSeed $ readType seed.ref
+      else readTypeRefOrType seed.ref
 
 unfoldType
   :: forall m
@@ -270,7 +272,7 @@ unfoldType
   -> Maybe (Params (Typ ()))
   -> Seed
   -> m (Mu (TsType Decl))
-unfoldType checker params = futuM (mkCoalgebra 10 checker params)
+unfoldType checker params = futuM (mkCoalgebra 20 checker params)
 
 types :: Program -> Either (Array String) (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)))
 types program = un Identity $ runExceptT do
@@ -281,7 +283,13 @@ types program = un Identity $ runExceptT do
 
     checker = getTypeChecker program
     roots = List.fromFoldable $ readRootDeclarationNodes program
-    unknowns = map (getDeclarationStatementFqn checker &&& identity) roots
+
+    -- FIXME: We are skipping declarations for which we were not
+    -- able to extract fqn. This should be reported for sure.
+    step decl = do
+      fqn <- getDeclarationStatementFqn checker decl
+      pure $ fqn /\ decl
+    unknowns = List.catMaybes $ map step roots
     ctx =
       { unknowns
       , knowns: List.Nil

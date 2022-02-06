@@ -17,6 +17,7 @@ import Data.Traversable (class Traversable, sequence, traverse, traverseDefault)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Undefined.NoProblem ((!))
 import Data.Undefined.NoProblem (toMaybe) as NoProblem
+import Debug (traceM)
 import ReadDTS.TypeScript (asDeclarationStatement, isNodeExported)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compier.Types (getParameters, getReturnType) as Signature
@@ -148,7 +149,8 @@ readRootDeclarationNodes program = do
     checker = getTypeChecker program
     rootNames = getRootFileNames program
     fileName = Nodes.interface >>> _.fileName
-    rootFiles = Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+    -- FIXME: Filtering was broken after introduction of InSubdir compiler host.
+    rootFiles = getSourceFiles program -- $ Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
   -- | `SourceFile` "usually" has as a single root child of type `SyntaxList`.
   -- | * We are not interested in this particular child.
   -- | * We should probably recurse into any container like

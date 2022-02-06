@@ -44,8 +44,8 @@ asDeclarationStatement node =
     <|> (toDeclarationStatement <$> asClassDeclaration node)
     <|> (toDeclarationStatement <$> asFunctionDeclaration node)
 
-getDeclarationStatementFqn :: TypeChecker -> DeclarationStatement -> FullyQualifiedName
-getDeclarationStatementFqn checker node = unsafePartial $ fromJust do
+getDeclarationStatementFqn :: TypeChecker -> DeclarationStatement -> Maybe FullyQualifiedName
+getDeclarationStatementFqn checker node = do
   symbol <-
     (getSymbolAtLocation checker <<< _.name <<< Nodes.interface =<< asTypeAliasDeclaration node)
       <|> (getSymbolAtLocation checker =<< asInterfaceDeclaration node)
