@@ -1,4 +1,4 @@
-module Test.Libs.ThreeJs where
+module Test.Golden.ThreeJs where
 
 -- | Testing version: "@types/three": "^0.137.0"
 -- |
@@ -15,14 +15,15 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
+import Data.Tuple.Nested ((/\))
 import Data.Undefined.NoProblem (opt)
 import Debug (traceM)
-import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
 import Node.Path (FilePath)
 import ReadDTS.AST (types) as ReadDTS.AST
+import ReadDTS.AST.Printer (pprint)
 import Test.Unit (TestSuite, failure)
 import Test.Unit (suite, test) as Test
 import TypeScript.Compiler.Program (createProgram)
@@ -57,11 +58,12 @@ compile opts = do
 suite :: TestSuite
 suite = Test.suite "Cross module definitions" do
   Test.test "read modules" do
-    program <- liftEffect $ compile { dir: DirName "./test/Libs/ts", roots: [ "./three/math/Vector3.d.ts" ], modules: [] }
+    -- program <- liftEffect $ compile { dir: DirName "test/Libs/ts", roots: [ "three/math/Vector3.d.ts", "three/math/Matrix3.d.ts" ], modules: [] }
+    program <- liftEffect $ compile { dir: DirName "test/Libs/ts", roots: [ "three/math/Matrix3.d.ts" ], modules: [] }
 
     case ReadDTS.AST.types program of
       Right types -> do
         for_ types \(fqn /\ t) -> do
           log $ show fqn
-          log $ show t
+          log $ pprint t
       Left err -> failure $ "FAILURE: " <> show err

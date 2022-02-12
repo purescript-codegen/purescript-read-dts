@@ -2,19 +2,20 @@ module ReadDTS.AST where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Free (Free, wrap)
 import Control.Monad.Rec.Loops (whileJust_)
 import Control.Monad.State (execStateT)
-import Data.Array (catMaybes) as Array
+import Data.Array (catMaybes, length) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Either (Either)
 import Data.Eq (class Eq1)
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, length)
 import Data.Functor.Mu (Mu(..)) as Mu
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
@@ -22,7 +23,7 @@ import Data.Identity (Identity(..))
 import Data.Lens (use)
 import Data.Lens.Record (prop)
 import Data.Lens.Setter ((%=), (.=))
-import Data.List (List(..), catMaybes, fromFoldable, singleton) as List
+import Data.List (List(..), catMaybes, fromFoldable, length, singleton) as List
 import Data.List (List, (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
@@ -34,14 +35,15 @@ import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
 import Debug (traceM)
 import Matryoshka (cata, futuM)
-import ReadDTS (Args, Params, Prop, Props, asTypeRef, readDeclaration, readType, sequenceArg, sequenceProp) as ReadDTS
-import ReadDTS (Param, Params(..), Visit, fqnToString, readRootDeclarationNodes)
+import ReadDTS (Args, Params, Prop, Props, asTypeRef, readDeclaration, readInnerType, readTopLevelType, sequenceArg, sequenceProp) as ReadDTS
+import ReadDTS (Param, Params(..), Visit, fqnToString, readInnerType, readRootDeclarationNodes)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compiler.Program (getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName, Program, Typ, TypeChecker)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types (Typ) as TS
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement) as Nodes
+import TypeScript.Debug (formatNodeFlags, formatNodeFlags')
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -213,11 +215,6 @@ type Seed = { level :: Int, ref :: Typ () }
 
 type ReadTsType m = Seed -> m (TsType Decl (TS.Typ ()))
 
-asParametric :: Typ () -> Array (Param (Typ ())) -> Maybe (Typ () /\ Params (Typ ()))
-asParametric t params = do
-  params' <- Array.NonEmpty.fromArray params
-  pure $ t /\ (Params params')
-
 -- | Our unfold step function which handles some initial corner cases.
 -- |
 -- | * We want to "resolve" type ref during the top layer read
@@ -249,21 +246,19 @@ mkCoalgebra maxDepth checker params seed = do
       mapSeed :: forall decl. TsType decl (Typ ()) -> TsType decl (Free (TsType decl) Seed)
       mapSeed = map (pure <<< mkSeed)
 
-      readType ref = ReadDTS.readType checker ref visitor.onType
+      readTopLevelType ref = mapSeed $ ReadDTS.readTopLevelType checker ref visitor.onType
 
-      readTypeRefOrType ref = case ReadDTS.asTypeRef checker ref visitor.onType of
-        Just t' -> mapSeed t'
-        Nothing -> mapSeed $ ReadDTS.readType checker ref visitor.onType
+      readInnerType ref = mapSeed $ ReadDTS.readInnerType checker ref visitor.onType
 
     pure $
       if seed.level == 0 then case params of
         Just params' -> do
           TsParametric
-            (wrap $ mapSeed $ readType seed.ref)
-            (map (wrap <<< readTypeRefOrType) params')
+            (wrap $ readTopLevelType seed.ref)
+            (map (wrap <<< readInnerType) params')
         Nothing ->
-          mapSeed $ readType seed.ref
-      else readTypeRefOrType seed.ref
+          readTopLevelType seed.ref
+      else readInnerType seed.ref
 
 unfoldType
   :: forall m
@@ -272,7 +267,7 @@ unfoldType
   -> Maybe (Params (Typ ()))
   -> Seed
   -> m (Mu (TsType Decl))
-unfoldType checker params = futuM (mkCoalgebra 20 checker params)
+unfoldType checker params = futuM (mkCoalgebra 3 checker params)
 
 types :: Program -> Either (Array String) (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)))
 types program = un Identity $ runExceptT do
@@ -283,6 +278,11 @@ types program = un Identity $ runExceptT do
 
     checker = getTypeChecker program
     roots = List.fromFoldable $ readRootDeclarationNodes program
+
+    x = do
+      traceM "root declaration statement"
+      traceM $ List.length roots
+      Nothing
 
     -- FIXME: We are skipping declarations for which we were not
     -- able to extract fqn. This should be reported for sure.

@@ -7,7 +7,7 @@ import Data.Bifunctor (bimap)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for)
 import Effect.Aff (Aff)
-import ReadDTS (Params, readType)
+import ReadDTS (Params, readTopLevelType)
 import ReadDTS.AST (TsType)
 import ReadDTS.AST as AST
 import Test.Compile (TypeName(..), compileType)
@@ -54,7 +54,7 @@ extractType typeName source = do
   for t \{ typ, program } -> do
     let
       checker = getTypeChecker program
-      type' = readType checker typ AST.visitor.onType
+      type' = readTopLevelType checker typ AST.visitor.onType
     pure { type: type', program }
 
 testOnType
@@ -120,6 +120,15 @@ suite = Test.suite "Non recursive ts type layer" do
         unit
         (Array.NonEmpty.singleton unit)
     )
+
+-- export class Matrix3 implements Matrix {
+-- let
+--   source = String.joinWith ";\n"
+--     [ "export interface Y { elements: number[]; }"
+--     , "export class X implements Y { elements: number[]; }"
+--     ]
+
+-- testXShouldEqual source (AST.TsAny)
 
 -- FIXME: Parametric types are not handled anymore by `readTyp` which is mainly
 -- tested here. We should:

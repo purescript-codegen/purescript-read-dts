@@ -133,6 +133,38 @@ suite = Test.suite "Recursive type repr" do
           , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
           }
 
+  do
+    let
+      source = String.joinWith "; "
+        [ "export interface Y { m: number, n: number }"
+        , "export interface X{ y: Y }"
+        ]
+    testXShouldEqual
+      source
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
+          , optional: false
+          , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
+          }
+
+  do
+    let
+      source = String.joinWith "; "
+        [ "export class Y { m: number, n: number }"
+        , "export interface X{ y: Y }"
+        ]
+    testXShouldEqual
+      source
+      $ roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "y"
+          , optional: false
+          , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
+          }
+
   testXShouldEqual "export type Y = { yp: string }; export interface X{ xp: { xpp: Y }}"
     $ roll
     $ AST.TsInterface
@@ -146,18 +178,25 @@ suite = Test.suite "Recursive type repr" do
             }
         }
 
-  testXShouldEqual "export type Y = { m: number }; export interface X extends Y { n: string }"
-    $ roll
-    $ AST.TsInterface
-        [ { name: "n"
-          , optional: false
-          , type: roll $ AST.TsString
-          }
-        , { name: "m"
-          , optional: false
-          , "type": roll AST.TsNumber
-          }
+  do
+    let
+      source = String.joinWith ";\n"
+        [ "export type Y = { m: number }"
+        , "export interface X extends Y { n: string }"
         ]
+    testXShouldEqual
+      source
+      $ roll
+      $ AST.TsInterface
+          [ { name: "n"
+            , optional: false
+            , type: roll $ AST.TsString
+            }
+          , { name: "m"
+            , optional: false
+            , "type": roll AST.TsNumber
+            }
+          ]
 
   do
     let

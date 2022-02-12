@@ -2,7 +2,7 @@ module ReadDTS where
 
 import Prelude
 
-import Data.Array (catMaybes, elem, filter, uncons) as Array
+import Data.Array (catMaybes, elem, filter, head, uncons) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Array.NonEmpty (fromArray) as NonEmpty
@@ -150,12 +150,28 @@ readRootDeclarationNodes program = do
     rootNames = getRootFileNames program
     fileName = Nodes.interface >>> _.fileName
     -- FIXME: Filtering was broken after introduction of InSubdir compiler host.
-    rootFiles = getSourceFiles program -- $ Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+    -- rootFiles = getSourceFiles program -- $ Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+    rootFiles = Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
   -- | `SourceFile` "usually" has as a single root child of type `SyntaxList`.
   -- | * We are not interested in this particular child.
   -- | * We should probably recurse into any container like
   -- node (`Block`, `ModuleDeclaration` etc.) down the stream too.
+  -- traceM "unfilteredRootFiles:"
+  -- unfilteredRootFiles = getSourceFiles program -- $ Array.filter ((_ `Array.elem` rootNames) <<< fileName) $ getSourceFiles program
+  -- traceM $ map fileName unfilteredRootFiles
+  -- traceM "rootFiles"
+  -- traceM $ map fileName rootFiles
+  -- traceM "rootNames"
+  -- traceM rootNames
+  -- traceM rootFiles
+
   Array.catMaybes $ rootFiles >>= getChildren >>= getChildren <#> \(node :: Node "" ()) -> do
+    -- traceM "isNodeExported"
+    -- traceM $ isNodeExported checker node
+    -- traceM "not asEmptyStatement"
+    -- traceM $ isNothing (asEmptyStatement node)
+    -- traceM "asDeclarationStatement"
+    -- traceM $ isJust (asDeclarationStatement node)
     -- | Ignore non exported declarations and "semicolons"
     if isNodeExported checker node && isNothing (asEmptyStatement node) then do
       asDeclarationStatement node
@@ -304,8 +320,8 @@ asApplication checker t = do
 -- | unfolding.
 -- |
 -- | TODO: Is enum: https://stackoverflow.com/a/55406883/194614
-readType :: forall t. TypeChecker -> Typ () -> OnType t -> t
-readType checker t onType
+readTopLevelType :: forall t. TypeChecker -> Typ () -> OnType t -> t
+readTopLevelType checker t onType
   | isAnyType checker t = onType.any
   | Just e <- getElementTypeOfArrayType checker t = onType.array e
   | isBooleanType checker t = onType.boolean
@@ -319,6 +335,61 @@ readType checker t onType
       let
         props = readProperties checker i
       onType.class (fromMaybe [] props)
+  | isNullType checker t = onType.null
+  | isNumberType checker t = onType.number
+  | Just n <- asNumberLiteralType t = onType.numberLiteral $ Typs.interface n # _.value
+  | isStringType checker t = onType.string
+  | Just s <- asStringLiteralType t = onType.stringLiteral $ Typs.interface s # _.value
+  | Just u <- asUnionType t = onType.union $ Typs.interface u # _.types
+  | Just r <- asTupleTypeReference checker t = onType.tuple (getTypeArguments checker r)
+  | isUndefinedType checker t = onType.undefined
+  | Just (fqn /\ decl /\ args) <- asApplication checker t = onType.application fqn decl args
+  | Just { args, returnType } <- asFunction checker t =
+      onType.function args returnType
+  -- | At this point we are sure that this type is not a tuple, array etc.
+  -- | Let's assume it is `ObjectType` which represents "object"...
+  | Just o <- asObjectType t = do
+      let
+        props = readProperties checker o
+      onType.object (fromMaybe [] props)
+  | Just t' <- Typs.interface <$> asTypeParameter t = do
+      let
+        s = t'.symbol
+        n = Symbol.getName s
+      onType.parameter n
+  | otherwise = do
+      onType.unknown t
+
+asClassTypeRef checker t = do
+  i <- asClassType t <#> Typs.interface
+  let
+    n = Symbol.getName i.symbol
+    decls = Symbol.getDeclarations i.symbol
+    fqn = getFullyQualifiedName checker i.symbol
+  d <- Array.head decls >>= asDeclarationStatement
+  pure (fqn /\ d)
+
+asInterfaceTypeRef checker t = do
+  i <- asInterfaceType t <#> Typs.interface
+  let
+    n = Symbol.getName i.symbol
+    decls = Symbol.getDeclarations i.symbol
+    fqn = getFullyQualifiedName checker i.symbol
+  d <- Array.head decls >>= asDeclarationStatement
+  pure (fqn /\ d)
+
+readInnerType :: forall t. TypeChecker -> Typ () -> OnType t -> t
+readInnerType checker t onType
+  | isAnyType checker t = onType.any
+  | Just e <- getElementTypeOfArrayType checker t = onType.array e
+  | isBooleanType checker t = onType.boolean
+  | Just bl <- reflectBooleanLiteralType t = onType.booleanLiteral bl
+  | Just t' <- asTypeRef checker t onType = t'
+  | Just i <- asIntersectionType t = onType.intersection $ Typs.interface i # _.types
+  | Just (fqn /\ decl) <- asInterfaceTypeRef checker t = do
+      onType.typeRef fqn decl
+  | Just (fqn /\ decl) <- asClassTypeRef checker t = do
+      onType.typeRef fqn decl
   | isNullType checker t = onType.null
   | isNumberType checker t = onType.number
   | Just n <- asNumberLiteralType t = onType.numberLiteral $ Typs.interface n # _.value
