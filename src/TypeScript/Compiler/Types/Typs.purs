@@ -81,6 +81,8 @@ foreign import asObjectTypeImpl :: forall r. Fn1 (Typ r) (Nullable ObjectType)
 
 foreign import getCallSignatures :: forall r. Typ r -> Array Signature
 
+foreign import getConstructSignatures :: forall i. Typ i -> (Array Signature)
+
 type StringLiteralType = Typ (value :: String)
 
 asStringLiteralType :: forall r. Typ r -> Maybe StringLiteralType
@@ -124,6 +126,11 @@ getProperties = runFn1 getPropertiesImpl
 
 foreign import getPropertiesImpl :: forall i. Fn1 (Typ i) (Array Symbol_)
 
+getApparentProperties :: forall r. Typ r -> Array Symbol_
+getApparentProperties = runFn1 getApparentPropertiesImpl
+
+foreign import getApparentPropertiesImpl :: forall i. Fn1 (Typ i) (Array Symbol_)
+
 getSymbol :: forall i. Typ i -> Maybe Symbol_
 getSymbol = toMaybe <<< runFn1 getSymbolImpl
 
@@ -134,3 +141,9 @@ getDefault :: forall i. Typ i -> Maybe (Typ ())
 getDefault = toMaybe <<< runFn1 getDefaultImpl
 
 foreign import getDefaultImpl :: forall i. Fn1 (Typ i) (Nullable (Typ ()))
+
+-- | FIXME: result should be more specific (Array `ts.BaseType`)
+getBaseTypes :: forall i. Typ i -> Array (Typ ())
+getBaseTypes = runFn1 getBaseTypesImpl
+
+foreign import getBaseTypesImpl :: forall i. Fn1 (Typ i) (Array (Typ ()))

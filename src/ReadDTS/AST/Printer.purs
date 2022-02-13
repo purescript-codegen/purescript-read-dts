@@ -1,21 +1,19 @@
 module ReadDTS.AST.Printer where
 
+-- Quick and really dirty (sorry about that) printer for the AST.
+
 import Prelude
 
-import Data.Array (fromFoldable, intercalate, uncons) as Array
-import Data.Foldable (foldMap, foldl, intercalate, length)
-import Data.Functor.Mu (Mu)
+import Data.Array (fromFoldable, uncons) as Array
+import Data.Foldable (foldMap, foldl, intercalate)
 import Data.List (List(..)) as List
-import Data.Map (toUnfoldable) as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Data.String (joinWith) as String
-import Data.Tuple (Tuple(..)) as Tuple
 import Matryoshka (Algebra, cata)
 import ReadDTS (fqnToString)
 import ReadDTS.AST (TsType(..))
 import Text.Pretty (Columns(..), Doc, Stack(..), beside, empty, hcat, render, text, width)
-import TypeScript.Compiler.Types (FullyQualifiedName(..))
+import TypeScript.Compiler.Types (FullyQualifiedName)
 
 joinWithDoc :: Doc -> Array Doc -> Maybe Int -> Doc
 joinWithDoc sep elems (Just w) = case Array.uncons elems of
@@ -53,7 +51,14 @@ pprint = render <<< cata alg
   alg (TsArray t) = hcat [ text "[", t, text "]" ]
   alg TsBoolean = text "boolean"
 
-  alg (TsClass props) = pprintProps (text "class") props
+  -- | FIXME: Print constructors
+  alg (TsClass { bases, constructors, props }) = case bases of
+    [] -> pprintProps (text "class") props
+    _ -> do
+      let
+        header = hcat $ [ text "class(" ] <> bases <> [ text ")" ]
+      pprintProps header props
+
   alg (TsInterface props) = pprintProps (text "interface") props
   alg (TsFunction parameters returnType) = do
     let

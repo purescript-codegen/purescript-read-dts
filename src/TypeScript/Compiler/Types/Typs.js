@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getPropertiesImpl = exports.getCallSignatures = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
+exports.getBaseTypesImpl = exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getApparentPropertiesImpl = exports.getPropertiesImpl = exports.getConstructSignatures = exports.getCallSignatures = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
 var ts = __importStar(require("typescript"));
 var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
 exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
@@ -49,8 +49,12 @@ var asTypeReferenceImpl = function (t) {
 exports.asTypeReferenceImpl = asTypeReferenceImpl;
 var getCallSignatures = function (t) { return t.getCallSignatures(); };
 exports.getCallSignatures = getCallSignatures;
+var getConstructSignatures = function (t) { return t.getConstructSignatures(); };
+exports.getConstructSignatures = getConstructSignatures;
 var getPropertiesImpl = function (t) { return t.getProperties(); };
 exports.getPropertiesImpl = getPropertiesImpl;
+var getApparentPropertiesImpl = function (t) { return t.getApparentProperties(); };
+exports.getApparentPropertiesImpl = getApparentPropertiesImpl;
 var asInterfaceTypeImpl = function (t) {
     if (t.objectFlags & ts.ObjectFlags.Interface) {
         return t;
@@ -69,4 +73,6 @@ var getSymbolImpl = function (t) { return t.getSymbol() || null; };
 exports.getSymbolImpl = getSymbolImpl;
 var getDefaultImpl = function (t) { return t.getDefault() || null; };
 exports.getDefaultImpl = getDefaultImpl;
+var getBaseTypesImpl = function (t) { return t.getBaseTypes() || []; };
+exports.getBaseTypesImpl = getBaseTypesImpl;
 //# sourceMappingURL=Typs.js.map

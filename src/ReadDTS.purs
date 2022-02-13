@@ -2,7 +2,8 @@ module ReadDTS where
 
 import Prelude
 
-import Data.Array (catMaybes, elem, filter, head, uncons) as Array
+import Control.Alt ((<|>))
+import Data.Array (catMaybes, elem, filter, head, length, uncons) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Array.NonEmpty (fromArray) as NonEmpty
@@ -13,7 +14,7 @@ import Data.Map (fromFoldable) as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
-import Data.Traversable (class Traversable, sequence, traverse, traverseDefault)
+import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Undefined.NoProblem ((!))
 import Data.Undefined.NoProblem (toMaybe) as NoProblem
@@ -21,18 +22,22 @@ import Debug (traceM)
 import ReadDTS.TypeScript (asDeclarationStatement, isNodeExported)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compier.Types (getParameters, getReturnType) as Signature
-import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
+import TypeScript.Compiler.Checker (getFullyQualifiedName, getSignaturesOfType, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asFunctionDeclaration, asInterfaceDeclaration, asParameterDeclaration, asTypeAliasDeclaration)
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Typ, TypeChecker)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Signature, Typ, TypeChecker, construct)
+import TypeScript.Compiler.Types (call, construct) as Compiler.Types
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement, TypeParameterDeclaration, interface) as Nodes
 import TypeScript.Compiler.Types.Nodes (getChildren)
-import TypeScript.Compiler.Types.Symbol (checkFlag, getDeclarations, getName) as Symbol
-import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeParameter, asTypeReference, asUnionType, getCallSignatures, getProperties, getSymbol)
+import TypeScript.Compiler.Types.Symbol (checkFlag, getDeclarations, getName, interface) as Symbol
+import TypeScript.Compiler.Types.Symbol (getDeclarations)
+import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeParameter, asTypeReference, asUnionType, getApparentProperties, getBaseTypes, getCallSignatures, getConstructSignatures, getProperties, getSymbol)
 import TypeScript.Compiler.Types.Typs (interface) as Typs
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
 import TypeScript.Compiler.UtilitiesPublic (idText)
+import TypeScript.Debug (formatSymbolFlags', formatTypeFlags')
+import Unsafe.Coerce (unsafeCoerce)
 
 type FQN = FullyQualifiedName
 
@@ -106,7 +111,8 @@ type OnType t =
   , boolean :: t
   , application :: FQN -> Nodes.DeclarationStatement -> NonEmptyArray (Typ ()) -> t
   , booleanLiteral :: Boolean -> t
-  , class :: Props (Typ ()) -> t
+  -- | FIXME: we can be more specific here - the first array is of type `ts.BaseType`
+  , class :: Array (Typ ()) -> Array (Args (Typ ())) -> Props (Typ ()) -> t
   , function :: Args (Typ ()) -> Typ () -> t
   , interface :: Props (Typ ()) -> t
   , intersection :: Array (Typ ()) -> t
@@ -333,8 +339,21 @@ readTopLevelType checker t onType
       onType.interface (fromMaybe [] props)
   | Just i <- asClassType t = do
       let
+        bases = getBaseTypes i
         props = readProperties checker i
-      onType.class (fromMaybe [] props)
+
+        constructors = fromMaybe [] do
+          s <- getSymbol i
+          d <- Array.head $ getDeclarations s
+          ct <- getTypeOfSymbolAtLocation checker s d
+          let
+            cs = getConstructSignatures ct
+            mkConstructor sig = do
+              { args } <- readSignature checker sig
+              pure $ args
+          for cs mkConstructor
+      onType.class bases constructors (fromMaybe [] props)
+
   | isNullType checker t = onType.null
   | isNumberType checker t = onType.number
   | Just n <- asNumberLiteralType t = onType.numberLiteral $ Typs.interface n # _.value
@@ -424,6 +443,21 @@ asFunction checker t = do
   { head: sig } <- Array.uncons (getCallSignatures t)
   -- | We should probabl extract type params here from signature and
   -- | ignore the `params` arg.
+  readSignature checker sig
+
+readSignature
+  :: TypeChecker
+  -> Signature
+  -> Maybe
+       { args ::
+           Array
+             { name :: String
+             , optional :: Boolean
+             , type :: Typ ()
+             }
+       , returnType :: Typ ()
+       }
+readSignature checker sig = do
   let
     param s = do
       { head: decl } <- Array.uncons <<< Symbol.getDeclarations $ s
@@ -432,7 +466,9 @@ asFunction checker t = do
       pure
         { name: Symbol.getName s
         , type: pt
-        , optional: isJust (NoProblem.toMaybe pd.questionToken)
+        , optional:
+            (isJust $ NoProblem.toMaybe pd.questionToken)
+              || (isJust $ NoProblem.toMaybe pd.initializer)
         }
   args <- traverse param $ Signature.getParameters sig
   pure { args, returnType: Signature.getReturnType sig }
@@ -452,4 +488,4 @@ readProperties checker t = do
         optional = Symbol.checkFlag s (Proxy :: Proxy "Optional")
       pure { name: Symbol.getName s, type: t', optional }
 
-  traverse step $ getProperties t
+  traverse step $ getApparentProperties t

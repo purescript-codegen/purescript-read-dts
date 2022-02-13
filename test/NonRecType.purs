@@ -113,7 +113,7 @@ suite = Test.suite "Non recursive ts type layer" do
     (AST.TsInterface [ { name: "m", optional: false, type: unit } ])
   testXShouldEqual "export interface X{ m?: number }"
     (AST.TsInterface [ { name: "m", optional: true, type: unit } ])
-  testXShouldEqual "export class X{}" (AST.TsClass [])
+  testXShouldEqual "export class X{}" (AST.tsClass [] [ [] ] [])
 
   testXShouldEqual "class C<p> {}; export type X = C<number>"
     ( AST.TsApplication

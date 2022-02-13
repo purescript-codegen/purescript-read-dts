@@ -5,7 +5,7 @@ import Prelude
 import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Symbol_, Typ, TypeChecker)
+import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Signature, SignatureKind, Symbol_, Typ, TypeChecker)
 import TypeScript.Compiler.Types.Typs (TypeReference)
 
 typeToString :: forall r. TypeChecker -> Typ r -> String
@@ -38,3 +38,7 @@ getTypeArguments = runFn2 getTypeArgumentsImpl
 
 foreign import getTypeArgumentsImpl :: Fn2 TypeChecker TypeReference (Array (Typ ()))
 
+getSignaturesOfType :: forall i. TypeChecker -> Typ i -> SignatureKind -> Array Signature
+getSignaturesOfType = runFn3 getSignaturesOfTypeImpl
+
+foreign import getSignaturesOfTypeImpl :: forall i. Fn3 TypeChecker (Typ i) SignatureKind (Array Signature)

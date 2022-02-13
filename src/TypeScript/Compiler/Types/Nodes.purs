@@ -204,6 +204,7 @@ type ParameterDeclaration = Node "ParameterDeclaration"
   ( name :: Node "BindingName" ()
   , questionToken :: Opt QuestionToken
   , "type" :: Opt TypeNode
+  , initializer :: Opt Expression
   )
 
 type ParenthesizedExpression = Node "ParenthesizedExpression" ()

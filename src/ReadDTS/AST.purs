@@ -2,20 +2,17 @@ module ReadDTS.AST where
 
 import Prelude
 
-import Control.Alt ((<|>))
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Free (Free, wrap)
 import Control.Monad.Rec.Loops (whileJust_)
 import Control.Monad.State (execStateT)
-import Data.Array (catMaybes, length) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
-import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Either (Either)
 import Data.Eq (class Eq1)
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, length)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Mu (Mu(..)) as Mu
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
@@ -23,35 +20,28 @@ import Data.Identity (Identity(..))
 import Data.Lens (use)
 import Data.Lens.Record (prop)
 import Data.Lens.Setter ((%=), (.=))
-import Data.List (List(..), catMaybes, fromFoldable, length, singleton) as List
+import Data.List (List(..), catMaybes, fromFoldable, singleton) as List
 import Data.List (List, (:))
+import Data.Tuple.Nested ((/\), type (/\))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
-import Data.Profunctor.Strong ((&&&))
+import Data.Profunctor.Strong ((***))
 import Data.Set (fromFoldable, insert, member) as Set
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (fst)
-import Data.Tuple.Nested ((/\), type (/\))
-import Debug (traceM)
 import Matryoshka (cata, futuM)
-import ReadDTS (Args, Params, Prop, Props, asTypeRef, readDeclaration, readInnerType, readTopLevelType, sequenceArg, sequenceProp) as ReadDTS
-import ReadDTS (Param, Params(..), Visit, fqnToString, readInnerType, readRootDeclarationNodes)
+import ReadDTS (Args, Params, Props, readDeclaration, readInnerType, readTopLevelType, sequenceArg, sequenceProp) as ReadDTS
+import ReadDTS (Params, Visit, fqnToString, readRootDeclarationNodes)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compiler.Program (getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName(..), Program, Typ, TypeChecker)
+import TypeScript.Compiler.Types (FullyQualifiedName, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types (Typ) as TS
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement) as Nodes
-import TypeScript.Debug (formatNodeFlags, formatNodeFlags')
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
-type Prop decl ref = ReadDTS.Prop (TsType decl ref)
-
--- | We want this wrapper so we are able to provide basic instances
--- | for it.
--- | Some of them are just required for testing purposes.
 newtype TSTyp = TSTyp (TS.Typ ())
 
 instance Show TSTyp where
@@ -60,13 +50,24 @@ instance Show TSTyp where
 instance Eq TSTyp where
   eq (TSTyp t1) (TSTyp t2) = unsafeRefEq t1 t2
 
+newtype TypeRepr = TypeRepr (Mu (TsType FullyQualifiedName))
+
+derive instance Eq TypeRepr
+derive newtype instance Show TypeRepr
+
+-- | FIXME: Rename `ReadDTS.AST.TsType` to `TS.TypRepr.TypReprF`
 data TsType decl ref
   = TsAny
   | TsApplication decl (NonEmptyArray ref)
   | TsArray ref
   | TsBoolean
   | TsBooleanLiteral Boolean
-  | TsClass (ReadDTS.Props ref)
+  -- | Base classes, list of constructors
+  | TsClass
+      { bases :: Array ref
+      , constructors :: Array (ReadDTS.Args ref)
+      , props :: ReadDTS.Props ref
+      }
   | TsFunction (ReadDTS.Args ref) ref
   | TsInterface (ReadDTS.Props ref)
   | TsIntersection (Array ref)
@@ -83,6 +84,9 @@ data TsType decl ref
   | TsUndefined
   | TsUnion (Array ref)
   | TsUnknown TSTyp
+
+tsClass :: forall dec t. Array t -> Array (ReadDTS.Args t) -> ReadDTS.Props t -> TsType dec t
+tsClass bases constructors props = TsClass { bases, constructors, props }
 
 -- | TsVoid
 
@@ -105,7 +109,9 @@ instance Foldable (TsType decl) where
   foldMap f (TsArray t) = f t
   foldMap _ TsBoolean = mempty
   foldMap _ (TsBooleanLiteral _) = mempty
-  foldMap f (TsClass ts) = foldMap (f <<< _.type) ts
+  foldMap f (TsClass { bases, constructors, props }) = foldMap f bases
+    <> foldMap (foldMap (f <<< _.type)) constructors
+    <> foldMap (f <<< _.type) props
   foldMap f (TsFunction args r) = foldMap (f <<< _.type) args <> f r
   foldMap f (TsInterface ts) = foldMap (f <<< _.type) ts
   -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
@@ -140,7 +146,12 @@ instance Traversable (TsType decl) where
   sequence (TsArray t) = TsArray <$> t
   sequence TsBoolean = pure TsBoolean
   sequence (TsBooleanLiteral b) = pure $ TsBooleanLiteral b
-  sequence (TsClass props) = map TsClass $ sequence $ map ReadDTS.sequenceProp props
+  sequence (TsClass { bases, constructors, props }) = ado
+    bs' <- sequence bases
+    cs' <- traverse (traverse ReadDTS.sequenceArg) constructors
+    props' <- sequence $ map ReadDTS.sequenceProp props
+    in
+      tsClass bs' cs' props'
   sequence (TsFunction args r) = TsFunction
     <$> traverse ReadDTS.sequenceArg args
     <*> r
@@ -183,7 +194,7 @@ visitor =
       , array: TsArray
       , boolean: TsBoolean
       , booleanLiteral: TsBooleanLiteral
-      , class: TsClass
+      , class: tsClass
       , function: TsFunction
       , intersection: TsIntersection
       , interface: TsInterface
@@ -269,7 +280,9 @@ unfoldType
   -> m (Mu (TsType Decl))
 unfoldType checker params = futuM (mkCoalgebra 3 checker params)
 
-types :: Program -> Either (Array String) (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)))
+type RootDeclarations = List (FullyQualifiedName /\ TypeRepr)
+
+types :: Program -> Either (Array String) RootDeclarations
 types program = un Identity $ runExceptT do
   let
     _unknowns = prop (Proxy :: Proxy "unknowns")
@@ -279,10 +292,10 @@ types program = un Identity $ runExceptT do
     checker = getTypeChecker program
     roots = List.fromFoldable $ readRootDeclarationNodes program
 
-    x = do
-      traceM "root declaration statement"
-      traceM $ List.length roots
-      Nothing
+    -- x = do
+    --   traceM "Root declaration statements count:"
+    --   traceM $ List.length roots
+    --   Nothing
 
     -- FIXME: We are skipping declarations for which we were not
     -- able to extract fqn. This should be reported for sure.
@@ -306,7 +319,7 @@ types program = un Identity $ runExceptT do
     foldTypeDecls = foldMapRec (\{ fullyQualifiedName: fqn, ref } -> List.singleton (fqn /\ ref))
     stripTypeRefs = mapRec _.fullyQualifiedName
 
-  map _.knowns $ flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
+  res <- map _.knowns $ flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
     case ReadDTS.readDeclaration checker node of
       Nothing -> throwError [ "Problem reading " <> fqnToString fqn ]
       Just { typ, params } -> do
@@ -318,3 +331,5 @@ types program = un Identity $ runExceptT do
           when (not $ fqn' `Set.member` seen) do
             _seen %= Set.insert fqn'
             _unknowns %= List.Cons decl
+
+  pure $ (identity *** TypeRepr) <$> res

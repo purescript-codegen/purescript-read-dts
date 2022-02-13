@@ -10,7 +10,6 @@ export interface PlainObjectType extends ts.Type {
   properties?: ts.Symbol[];             // Properties
 }
 
-
 export const asObjectTypeImpl = (t: ts.Type): ts.ObjectType | null => {
   let Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
   let ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
@@ -37,7 +36,11 @@ export const asTypeReferenceImpl = (t: ts.Type): ts.TypeReference | null => {
 
 export const getCallSignatures = (t: ts.Type): readonly ts.Signature[] => t.getCallSignatures();
 
+export const getConstructSignatures = (t: ts.Type): readonly ts.Signature[] => t.getConstructSignatures();
+
 export const getPropertiesImpl = (t: ts.Type): ts.Symbol[] => t.getProperties();
+
+export const getApparentPropertiesImpl = (t: ts.Type): ts.Symbol [] => t.getApparentProperties();
 
 export const asInterfaceTypeImpl = (t: ts.ObjectType): ts.InterfaceType | null => {
   if(t.objectFlags & ts.ObjectFlags.Interface) {
@@ -56,3 +59,6 @@ export const asClassTypeImpl = (t: ts.ObjectType): ts.InterfaceType | null => {
 export const getSymbolImpl = (t: ts.Type): ts.Symbol | null => t.getSymbol() || null;
 
 export const getDefaultImpl = (t: ts.Type): ts.Type | null => t.getDefault() || null;
+
+export const getBaseTypesImpl = (t: ts.Type): ts.BaseType[] => t.getBaseTypes() || [];
+

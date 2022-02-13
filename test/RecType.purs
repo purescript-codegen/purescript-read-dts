@@ -12,6 +12,7 @@ import Data.Maybe (Maybe(..))
 import Data.String (joinWith) as String
 import Effect.Aff (Aff)
 import Matryoshka (cata)
+import ReadDTS (Param(..), Params(..))
 import ReadDTS.AST (TsType(..))
 import ReadDTS.AST as AST
 import Test.Compile (TypeName(..), compileType)
@@ -52,23 +53,24 @@ suite :: TestSuite
 suite = Test.suite "Recursive type repr" do
   let
     testXShouldEqual = testTypeShouldEqual (TypeName "X")
-  testXShouldEqual "export interface X{ m: { n: number }}"
-    $ roll
-    $ AST.TsInterface
-    $ Array.singleton
-        { name: "m"
-        , optional: false
-        , type: roll $ AST.TsObject $ Array.singleton
-            { name: "n"
-            , optional: false
-            , type: roll AST.TsNumber
-            }
-        }
+
+  testXShouldEqual "export interface X{ m: { n: number }}" do
+    roll
+      $ AST.TsInterface
+      $ Array.singleton
+          { name: "m"
+          , optional: false
+          , type: roll $ AST.TsObject $ Array.singleton
+              { name: "n"
+              , optional: false
+              , type: roll AST.TsNumber
+              }
+          }
 
   do
     let
-      program = String.joinWith "; "
-        [ "export type Y<n> = { m: number, n: n }"
+      program = String.joinWith " "
+        [ "export type Y<n> = { m: number, n: n };"
         , "export interface X{ y: Y<number> }"
         ]
     testXShouldEqual program
@@ -84,8 +86,8 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      program = String.joinWith "; "
-        [ "export class Y<n>{ m: number, n: n }"
+      program = String.joinWith " "
+        [ "export class Y<n>{ m: number, n: n };"
         , "export interface X{ y: Y<number> }"
         ]
     testXShouldEqual
@@ -101,7 +103,7 @@ suite = Test.suite "Recursive type repr" do
           }
   do
     let
-      program = String.joinWith "; "
+      program = String.joinWith " "
         [ "export interface Y<n>{ m: number, n: n }"
         , "export interface X{ y: Y<number> }"
         ]
@@ -119,8 +121,8 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      program = String.joinWith "; "
-        [ "export type Y = { m: number, n: number }"
+      program = String.joinWith " "
+        [ "export type Y = { m: number, n: number };"
         , "export interface X{ y: Y }"
         ]
     testXShouldEqual
@@ -135,7 +137,7 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      source = String.joinWith "; "
+      source = String.joinWith " "
         [ "export interface Y { m: number, n: number }"
         , "export interface X{ y: Y }"
         ]
@@ -151,9 +153,9 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      source = String.joinWith "; "
-        [ "export class Y { m: number, n: number }"
-        , "export interface X{ y: Y }"
+      source = String.joinWith " "
+        [ "export class Y { m: number, n: number };"
+        , "export interface X{ y: Y };"
         ]
     testXShouldEqual
       source
@@ -180,7 +182,7 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      source = String.joinWith ";\n"
+      source = String.joinWith " "
         [ "export type Y = { m: number }"
         , "export interface X extends Y { n: string }"
         ]
@@ -198,6 +200,47 @@ suite = Test.suite "Recursive type repr" do
             }
           ]
 
+  do
+    let
+      source = String.joinWith " "
+        [ "export class Y = { m: number };"
+        , "export class X extends Y { n: string }"
+        ]
+    testXShouldEqual
+      source
+      $ roll
+      $ AST.tsClass
+          [ roll $ TsTypeRef $ FullyQualifiedName "\"Root\".Y" ]
+          [ [] ]
+          [ { name: "n"
+            , optional: false
+            , type: roll $ AST.TsString
+            }
+          ]
+  do
+    let
+      source = String.joinWith " "
+        [ "export class X {"
+        , " u: string; "
+        , " constructor() { this.u = 'X'; }; "
+        , " constructor(s: string, u='default') { this.u = s + u; };"
+        , "}"
+        ]
+    testXShouldEqual
+      source
+      $ roll
+      $ AST.tsClass
+          []
+          [ []
+          , [ { name: "s", optional: false, type: roll TsString }
+            , { name: "u", optional: true, type: roll TsString }
+            ]
+          ]
+          [ { name: "u"
+            , optional: false
+            , type: roll $ AST.TsString
+            }
+          ]
   do
     let
       program =
@@ -221,13 +264,13 @@ suite = Test.suite "Recursive type repr" do
         ]
         (roll AST.TsNumber)
 
-  -- do
-  --   let
-  --     body = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsParameter "param") }
-  --     params = Array.NonEmpty.singleton { default: Just $ roll AST.TsNumber, name: "param" }
-  --     expected = roll $ TsParametric body params
+  do
+    let
+      body = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsParameter "param") }
+      params = Params (Array.NonEmpty.singleton (Param { default: Just $ roll AST.TsNumber, name: "param" }))
+      expected = roll $ TsParametric body params
 
-  --   testXShouldEqual "export interface X<param=number>{ x: param }" $ expected
+    testXShouldEqual "export interface X<param=number>{ x: param }" $ expected
 
   do
     let

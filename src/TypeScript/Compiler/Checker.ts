@@ -12,3 +12,5 @@ export const getFullyQualifiedNameImpl = (checker: ts.TypeChecker, symbol: ts.Sy
 
 export const getTypeArgumentsImpl = (checker: ts.TypeChecker, type: ts.TypeReference): readonly ts.Type[] => checker.getTypeArguments(type);
 
+export const getSignaturesOfTypeImpl = (checker: ts.TypeChecker, type: ts.Type, kind: ts.SignatureKind): readonly ts.Signature[] => checker.getSignaturesOfType(type, kind);
+

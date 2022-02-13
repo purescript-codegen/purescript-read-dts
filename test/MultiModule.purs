@@ -5,7 +5,7 @@ import Prelude
 import Data.Array (cons, singleton) as Array
 import Data.Either (Either(..))
 import Data.Foldable (length)
-import Data.Functor.Mu (Mu, roll)
+import Data.Functor.Mu (roll)
 import Data.Lens (_1, over)
 import Data.List (List)
 import Data.Map (fromFoldable) as Map
@@ -15,7 +15,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object (fromHomogeneous, toUnfoldable) as Object
 import ReadDTS.AST (TsType(..)) as AST
-import ReadDTS.AST (TsType)
+import ReadDTS.AST (TypeRepr(..))
 import ReadDTS.AST (types) as ReadDTS.AST
 import Test.Compile (compile)
 import Test.Unit (TestSuite, failure)
@@ -33,7 +33,7 @@ testOnTypes
            }
      , roots :: Array String
      }
-  -> (List (FullyQualifiedName /\ Mu (TsType FullyQualifiedName)) -> Aff Unit)
+  -> (List (FullyQualifiedName /\ TypeRepr) -> Aff Unit)
   -> TestSuite
 testOnTypes opts test = do
   let
@@ -79,11 +79,11 @@ suite = Test.suite "Cross module definitions" do
     testFromRootTypes """import { A } from "A"; export type B = { a: A }""" modules \types -> do
       shouldEqual 2 (length types)
       Map.fromFoldable types `flip shouldEqual` fromHomogeneous
-        { "\"A\".A": roll $ AST.TsObject
+        { "\"A\".A": TypeRepr $ roll $ AST.TsObject
             [ { type: roll AST.TsNumber, name: "p1", optional: false }
             , { type: roll AST.TsString, name: "p2", optional: false }
             ]
-        , "\"Root\".B": roll $ AST.TsObject $ Array.singleton $
+        , "\"Root\".B": TypeRepr $ roll $ AST.TsObject $ Array.singleton $
             { type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"A\".A"
             , name: "a"
             , optional: false

@@ -22,6 +22,7 @@ import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
 import Node.Path (FilePath)
+import ReadDTS.AST (TypeRepr(..))
 import ReadDTS.AST (types) as ReadDTS.AST
 import ReadDTS.AST.Printer (pprint)
 import Test.Unit (TestSuite, failure)
@@ -56,14 +57,17 @@ compile opts = do
   createProgram opts.roots compilerOpts (Just host)
 
 suite :: TestSuite
-suite = Test.suite "Cross module definitions" do
+suite = Test.suite "Golden.ThreeJs" do
   Test.test "read modules" do
-    -- program <- liftEffect $ compile { dir: DirName "test/Libs/ts", roots: [ "three/math/Vector3.d.ts", "three/math/Matrix3.d.ts" ], modules: [] }
-    program <- liftEffect $ compile { dir: DirName "test/Libs/ts", roots: [ "three/math/Matrix3.d.ts" ], modules: [] }
+    program <- liftEffect $ compile
+      { dir: DirName "test/Golden/ts"
+      , roots: [ "three/math/Matrix3.d.ts", "three/math/Vector3.d.ts" ]
+      , modules: []
+      }
 
     case ReadDTS.AST.types program of
       Right types -> do
-        for_ types \(fqn /\ t) -> do
+        for_ types \(fqn /\ TypeRepr t) -> do
           log $ show fqn
           log $ pprint t
       Left err -> failure $ "FAILURE: " <> show err

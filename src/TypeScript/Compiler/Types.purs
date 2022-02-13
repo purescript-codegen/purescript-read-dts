@@ -95,3 +95,9 @@ derive instance Ord FullyQualifiedName
 derive newtype instance Show FullyQualifiedName
 
 foreign import data Signature :: Type
+
+foreign import data SignatureKind :: Type
+
+foreign import call :: SignatureKind
+
+foreign import construct :: SignatureKind

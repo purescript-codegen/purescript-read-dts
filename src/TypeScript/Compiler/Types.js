@@ -19,8 +19,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.moduleKind = exports.scriptTarget = void 0;
+exports.construct = exports.call = exports.moduleKind = exports.scriptTarget = void 0;
 var ts = __importStar(require("typescript"));
 exports.scriptTarget = ts.ScriptTarget;
 exports.moduleKind = ts.ModuleKind;
+exports.call = ts.SignatureKind.Call;
+exports.construct = ts.SignatureKind.Construct;
 //# sourceMappingURL=Types.js.map
