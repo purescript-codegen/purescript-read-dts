@@ -13,6 +13,18 @@ typeToString = runFn2 typeToStringImpl
 
 foreign import typeToStringImpl :: forall r. Fn2 TypeChecker (Typ r) String
 
+foreign import data ModuleSymbol :: Type
+
+foreign import getExportsOfModuleImpl :: Fn2 TypeChecker Symbol_ (Array Symbol_)
+
+getExportsOfModule :: TypeChecker -> Symbol_ -> Array Symbol_
+getExportsOfModule c = runFn2 getExportsOfModuleImpl c
+
+foreign import getExportsAndPropertiesOfModuleImpl :: Fn2 TypeChecker Symbol_ (Array Symbol_)
+
+getExportsAndPropertiesOfModule :: TypeChecker -> Symbol_ -> Array Symbol_
+getExportsAndPropertiesOfModule c = runFn2 getExportsAndPropertiesOfModuleImpl c
+
 getSymbolAtLocation :: forall l r. TypeChecker -> Node l r -> Maybe Symbol_
 getSymbolAtLocation c = toMaybe <<< runFn2 getSymbolAtLocationImpl c
 
@@ -33,6 +45,27 @@ getFullyQualifiedName c = FullyQualifiedName <<< runFn2 getFullyQualifiedNameImp
 
 foreign import getFullyQualifiedNameImpl :: Fn2 TypeChecker Symbol_ String
 
+getExportedFullyQualifiedName :: TypeChecker -> Symbol_ -> FullyQualifiedName
+getExportedFullyQualifiedName c s = do
+  let
+    s' = getExportSymbolOfSymbol c s
+  getFullyQualifiedName c s'
+
+-- You should rather use getExportedSymbol' because the original API is non obvious:
+--
+-- Original docs:
+--
+--  If a symbol is a local symbol with an associated exported symbol, returns the exported symbol.
+--  Otherwise returns its input.
+--  For example, at `export type T = number;`:
+--      - `getSymbolAtLocation` at the location `T` will return the exported symbol for `T`.
+--      - But the result of `getSymbolsInScope` will contain the *local* symbol for `T`, not the exported symbol.
+--      - Calling `getExportSymbolOfSymbol` on that local symbol will return the exported symbol.
+getExportSymbolOfSymbol :: TypeChecker -> Symbol_ -> Symbol_
+getExportSymbolOfSymbol c = runFn2 getExportSymbolOfSymbolImpl c
+
+foreign import getExportSymbolOfSymbolImpl :: Fn2 TypeChecker Symbol_ Symbol_
+
 getTypeArguments :: TypeChecker -> TypeReference -> Array (Typ ())
 getTypeArguments = runFn2 getTypeArgumentsImpl
 
@@ -42,3 +75,4 @@ getSignaturesOfType :: forall i. TypeChecker -> Typ i -> SignatureKind -> Array 
 getSignaturesOfType = runFn3 getSignaturesOfTypeImpl
 
 foreign import getSignaturesOfTypeImpl :: forall i. Fn3 TypeChecker (Typ i) SignatureKind (Array Signature)
+

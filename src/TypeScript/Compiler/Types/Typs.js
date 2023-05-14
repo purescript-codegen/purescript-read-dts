@@ -1,82 +1,40 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBaseTypesImpl = exports.getDefaultImpl = exports.getSymbolImpl = exports.asClassTypeImpl = exports.asInterfaceTypeImpl = exports.getApparentPropertiesImpl = exports.getPropertiesImpl = exports.getConstructSignatures = exports.getCallSignatures = exports.asTypeReferenceImpl = exports.asTypeParameterImpl = exports.asUnionTypeImpl = exports.asStringLiteralTypeImpl = exports.asObjectTypeImpl = exports.asIntersectionTypeImpl = exports.asNumberLiteralTypeImpl = void 0;
-var ts = __importStar(require("typescript"));
-var asNumberLiteralTypeImpl = function (t) { return t.isNumberLiteral() ? t : null; };
-exports.asNumberLiteralTypeImpl = asNumberLiteralTypeImpl;
-var asIntersectionTypeImpl = function (t) { return t.isIntersection() ? t : null; };
-exports.asIntersectionTypeImpl = asIntersectionTypeImpl;
-var asObjectTypeImpl = function (t) {
-    var Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
-    var ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
+import ts from "typescript";
+export const asNumberLiteralTypeImpl = (t) => t.isNumberLiteral() ? t : null;
+export const asIntersectionTypeImpl = (t) => t.isIntersection() ? t : null;
+export const asObjectTypeImpl = (t) => {
+    let Nullable = ts.TypeFlags.Undefined | ts.TypeFlags.Null;
+    let ObjectFlagsType = ts.TypeFlags.Any | Nullable | ts.TypeFlags.Never | ts.TypeFlags.Object | ts.TypeFlags.Union | ts.TypeFlags.Intersection;
     if (t.flags & ObjectFlagsType)
         return t;
     return null;
 };
-exports.asObjectTypeImpl = asObjectTypeImpl;
-var asStringLiteralTypeImpl = function (t) { return t.isStringLiteral() ? t : null; };
-exports.asStringLiteralTypeImpl = asStringLiteralTypeImpl;
-var asUnionTypeImpl = function (t) { return t.isUnion() ? t : null; };
-exports.asUnionTypeImpl = asUnionTypeImpl;
-var asTypeParameterImpl = function (t) { return t.isTypeParameter() ? t : null; };
-exports.asTypeParameterImpl = asTypeParameterImpl;
-var asTypeReferenceImpl = function (t) {
+export const asStringLiteralTypeImpl = (t) => t.isStringLiteral() ? t : null;
+export const asUnionTypeImpl = (t) => t.isUnion() ? t : null;
+export const asTypeParameterImpl = (t) => t.isTypeParameter() ? t : null;
+export const asTypeReferenceImpl = (t) => {
     // There is no sens at the moment to expose ObjectType casting I think to the PS side...
-    var s = (0, exports.asObjectTypeImpl)(t);
+    let s = asObjectTypeImpl(t);
     if (s && s.objectFlags & ts.ObjectFlags.Reference)
         return s;
     return null;
 };
-exports.asTypeReferenceImpl = asTypeReferenceImpl;
-var getCallSignatures = function (t) { return t.getCallSignatures(); };
-exports.getCallSignatures = getCallSignatures;
-var getConstructSignatures = function (t) { return t.getConstructSignatures(); };
-exports.getConstructSignatures = getConstructSignatures;
-var getPropertiesImpl = function (t) { return t.getProperties(); };
-exports.getPropertiesImpl = getPropertiesImpl;
-var getApparentPropertiesImpl = function (t) { return t.getApparentProperties(); };
-exports.getApparentPropertiesImpl = getApparentPropertiesImpl;
-var asInterfaceTypeImpl = function (t) {
+export const getCallSignatures = (t) => t.getCallSignatures();
+export const getConstructSignatures = (t) => t.getConstructSignatures();
+export const getPropertiesImpl = (t) => t.getProperties();
+export const getApparentPropertiesImpl = (t) => t.getApparentProperties();
+export const asInterfaceTypeImpl = (t) => {
     if (t.objectFlags & ts.ObjectFlags.Interface) {
         return t;
     }
     return null;
 };
-exports.asInterfaceTypeImpl = asInterfaceTypeImpl;
-var asClassTypeImpl = function (t) {
+export const asClassTypeImpl = (t) => {
     if (t.objectFlags & ts.ObjectFlags.Class) {
         return t;
     }
     return null;
 };
-exports.asClassTypeImpl = asClassTypeImpl;
-var getSymbolImpl = function (t) { return t.getSymbol() || null; };
-exports.getSymbolImpl = getSymbolImpl;
-var getDefaultImpl = function (t) { return t.getDefault() || null; };
-exports.getDefaultImpl = getDefaultImpl;
-var getBaseTypesImpl = function (t) { return t.getBaseTypes() || []; };
-exports.getBaseTypesImpl = getBaseTypesImpl;
+export const getSymbolImpl = (t) => t.getSymbol() || null;
+export const getDefaultImpl = (t) => t.getDefault() || null;
+export const getBaseTypesImpl = (t) => t.getBaseTypes() || [];
 //# sourceMappingURL=Typs.js.map

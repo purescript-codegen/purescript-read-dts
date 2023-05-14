@@ -1,6 +1,10 @@
 module TypeScript.Compiler.Types.Nodes where
 
+import Prelude
+
+import Data.String as String
 import Data.Undefined.NoProblem (Opt)
+import Foreign (Foreign)
 import Type.Row (type (+))
 import TypeScript.Compiler.Types (Node, ScriptTarget, Typ)
 import Unsafe.Coerce (unsafeCoerce)
@@ -15,12 +19,44 @@ import Unsafe.Coerce (unsafeCoerce)
 foreign import data SyntaxKind :: Type
 foreign import data NodeFlags :: Type
 
-type NodeRow r = (nodeFlags :: NodeFlags, syntaxKind :: SyntaxKind | r)
+type NodeRow r = (nodeFlags :: NodeFlags, syntaxKind :: SyntaxKind, pos :: Int, end :: Int | r)
 
+-- | Rename to props
 interface :: forall l r. Node l r -> { | NodeRow + r }
 interface = unsafeCoerce
 
+onProps :: forall a l r. Node l r -> ({ | NodeRow + r } -> a) -> a
+onProps n f = f <<< interface $ n
+
+infixl 9 onProps as !#
+
+--nodeText :: forall l r r_. Row.Cons "parent" SourceFile r_ (NodeRow + r) => Node l r -> String
+nodeText :: forall l r. Node l (parent :: SourceFile | r) -> String
+nodeText node = do
+  let
+    { end, pos, parent: sourceFile } = interface node
+    { text: sourceCode } = interface sourceFile
+  String.drop pos $ String.take end $ sourceCode
+
 foreign import getChildren :: forall l k. Node l k -> Array (Node "" ())
+
+
+-- export interface ObjectBindingPattern extends Node {
+--     readonly kind: SyntaxKind.ObjectBindingPattern;
+--     readonly parent: VariableDeclaration | ParameterDeclaration | BindingElement;
+--     readonly elements: NodeArray<BindingElement>;
+-- }
+-- 
+-- export interface ArrayBindingPattern extends Node {
+--     readonly kind: SyntaxKind.ArrayBindingPattern;
+--     readonly parent: VariableDeclaration | ParameterDeclaration | BindingElement;
+--     readonly elements: NodeArray<ArrayBindingElement>;
+-- }
+
+-- export type BindingPattern = ObjectBindingPattern | ArrayBindingPattern;
+
+type BindingName = Node "" () -- Identifier | BindingPattern;
+
 
 -- | Types and stubs which are required
 -- | by `Compiler.Factory.NodeTests`.
@@ -77,7 +113,11 @@ type ConstructorTypeNode = Node "ConstructorTypeNode" ()
 type ContinueStatement = Node "ContinueStatement" ()
 type DebuggerStatement = Node "DebuggerStatement" ()
 type Declaration = Node "Declaration" ()
-type DeclarationStatement = Node "DeclarationStatement" ()
+
+-- Identifier | StringLiteral | NumericLiteral
+foreign import data DeclarationStatementName :: Type
+type DeclarationStatementRow r = (name :: DeclarationStatementName | r)
+type DeclarationStatement = Node "DeclarationStatement" (DeclarationStatementRow ())
 type Decorator = Node "Decorator" ()
 type DefaultClause = Node "DefaultClause" ()
 type DeleteExpression = Node "DeleteExpression" ()
@@ -92,7 +132,18 @@ type EnumDeclaration = Node "EnumDeclaration" ()
 type EnumMember = Node "EnumMember" ()
 type EqualsGreaterThanToken = Node "EqualsGreaterThanToken" ()
 type ExclamationToken = Node "ExclamationToken" ()
-type ExportAssignment = Node "ExportAssignment" ()
+type ExportAssignment = Node "ExportAssignment"
+  ( DeclarationStatementRow
+      +
+        (
+          --  readonly kind: SyntaxKind.ExportAssignment;
+          parent :: SourceFile
+        -- , modifiers?: NodeArray<Modifier>;
+        , isExportEquals :: Boolean
+        --, readonly expression: Expression;
+        )
+  )
+
 type ExportDeclaration = Node "ExportDeclaration"
   ( parent :: Node "" () -- SourceFile | ModuleBlock;
   -- , exportClause ∷ NamedExports;
@@ -121,7 +172,10 @@ type FunctionExpression = Node "FunctionExpression" ()
 type FunctionTypeNode = Node "FunctionTypeNode" ()
 type GetAccessorDeclaration = Node "GetAccessorDeclaration" ()
 type HeritageClause = Node "HeritageClause" ()
-type Identifier = Node "Identifier" ()
+
+type Identifier = Node "Identifier"
+  ( escapedText :: String
+  )
 type Identifiers = Node "Identifiers" ()
 type IfStatement = Node "IfStatement" ()
 type ImportClause = Node "ImportClause" ()
@@ -188,10 +242,15 @@ type NamedImports = Node "NamedImports" ()
 type NamedTupleMember = Node "NamedTupleMember" ()
 type Names = Node "Names" ()
 type NamespaceExport = Node "NamespaceExport" ()
-type NamespaceExportDeclaration = Node "NamespaceExportDeclaration" ()
+type NamespaceExportDeclaration = Node "NamespaceExportDeclaration"
+  ( name :: Identifier
+  )
+
 type NamespaceImport = Node "NamespaceImport" ()
 type NewExpression = Node "NewExpression" ()
 type NoSubstitutionTemplateLiteral = Node "NoSubstitutionTemplateLiteral" ()
+type NodeWithTypeArgumentsRow r = ( typeArguments :: Opt (Array TypeNode) | r)
+type NodeWithTypeArguments = Node "NodeWithTypeArguments" (NodeWithTypeArgumentsRow ())
 type NonNullExpression = Node "NonNullExpression" ()
 type NotEmittedStatement = Node "NotEmittedStatement" ()
 type NumericLiteral = Node "NumericLiteral" ()
@@ -199,9 +258,8 @@ type ObjectBindingPattern = Node "ObjectBindingPattern" ()
 type ObjectLiteralExpression = Node "ObjectLiteralExpression" ()
 type OmittedExpression = Node "OmittedExpression" ()
 type OptionalTypeNode = Node "OptionalTypeNode" ()
--- type BindingName = Identifier | BindingPattern;
 type ParameterDeclaration = Node "ParameterDeclaration"
-  ( name :: Node "BindingName" ()
+  ( name :: BindingName
   , questionToken :: Opt QuestionToken
   , "type" :: Opt TypeNode
   , initializer :: Opt Expression
@@ -288,7 +346,10 @@ type TypeParameterDeclaration = Node "TypeParameterDeclaration"
 
 type TypePredicateNode = Node "TypePredicateNode" ()
 type TypeQueryNode = Node "TypeQueryNode" ()
-type TypeReferenceNode = Node "TypeReferenceNode" ()
+
+-- export type EntityName = Identifier | QualifiedName;
+foreign import data EntityName :: Type
+type TypeReferenceNode = Node "TypeReferenceNode" ( NodeWithTypeArgumentsRow + ( typeName :: EntityName))
 
 -- | Not a real node kind but rather a union
 -- | export type SignatureDeclaration =
@@ -304,9 +365,24 @@ type UnionTypeNode = Node "UnionTypeNode" ()
 type Unparsed = Node "Unparsed" ()
 type UnparsedPrepend = Node "UnparsedPrepend" ()
 type UnparsedSource = Node "UnparsedSource" ()
-type VariableDeclaration = Node "VariableDeclaration" ()
-type VariableDeclarationList = Node "VariableDeclarationList" ()
-type VariableStatement = Node "VariableStatement" ()
+type VariableDeclaration = Node "VariableDeclaration"
+  ( parent :: Foreign -- VariableDeclarationList | CatchClause;
+  , name :: BindingName
+  , exclamationToken :: Opt Foreign -- ExclamationToken
+  , type :: Opt TypeNode
+  , initializer :: Opt Expression
+  )
+
+type VariableDeclarationList = Node "VariableDeclarationList"
+  ( parent :: Foreign -- VariableStatement | ForStatement | ForOfStatement | ForInStatement;
+  , declarations :: Array VariableDeclaration
+  )
+
+type VariableStatement = Node "VariableStatement"
+  ( modifiers :: Opt (Array Foreign) -- Array Modifier
+  , declarationList :: VariableDeclarationList
+  )
+
 type VoidExpression = Node "VoidExpression" ()
 type WhileStatement = Node "WhileStatement" ()
 type WithStatement = Node "WithStatement" ()

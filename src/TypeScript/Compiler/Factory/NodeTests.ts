@@ -1,8 +1,8 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 // Automatically converted by <Ctrl-C><Ctrl-V> + regexp:
 //  s/export function is\([^(]*\)(node: Node): node is \([^ ]*\).*/export const as\1Impl = (node: ts.Node): ts.\2 | null => ts.is\1(node)?node:null;/
-
+//
 export const asNumericLiteralImpl = (node: ts.Node): ts.NumericLiteral | null => ts.isNumericLiteral(node)?node:null;
 
 export const asBigIntLiteralImpl = (node: ts.Node): ts.BigIntLiteral | null => ts.isBigIntLiteral(node)?node:null;

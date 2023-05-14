@@ -11,8 +11,8 @@ import Partial.Unsafe (unsafePartial)
 import Prim.Row (class Cons, class Union) as Row
 import TypeScript.Compiler.Checker (getFullyQualifiedName, getSymbolAtLocation)
 import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asFunctionDeclaration, asInterfaceDeclaration, asTypeAliasDeclaration)
+import TypeScript.Compiler.Factory.NodeTests as Nodes
 import TypeScript.Compiler.Types (FullyQualifiedName, Node, TypeChecker)
-import TypeScript.Compiler.Types.Nodes (DeclarationStatement)
 import TypeScript.Compiler.Types.Nodes (DeclarationStatement, interface) as Nodes
 import TypeScript.Compiler.Types.Symbol (getName) as Symbol
 import TypeScript.Debug (formatTypeFlags')
@@ -41,16 +41,30 @@ toDeclarationStatement = toDeclarationStatementImpl
 -- | FIXME: don't export
 foreign import toDeclarationStatementImpl :: forall l r. Node l r -> Nodes.DeclarationStatement
 
-asDeclarationStatement :: forall l r. Node l r -> Maybe DeclarationStatement
+
+-- These are all declaration statements but `VariableStatement`/`VariableDeclaration` is something else...
+-- export interface ExportAssignment extends DeclarationStatement, JSDocContainer {
+-- export interface FunctionDeclaration extends FunctionLikeDeclarationBase, DeclarationStatement, LocalsContainer {
+-- export interface MissingDeclaration extends DeclarationStatement {
+-- export interface ClassDeclaration extends ClassLikeDeclarationBase, DeclarationStatement {
+-- export interface InterfaceDeclaration extends DeclarationStatement, JSDocContainer {
+-- export interface TypeAliasDeclaration extends DeclarationStatement, JSDocContainer, LocalsContainer {
+-- export interface EnumDeclaration extends DeclarationStatement, JSDocContainer {
+-- export interface ModuleDeclaration extends DeclarationStatement, JSDocContainer, LocalsContainer {
+-- export interface ImportEqualsDeclaration extends DeclarationStatement, JSDocContainer {
+-- export interface NamespaceExportDeclaration extends DeclarationStatement, JSDocContainer {
+-- export interface ExportDeclaration extends DeclarationStatement, JSDocContainer {
+-- export interface ExportAssignment extends DeclarationStatement, JSDocContainer {
+
+asDeclarationStatement :: forall l r. Node l r -> Maybe Nodes.DeclarationStatement
 asDeclarationStatement node =
   (toDeclarationStatement <$> asTypeAliasDeclaration node)
     <|> (toDeclarationStatement <$> asInterfaceDeclaration node)
     <|> (toDeclarationStatement <$> asClassDeclaration node)
     <|> (toDeclarationStatement <$> asFunctionDeclaration node)
 
-getDeclarationStatementFqn :: TypeChecker -> DeclarationStatement -> Maybe FullyQualifiedName
+getDeclarationStatementFqn :: TypeChecker -> Nodes.DeclarationStatement -> Maybe FullyQualifiedName
 getDeclarationStatementFqn checker node = do
-  traceM "Fetching fqn:"
   symbol <-
     (getSymbolAtLocation checker <<< _.name <<< Nodes.interface =<< asTypeAliasDeclaration node)
       <|> (getSymbolAtLocation checker =<< asInterfaceDeclaration node)
@@ -60,8 +74,5 @@ getDeclarationStatementFqn checker node = do
       <|> (getSymbolAtLocation checker =<< asFunctionDeclaration node)
       -- FIXME: debugging
       <|> (getSymbolAtLocation checker node)
-
-  traceM $ Symbol.getName symbol
-  traceM $ getFullyQualifiedName checker symbol
-
   pure $ getFullyQualifiedName checker symbol
+

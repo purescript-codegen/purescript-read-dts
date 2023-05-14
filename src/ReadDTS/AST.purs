@@ -7,12 +7,13 @@ import Control.Monad.Except (runExceptT)
 import Control.Monad.Free (Free, wrap)
 import Control.Monad.Rec.Loops (whileJust_)
 import Control.Monad.State (execStateT)
+import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldlDefault, bifoldrDefault)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Either (Either)
 import Data.Eq (class Eq1)
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, length)
 import Data.Functor.Mu (Mu(..)) as Mu
 import Data.Functor.Mu (Mu)
 import Data.Generic.Rep (class Generic)
@@ -20,9 +21,10 @@ import Data.Identity (Identity(..))
 import Data.Lens (use)
 import Data.Lens.Record (prop)
 import Data.Lens.Setter ((%=), (.=))
-import Data.List (List(..), catMaybes, fromFoldable, singleton) as List
+import Data.List (List(..), catMaybes, fromFoldable, length, singleton) as List
 import Data.List (List, (:))
-import Data.Tuple.Nested ((/\), type (/\))
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
 import Data.Profunctor.Strong ((***))
@@ -30,15 +32,19 @@ import Data.Set (fromFoldable, insert, member) as Set
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, for, sequence, traverse, traverseDefault)
 import Data.Tuple (fst)
+import Data.Tuple.Nested ((/\), type (/\))
+import Debug (traceM)
 import Matryoshka (cata, futuM)
 import ReadDTS (Args, Params, Props, readDeclaration, readInnerType, readTopLevelType, sequenceArg, sequenceProp) as ReadDTS
-import ReadDTS (Params, Visit, fqnToString, readRootDeclarationNodes)
+import ReadDTS (Params, Visit, fqnToString, readRootDeclarationNodes, readRootDeclarations)
 import ReadDTS.TypeScript (getDeclarationStatementFqn)
 import Type.Prelude (Proxy(..))
-import TypeScript.Compiler.Program (getTypeChecker)
+import TypeScript.Compiler.Checker (getExportsOfModule, getSymbolAtLocation)
+import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
 import TypeScript.Compiler.Types (FullyQualifiedName, Program, Typ, TypeChecker)
 import TypeScript.Compiler.Types (Typ) as TS
-import TypeScript.Compiler.Types.Nodes (DeclarationStatement) as Nodes
+import TypeScript.Compiler.Types.Nodes (DeclarationStatement, interface) as Nodes
+import TypeScript.Compiler.Types.Nodes (getChildren)
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -69,7 +75,10 @@ data TsType decl ref
       , props :: ReadDTS.Props ref
       }
   | TsFunction (ReadDTS.Args ref) ref
-  | TsInterface (ReadDTS.Props ref)
+  | TsInterface
+    { bases :: Array ref
+    , props :: (ReadDTS.Props ref)
+    }
   | TsIntersection (Array ref)
   | TsNull
   | TsNumber
@@ -84,6 +93,35 @@ data TsType decl ref
   | TsUndefined
   | TsUnion (Array ref)
   | TsUnknown TSTyp
+  | TsMerge (Array ref)
+
+printTsTypeConstructorName :: forall decl ref. TsType decl ref -> String
+printTsTypeConstructorName TsAny = "TsAny"
+printTsTypeConstructorName (TsApplication _ _) = "TsApplication"
+printTsTypeConstructorName (TsArray _) = "TsArray"
+printTsTypeConstructorName TsBoolean = "TsBoolean"
+printTsTypeConstructorName (TsBooleanLiteral _) = "TsBooleanLiteral"
+printTsTypeConstructorName (TsClass _) = "TsClass"
+printTsTypeConstructorName (TsFunction _ _) = "TsFunction"
+printTsTypeConstructorName (TsInterface _) = "TsInterface"
+printTsTypeConstructorName (TsIntersection _) = "TsIntersection"
+printTsTypeConstructorName TsNull = "TsNull"
+printTsTypeConstructorName TsNumber = "TsNumber"
+printTsTypeConstructorName (TsNumberLiteral _) = "TsNumberLiteral"
+printTsTypeConstructorName (TsObject _) = "TsObject"
+printTsTypeConstructorName TsString = "TsString"
+printTsTypeConstructorName (TsStringLiteral _) = "TsStringLiteral"
+printTsTypeConstructorName (TsTuple _) = "TsTuple"
+printTsTypeConstructorName (TsParametric _ _) = "TsParametric"
+printTsTypeConstructorName (TsParameter _) = "TsParameter"
+printTsTypeConstructorName (TsTypeRef _) = "TsTypeRef"
+printTsTypeConstructorName TsUndefined = "TsUndefined"
+printTsTypeConstructorName (TsUnion _) = "TsUnion"
+printTsTypeConstructorName (TsUnknown _) = "TsUnknown"
+printTsTypeConstructorName (TsMerge _) = "TsMerge"
+
+tsInterface :: forall dec t. Array t -> ReadDTS.Props t -> TsType dec t
+tsInterface bases props = TsInterface { bases, props }
 
 tsClass :: forall dec t. Array t -> Array (ReadDTS.Args t) -> ReadDTS.Props t -> TsType dec t
 tsClass bases constructors props = TsClass { bases, constructors, props }
@@ -109,11 +147,14 @@ instance Foldable (TsType decl) where
   foldMap f (TsArray t) = f t
   foldMap _ TsBoolean = mempty
   foldMap _ (TsBooleanLiteral _) = mempty
-  foldMap f (TsClass { bases, constructors, props }) = foldMap f bases
+  foldMap f (TsClass { bases, constructors, props }) =
+    foldMap f bases
     <> foldMap (foldMap (f <<< _.type)) constructors
     <> foldMap (f <<< _.type) props
   foldMap f (TsFunction args r) = foldMap (f <<< _.type) args <> f r
-  foldMap f (TsInterface ts) = foldMap (f <<< _.type) ts
+  foldMap f (TsInterface { bases, props }) =
+    foldMap f bases
+    <> foldMap (f <<< _.type) props
   -- foldMap f (Intersection ts) = fold (map (foldMap f) ts)
   foldMap f (TsApplication _ ps) = foldMap f ps
   foldMap f (TsIntersection ts) = foldMap f ts
@@ -130,6 +171,7 @@ instance Foldable (TsType decl) where
   foldMap _ TsUndefined = mempty
   foldMap f (TsUnion ts) = foldMap f ts
   foldMap _ (TsUnknown _) = mempty
+  foldMap f (TsMerge ts) = foldMap f ts
   foldr f t = foldrDefault f t
   foldl f t = foldlDefault f t
 
@@ -155,7 +197,11 @@ instance Traversable (TsType decl) where
   sequence (TsFunction args r) = TsFunction
     <$> traverse ReadDTS.sequenceArg args
     <*> r
-  sequence (TsInterface props) = map TsInterface $ sequence $ map ReadDTS.sequenceProp props
+  sequence (TsInterface { bases, props }) = TsInterface <$> ado
+    bases <- sequence bases
+    props <- sequence (map ReadDTS.sequenceProp props)
+    in
+      { bases, props }
   sequence (TsIntersection ts) = TsIntersection <$> sequence ts
   sequence TsNull = pure TsNull
   sequence TsNumber = pure $ TsNumber
@@ -172,6 +218,7 @@ instance Traversable (TsType decl) where
   sequence TsUndefined = pure TsUndefined
   sequence (TsUnion ts) = TsUnion <$> sequence ts
   sequence (TsUnknown t) = pure $ TsUnknown t
+  sequence (TsMerge ts) = TsMerge <$> sequence ts
   --   sequence Void = pure Void
   traverse = traverseDefault
 
@@ -197,7 +244,7 @@ visitor =
       , class: tsClass
       , function: TsFunction
       , intersection: TsIntersection
-      , interface: TsInterface
+      , interface: tsInterface
       , object: TsObject
       , null: TsNull
       , number: TsNumber
@@ -211,6 +258,7 @@ visitor =
       , undefined: TsUndefined
       , unknown: TsUnknown <<< TSTyp
       , union: TsUnion
+      , merge: TsMerge
       }
   }
 
@@ -236,14 +284,17 @@ type ReadTsType m = Seed -> m (TsType Decl (TS.Typ ()))
 -- | * We have to unfold manually parametric type because I have not found
 -- | a way to properly detect and disambiguate this case based only on
 -- | the `Typ ()` (it is self referencing `typeReference`...)
+
+newtype MaxDepth = MaxDepth Int
+
 mkCoalgebra
   :: forall m
    . MonadError (Array String) m
-  => Int
+  => MaxDepth
   -> TypeChecker
   -> Maybe (Params (Typ ()))
   -> (Seed -> m (TsType Decl (Free (TsType Decl) Seed)))
-mkCoalgebra maxDepth checker params seed = do
+mkCoalgebra (MaxDepth maxDepth) checker params seed = do
   -- FIXME: We should probably provide a dedicated constructor
   -- for *unread* scenario - probably a different one than
   -- `TsUnknown` because ts complier possibly uses that.
@@ -274,13 +325,24 @@ mkCoalgebra maxDepth checker params seed = do
 unfoldType
   :: forall m
    . MonadError (Array String) m
-  => TypeChecker
+  => MaxDepth
+  -> TypeChecker
   -> Maybe (Params (Typ ()))
   -> Seed
   -> m (Mu (TsType Decl))
-unfoldType checker params = futuM (mkCoalgebra 3 checker params)
+unfoldType maxDepth checker params = futuM (mkCoalgebra maxDepth checker params)
 
-type RootDeclarations = List (FullyQualifiedName /\ TypeRepr)
+unfoldType'
+  :: forall m
+   . MonadError (Array String) m
+  => MaxDepth
+  -> TypeChecker
+  -> Maybe (Params (Typ ()))
+  -> Typ ()
+  -> m (Mu (TsType Decl))
+unfoldType' maxDepth checker params typ = unfoldType maxDepth checker params { level: 0, ref: typ }
+
+type RootDeclarations = Map FullyQualifiedName TypeRepr
 
 types :: Program -> Either (Array String) RootDeclarations
 types program = un Identity $ runExceptT do
@@ -292,17 +354,14 @@ types program = un Identity $ runExceptT do
     checker = getTypeChecker program
     roots = List.fromFoldable $ readRootDeclarationNodes program
 
-    -- x = do
-    --   traceM "Root declaration statements count:"
-    --   traceM $ List.length roots
-    --   Nothing
-
     -- FIXME: We are skipping declarations for which we were not
     -- able to extract fqn. This should be reported for sure.
     step decl = do
       fqn <- getDeclarationStatementFqn checker decl
       pure $ fqn /\ decl
+
     unknowns = List.catMaybes $ map step roots
+
     ctx =
       { unknowns
       , knowns: List.Nil
@@ -319,11 +378,12 @@ types program = un Identity $ runExceptT do
     foldTypeDecls = foldMapRec (\{ fullyQualifiedName: fqn, ref } -> List.singleton (fqn /\ ref))
     stripTypeRefs = mapRec _.fullyQualifiedName
 
+  -- traceM roots
   res <- map _.knowns $ flip execStateT ctx $ whileJust_ getUnknown \(fqn /\ node) -> do
     case ReadDTS.readDeclaration checker node of
       Nothing -> throwError [ "Problem reading " <> fqnToString fqn ]
       Just { typ, params } -> do
-        type_ <- unfoldType checker params { level: 0, ref: typ }
+        type_ <- unfoldType (MaxDepth 4) checker params { level: 0, ref: typ }
 
         _knowns %= List.Cons (fqn /\ stripTypeRefs type_)
         for (foldTypeDecls type_) \decl@(fqn' /\ _) -> do
@@ -332,4 +392,4 @@ types program = un Identity $ runExceptT do
             _seen %= Set.insert fqn'
             _unknowns %= List.Cons decl
 
-  pure $ (identity *** TypeRepr) <$> res
+  pure $ Map.fromFoldable $ (identity *** TypeRepr) <$> res

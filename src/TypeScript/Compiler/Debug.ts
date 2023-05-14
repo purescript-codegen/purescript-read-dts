@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 // This is internal API `compiler/debug.ts`
 type Debug = {

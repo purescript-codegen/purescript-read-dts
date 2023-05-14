@@ -7,6 +7,7 @@ import Data.Nullable (Nullable, toNullable)
 import Effect (Effect)
 import Effect.Uncurried (EffectFn1, EffectFn3, runEffectFn1, runEffectFn3)
 import TypeScript.Compiler.Parser (FileName)
+import TypeScript.Compiler.Types.Diagnostics (Diagnostic)
 import TypeScript.Compiler.Types.Nodes (SourceFile)
 
 createCompilerHost :: CompilerOptions -> Effect CompilerHost
@@ -27,3 +28,10 @@ foreign import getRootFileNames :: Program -> Array FileName
 
 foreign import getSourceFiles :: Program -> Array SourceFile
 
+foreign import getFileName :: SourceFile -> String
+
+foreign import emit :: Program -> Effect EmitResult
+
+foreign import emitResultDiagnostics :: EmitResult -> Array Diagnostic
+
+foreign import getPreEmitDiagnostics :: Program -> Array Diagnostic

@@ -1,5 +1,6 @@
 module TypeScript.Compiler.Types where
 
+import Data.Newtype (class Newtype)
 import Data.Undefined.NoProblem (Opt)
 import Prelude (class Eq, class Ord, class Show)
 
@@ -40,8 +41,23 @@ foreign import moduleKind ::
   , "ESNext" :: ModuleKind
   }
 
+foreign import data ModuleResolutionKind :: Type
+
+foreign import moduleResolutionKind ::
+  { "Classic" :: ModuleResolutionKind
+  , "Node10" :: ModuleResolutionKind
+  , "Node16" :: ModuleResolutionKind
+  , "NodeNext" :: ModuleResolutionKind
+  , "Bundler" :: ModuleResolutionKind
+  }
+
 type CompilerOptions =
   { "module" :: Opt ModuleKind
+  , moduleResolution :: Opt ModuleResolutionKind
+  , noEmitOnError :: Opt Boolean
+  , noImplicitAny :: Opt Boolean
+  , allowSyntheticDefaultImports :: Opt Boolean
+  , rootDirs :: Array String
   , strictNullChecks :: Boolean
   , target :: Opt ScriptTarget
   }
@@ -88,8 +104,13 @@ foreign import data Typ :: Row Type -> Type
 foreign import data TypeFlags :: Type
 foreign import data Symbol_ :: Type
 
+-- Used by `Checker.getExportsOfModule`
+newtype ModuleSymbol = ModuleSymbol Symbol_
+
+
 newtype FullyQualifiedName = FullyQualifiedName String
 
+derive instance Newtype FullyQualifiedName _
 derive instance Eq FullyQualifiedName
 derive instance Ord FullyQualifiedName
 derive newtype instance Show FullyQualifiedName
@@ -101,3 +122,6 @@ foreign import data SignatureKind :: Type
 foreign import call :: SignatureKind
 
 foreign import construct :: SignatureKind
+
+foreign import data EmitResult :: Type
+

@@ -9,17 +9,19 @@ import Data.Maybe (Maybe(..))
 import Data.String (joinWith) as String
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\))
-import Data.Undefined.NoProblem (Opt, (!))
+import Data.Undefined.NoProblem (Opt, opt, (!))
 import Data.Undefined.NoProblem.Closed (class Coerce, coerce) as Closed
 import Data.Undefined.NoProblem.Closed (coerce) as NoProblem
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Node.Path (FilePath)
-import ReadDTS (Params, readRootDeclarations)
+import ReadDTS (Params, Declarations, readRootDeclarations)
+import TypeScript.Class.Compiler.Program as Program
 import TypeScript.Compiler.Parser (SourceCode(..))
 import TypeScript.Compiler.Program (createProgram)
-import TypeScript.Compiler.Types (CompilerOptions, moduleKind, scriptTarget, FullyQualifiedName(..), Program, Typ)
+import TypeScript.Compiler.Types (CompilerOptions, FullyQualifiedName(..), ModuleResolutionKind, Program, Typ, moduleKind, scriptTarget)
+import TypeScript.Compiler.Types.Nodes as Nodes
 import TypeScript.Testing.InMemory (compilerHost) as InMemory
 import TypeScript.Testing.Types (InMemoryFile, mkInMemoryFile)
 
@@ -31,8 +33,10 @@ mkFile' name = mkInMemoryFile name <<< SourceCode <<< String.joinWith "\n"
 newtype TypeName = TypeName String
 
 type CompileOpts =
-  { roots :: Array FilePath
+  { allowSyntheticDefaultImports :: Opt Boolean
+  , roots :: Array FilePath
   , modules :: Array InMemoryFile
+  , moduleResolution :: Opt ModuleResolutionKind
   , strictNullChecks :: Opt Boolean
   }
 
@@ -48,13 +52,21 @@ compile opts = do
     compilerOpts :: CompilerOptions
     compilerOpts = NoProblem.coerce
       { module: moduleKind."ES2015"
+      , moduleResolution: opts'.moduleResolution
+      , rootDirs: ["./src"]
       , target: scriptTarget."ES5"
       , strictNullChecks: opts'.strictNullChecks ! false
+      , allowSyntheticDefaultImports: opt true
       }
 
-  -- | We have to load es library because without it we are not
-  -- | able to handle even `Array` type.
-  host <- liftEffect $ InMemory.compilerHost { files: opts'.modules, defaultLib: Nothing }
+  host <- liftEffect $ InMemory.compilerHost
+    { files: opts'.modules
+    , defaultLib: Nothing
+    , subhost: Nothing
+    }
+
+  -- Experimenting with default compiler host now
+  -- host <- liftEffect $ Program.createCompilerHost compilerOpts
   createProgram opts'.roots compilerOpts (Just host)
 
 newtype StrictNullChecks = StrictNullChecks Boolean
@@ -65,11 +77,11 @@ compileType
   -> SourceCode
   -> Aff
        { program :: Program
-       , type ::
-           Maybe
-             { typ :: Typ ()
-             , params :: Maybe (Params (Typ ()))
-             }
+       , type :: Maybe
+           { typ :: Typ ()
+           , params :: Maybe (Params (Typ ()))
+           }
+        , decls :: Declarations
        }
 compileType (TypeName name) source = do
   let
@@ -92,4 +104,4 @@ compileType (TypeName name) source = do
     }
   let
     decls = readRootDeclarations program
-  pure { type: snd <$> getType decls, program }
+  pure { type: snd <$> getType decls, program, decls }

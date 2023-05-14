@@ -1,18 +1,13 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSignaturesOfTypeImpl = exports.getTypeArgumentsImpl = exports.getFullyQualifiedNameImpl = exports.getTypeOfSymbolAtLocationImpl = exports.getTypeAtLocationImpl = exports.getSymbolAtLocationImpl = exports.typeToStringImpl = void 0;
-var typeToStringImpl = function (checker, type) { return checker.typeToString(type); };
-exports.typeToStringImpl = typeToStringImpl;
-var getSymbolAtLocationImpl = function (checker, node) { return checker.getSymbolAtLocation(node) || null; };
-exports.getSymbolAtLocationImpl = getSymbolAtLocationImpl;
-var getTypeAtLocationImpl = function (checker, node) { return checker.getTypeAtLocation(node) || null; };
-exports.getTypeAtLocationImpl = getTypeAtLocationImpl;
-var getTypeOfSymbolAtLocationImpl = function (checker, symbol, node) { return checker.getTypeOfSymbolAtLocation(symbol, node); };
-exports.getTypeOfSymbolAtLocationImpl = getTypeOfSymbolAtLocationImpl;
-var getFullyQualifiedNameImpl = function (checker, symbol) { return checker.getFullyQualifiedName(symbol); };
-exports.getFullyQualifiedNameImpl = getFullyQualifiedNameImpl;
-var getTypeArgumentsImpl = function (checker, type) { return checker.getTypeArguments(type); };
-exports.getTypeArgumentsImpl = getTypeArgumentsImpl;
-var getSignaturesOfTypeImpl = function (checker, type, kind) { return checker.getSignaturesOfType(type, kind); };
-exports.getSignaturesOfTypeImpl = getSignaturesOfTypeImpl;
+export const typeToStringImpl = (checker, type) => checker.typeToString(type);
+export const getSymbolAtLocationImpl = (checker, node) => checker.getSymbolAtLocation(node) || null;
+export const getTypeAtLocationImpl = (checker, node) => checker.getTypeAtLocation(node) || null;
+export const getTypeOfSymbolAtLocationImpl = (checker, symbol, node) => checker.getTypeOfSymbolAtLocation(symbol, node);
+export const getFullyQualifiedNameImpl = (checker, symbol) => checker.getFullyQualifiedName(symbol);
+export const getTypeArgumentsImpl = (checker, type) => checker.getTypeArguments(type);
+export const getSignaturesOfTypeImpl = (checker, type, kind) => checker.getSignaturesOfType(type, kind);
+export const getExportSymbolOfSymbolImpl = (checker, symbol) => checker.getExportSymbolOfSymbol(symbol);
+export const getExportsOfModuleImpl = (checker, symbol) => checker.getExportsOfModule(symbol);
+export const getExportsAndPropertiesOfModuleImpl = (checker, symbol) => checker.getExportsAndPropertiesOfModule(symbol);
+
+// export const getPropertiesOfTypeImpl = (checker, type) => checker.getPropertiesOfType(type);
 //# sourceMappingURL=Checker.js.map

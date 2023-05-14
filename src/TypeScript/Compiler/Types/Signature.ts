@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 export function getDeclaration(s: ts.Signature): ts.SignatureDeclaration {
     return s.getDeclaration() || null;

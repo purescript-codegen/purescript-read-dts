@@ -3,11 +3,12 @@ module ReadDTS where
 import Prelude
 
 import Control.Alt ((<|>))
+import Data.Array (catMaybes)
 import Data.Array (catMaybes, elem, filter, head, length, uncons) as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty (fromArray) as Array.NonEmpty
 import Data.Array.NonEmpty (fromArray) as NonEmpty
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, for_)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Map (fromFoldable) as Map
@@ -22,21 +23,23 @@ import Debug (traceM)
 import ReadDTS.TypeScript (asDeclarationStatement, isNodeExported)
 import Type.Prelude (Proxy(..))
 import TypeScript.Compier.Types (getParameters, getReturnType) as Signature
-import TypeScript.Compiler.Checker (getFullyQualifiedName, getSignaturesOfType, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
+import TypeScript.Compiler.Checker (getExportedFullyQualifiedName, getFullyQualifiedName, getSignaturesOfType, getSymbolAtLocation, getTypeArguments, getTypeAtLocation, getTypeOfSymbolAtLocation)
 import TypeScript.Compiler.Checker.Internal (getElementTypeOfArrayType, isAnyType, isBooleanType, isNullType, isNumberType, isStringType, isTupleType, isUndefinedType)
-import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asFunctionDeclaration, asInterfaceDeclaration, asParameterDeclaration, asTypeAliasDeclaration)
+import TypeScript.Compiler.Factory.NodeTests (asClassDeclaration, asEmptyStatement, asExportAssignment, asFunctionDeclaration, asInterfaceDeclaration, asParameterDeclaration, asTypeAliasDeclaration)
+import TypeScript.Compiler.Factory.NodeTests as NodeTests
+import TypeScript.Compiler.Factory.NodeTests as NodesTests
 import TypeScript.Compiler.Program (getRootFileNames, getSourceFiles, getTypeChecker)
 import TypeScript.Compiler.Types (FullyQualifiedName(..), Node, Program, Signature, Typ, TypeChecker, construct)
 import TypeScript.Compiler.Types (call, construct) as Compiler.Types
-import TypeScript.Compiler.Types.Nodes (DeclarationStatement, TypeParameterDeclaration, interface) as Nodes
-import TypeScript.Compiler.Types.Nodes (getChildren)
+import TypeScript.Compiler.Types.Nodes (DeclarationStatement, TypeParameterDeclaration, VariableStatement, interface) as Nodes
+import TypeScript.Compiler.Types.Nodes (getChildren, nodeText, onProps)
 import TypeScript.Compiler.Types.Symbol (checkFlag, getDeclarations, getName, interface) as Symbol
 import TypeScript.Compiler.Types.Symbol (getDeclarations)
 import TypeScript.Compiler.Types.Typs (TypeReference, asClassType, asInterfaceType, asIntersectionType, asNumberLiteralType, asObjectType, asStringLiteralType, asTypeParameter, asTypeReference, asUnionType, getApparentProperties, getBaseTypes, getCallSignatures, getConstructSignatures, getProperties, getSymbol)
 import TypeScript.Compiler.Types.Typs (interface) as Typs
 import TypeScript.Compiler.Types.Typs.Internal (reflectBooleanLiteralType)
 import TypeScript.Compiler.UtilitiesPublic (idText)
-import TypeScript.Debug (formatSymbolFlags', formatTypeFlags')
+import TypeScript.Debug (formatNodeFlags, formatNodeFlags', formatSymbolFlags', formatTypeFlags')
 import Unsafe.Coerce (unsafeCoerce)
 
 type FQN = FullyQualifiedName
@@ -114,7 +117,7 @@ type OnType t =
   -- | FIXME: we can be more specific here - the first array is of type `ts.BaseType`
   , class :: Array (Typ ()) -> Array (Args (Typ ())) -> Props (Typ ()) -> t
   , function :: Args (Typ ()) -> Typ () -> t
-  , interface :: Props (Typ ()) -> t
+  , interface :: Array (Typ ()) -> Props (Typ ()) -> t
   , intersection :: Array (Typ ()) -> t
   , object :: Props (Typ ()) -> t
   , number :: t
@@ -128,6 +131,7 @@ type OnType t =
   , typeRef :: FQN -> Nodes.DeclarationStatement -> t
   , undefined :: t
   , union :: Array (Typ ()) -> t
+  , merge :: Array (Typ ()) -> t
   , unknown :: Typ () -> t
   }
 
@@ -171,25 +175,98 @@ readRootDeclarationNodes program = do
   -- traceM rootNames
   -- traceM rootFiles
 
-  Array.catMaybes $ rootFiles >>= getChildren >>= getChildren <#> \(node :: Node "" ()) -> do
-    -- traceM "isNodeExported"
-    -- traceM $ isNodeExported checker node
-    -- traceM "not asEmptyStatement"
-    -- traceM $ isNothing (asEmptyStatement node)
-    -- traceM "asDeclarationStatement"
-    -- traceM $ isJust (asDeclarationStatement node)
-    -- | Ignore non exported declarations and "semicolons"
-    if isNodeExported checker node && isNothing (asEmptyStatement node) then do
-      asDeclarationStatement node
-    else
-      Nothing
+  -- let
+  --   x = for (rootFiles >>= getChildren) \(child :: Node "" ())-> do
+  --    traceM "child"
+  --    traceM child
+  --    Nothing
+
+  Array.catMaybes $ do
+    let
+      allChildren = do
+        fileNode <- rootFiles
+        child <- getChildren fileNode
+        childOfAChild <- getChildren child
+        [ child, childOfAChild ]
+
+    -- rootFiles >>= getChildren >>= getChildren <#> \(node :: Node "" ()) -> do
+    allChildren <#> \(node :: Node "" ()) -> do
+      void $ for (NodeTests.asVariableStatement node <#> Nodes.interface) \{ declarationList } -> do
+        let
+          { declarations } = Nodes.interface declarationList
+        for declarations \decl -> do
+          let
+            { name } = Nodes.interface decl
+          for (NodesTests.asIdentifier name <#> Nodes.interface) \{ escapedText } -> do
+            traceM "declaration:"
+            traceM escapedText
+
+
+      -- | Ignore non exported declarations and "semicolons"
+      if isNodeExported checker node && isNothing (asEmptyStatement node) then do
+        asDeclarationStatement node
+      else
+        Nothing
+
+-- This is a sketch of a hyphotetical approach which uses file symbol and exports
+-- from that. We could in theory use this to get all exports from file as well.
+-- getRootDeclarationNodes :: Program -> Array Nodes.DeclarationStatement
+-- getRootDeclarationNodes program = do
+--     roots' = do
+--       let
+--         getExportsOfSourceFile sourceFile = do
+--           moduleSymbol <- getSymbolAtLocation checker sourceFile
+--           pure $ getExportsOfModule checker moduleSymbol
+--         exports = map getExportsOfSourceFile rootFiles
+--         getExportDeclaration symbol = do
+--           let
+--             { declarations } = Symbol.interface symbol
+--           catMaybes $ declarations <#> \declarationNode -> do
+--             if isNodeExported checker node && isNothing (asEmptyStatement node) then do
+--               asDeclarationStatement node
+--             else
+--               Nothing
+-- 
+--         pure $ getDeclarationStatement checker symbol
+-- 
+
+readRootVariableStatements :: Program -> Array (Nodes.VariableStatement /\ _)
+readRootVariableStatements program = do
+  let
+    checker = getTypeChecker program
+    rootFiles = getSourceFiles program
+  Array.catMaybes $ do
+    rootFiles >>= getChildren >>= getChildren <#> \(node :: Node "" ()) -> do
+      -- | Ignore non exported declarations and "semicolons"
+      if isNodeExported checker node && isNothing (asEmptyStatement node) then do
+        variableStatement <- NodesTests.asVariableStatement node
+        declaration <- variableStatement `onProps` _.declarationList `onProps` _.declarations # Array.head
+
+        typeNode <- NoProblem.toMaybe $ declaration `onProps` _."type"
+        typeReferenceNode <- NodeTests.asTypeReferenceNode typeNode
+        type_ <- getTypeAtLocation checker typeNode
+        -- let
+        --   arguments = typeReferenceNode `onProps` _.typeArguments ! []
+        -- arguments' <- for arguments (getTypeAtLocation checker)
+        pure $ variableStatement /\ type_ -- { type_,  arguments: arguments' }
+      else
+        Nothing
+
+      -- void $ for (NodeTests.asVariableStatement node <#> Nodes.interface) \{ declarationList } -> do
+      --   let
+      --     { declarations } = Nodes.interface declarationList
+      --   for declarations \decl -> do
+      --     let
+      --       { name } = Nodes.interface decl
+      --     for (NodesTests.asIdentifier name <#> Nodes.interface) \{ escapedText } -> do
+      --       traceM "declaration:"
+      --       traceM escapedText
+
+type Declarations = Map FullyQualifiedName { typ :: Typ (), params :: Maybe (Params (Typ ())) }
 
 readRootDeclarations
   :: Program
-  -> Map FullyQualifiedName
-       { typ :: Typ ()
-       , params :: Maybe (Params (Typ ()))
-       }
+  -> Declarations
 readRootDeclarations program = do
   let
     checker = getTypeChecker program
@@ -219,7 +296,7 @@ readDeclaration checker = do
           typ <- getTypeAtLocation checker name
           s <- getSymbol typ
           let
-            fqn = getFullyQualifiedName checker s
+            fqn = getExportedFullyQualifiedName checker s
           -- | TODO: Type parameters can be extracted from the `Signature`
           -- | when function type is constructed (they aren't at the moment
           -- | because I don't know the exact meaning of them.
@@ -229,14 +306,14 @@ readDeclaration checker = do
           s <- getSymbol typ
           let
             -- t' = readType checker t (params n) visit.onType
-            fqn = getFullyQualifiedName checker s
+            fqn = getExportedFullyQualifiedName checker s
           pure { fqn, params: params n, typ } -- /\ visit.onDeclaration fqn t'
       | Just n <- Nodes.interface <$> asClassDeclaration node = do
           typ <- getTypeAtLocation checker node
           s <- getSymbol typ
           let
             -- t' = readType checker t (params n) visit.onType
-            fqn = getFullyQualifiedName checker s
+            fqn = getExportedFullyQualifiedName checker s
           -- pure $ fqn /\ visit.onDeclaration fqn t'
           pure { fqn, params: params n, typ } -- /\ visit.onDeclaration fqn t'
       | Just n <- Nodes.interface <$> asTypeAliasDeclaration node = do
@@ -244,10 +321,13 @@ readDeclaration checker = do
           s <- getSymbolAtLocation checker n.name
           let
             -- t' = readType checker t (params n) visit.onType
-            fqn = getFullyQualifiedName checker s
+            fqn = getExportedFullyQualifiedName checker s
           -- pure $ fqn /\ visit.onDeclaration fqn t'
           pure { fqn, params: params n, typ } -- /\ visit.onDeclaration fqn t'
       | otherwise = do
+          traceM "XXXXXXXXXXXXXXXXXXXXXXXXX: Trying as variable declaration"
+          traceM $ NodeTests.asVariableDeclarationImpl node
+          traceM node
           Nothing
   readDeclaration'
 
@@ -308,22 +388,32 @@ asApplication checker t = do
     fqn = getFullyQualifiedName checker s
   pure $ fqn /\ decl' /\ params
 
--- | This function is unable to detect parametric types.
--- | It doesn't handle type references either. Why?
--- | Because I was not able to distinguish type references from
--- | parametric type. The simplest example is something like:
+-- Merging:
+--   * interface type + interface type = interface type - no special handling required
+--   * class + interface = merge - requires special handling
+--   * namespace + namespace = ?
+
+-- | * This "type detection" pattern matching is
+-- |  order sensitive and verified by the tests suite.
+-- |  There is no one to one mapping between the
+-- |  internal Ts compiler types and the constructors of `Typ`.
 -- |
--- | ```typescript
--- | export class Y {};"
--- | export class X<param=number>{ y: Y<string> }"
--- | ```
+-- | * This function is unable to detect parametric types.
+-- |  It doesn't handle type references either. Why?
+-- |  Because I was not able to distinguish type references from
+-- |  parametric type. The simplest example is something like:
 -- |
--- | The ts type representation (flags, symbol etc.) is
--- | the same for `X` and `Y` in this context as far as I was
--- | able to detect.
+-- |  ```typescript
+-- |  export class Y {};"
+-- |  export class X<param=number>{ y: Y<string> }"
+-- |  ```
 -- |
--- | It is just easier to handle these two cases separatly during
--- | unfolding.
+-- |  The ts type representation (flags, symbol etc.) is
+-- |  the same for `X` and `Y` in this context as far as I was
+-- |  able to detect.
+-- |
+-- |  It is just easier to handle these two cases separatly during
+-- |  unfolding.
 -- |
 -- | TODO: Is enum: https://stackoverflow.com/a/55406883/194614
 readTopLevelType :: forall t. TypeChecker -> Typ () -> OnType t -> t
@@ -333,10 +423,22 @@ readTopLevelType checker t onType
   | isBooleanType checker t = onType.boolean
   | Just bl <- reflectBooleanLiteralType t = onType.booleanLiteral bl
   | Just i <- asIntersectionType t = onType.intersection $ Typs.interface i # _.types
+  -- | Take closer look what the type checker provides from merged types.
+  -- | Just s <- asInterfaceType t *> asClassType t *> getSymbol t = do
+  --     let
+  --       declarations = getDeclarations s
+  --       -- FIXME: I'm not sure what to do when we have
+  --       -- declarations without associated symbol so
+  --       -- I'm ignoring them for now.
+  --       typs = catMaybes $ declarations <#> \decl -> do
+  --         getTypeOfSymbolAtLocation checker s decl
+  --     onType.merge typs
   | Just i <- asInterfaceType t = do
       let
         props = readProperties checker i
-      onType.interface (fromMaybe [] props)
+        bases = getBaseTypes i
+
+      onType.interface bases (fromMaybe [] props)
   | Just i <- asClassType t = do
       let
         bases = getBaseTypes i
@@ -487,5 +589,4 @@ readProperties checker t = do
       let
         optional = Symbol.checkFlag s (Proxy :: Proxy "Optional")
       pure { name: Symbol.getName s, type: t', optional }
-
   traverse step $ getApparentProperties t

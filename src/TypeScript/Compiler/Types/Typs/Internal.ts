@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 /* Caution: @internal .... */
 export interface IntrinsicType extends ts.Type {

@@ -2,18 +2,19 @@ module Test.RecType where
 
 import Prelude
 
-import Data.Array (singleton) as Array
+import Data.Array (fromFoldable, singleton) as Array
 import Data.Array.NonEmpty (singleton) as Array.NonEmpty
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Functor.Mu (Mu(..)) as Mu
 import Data.Functor.Mu (Mu(..), roll)
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith) as String
 import Effect.Aff (Aff)
 import Matryoshka (cata)
 import ReadDTS (Param(..), Params(..))
-import ReadDTS.AST (TsType(..))
+import ReadDTS.AST (MaxDepth(..), TsType(..))
 import ReadDTS.AST as AST
 import Test.Compile (TypeName(..), compileType)
 import Test.Unit (TestSuite, failure)
@@ -32,16 +33,16 @@ testOnType
        -> Aff Unit
      )
   -> TestSuite
-testOnType typeName source test = Test.test source do
+testOnType typeName@(TypeName tn) source test = Test.test source do
   r <- compileType typeName (SourceCode source)
   case r of
-    { type: Nothing } -> failure "Unable to find exported type X"
+    { type: Nothing, decls } -> failure $ "Unable to find exported type " <> show tn <> " in " <> show (Array.fromFoldable $ Map.keys decls)
     { type: Just { typ, params }, program } -> do
       let
         checker = getTypeChecker program
         stripTypeRefs = cata (Mu.In <<< lmap _.fullyQualifiedName)
 
-      case AST.unfoldType checker params { level: 0, ref: typ } of
+      case AST.unfoldType (MaxDepth 3) checker params { level: 0, ref: typ } of
         Right (type'@(In _)) -> test { type: stripTypeRefs type', program }
         Left err -> failure $ "FAILURE: " <> show err
 
@@ -56,7 +57,7 @@ suite = Test.suite "Recursive type repr" do
 
   testXShouldEqual "export interface X{ m: { n: number }}" do
     roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "m"
           , optional: false
@@ -75,7 +76,7 @@ suite = Test.suite "Recursive type repr" do
         ]
     testXShouldEqual program
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -93,7 +94,7 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       program
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -110,7 +111,7 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       program
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -128,7 +129,7 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       program
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -144,7 +145,7 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       source
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -160,7 +161,7 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       source
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface []
       $ Array.singleton
           { name: "y"
           , optional: false
@@ -169,7 +170,7 @@ suite = Test.suite "Recursive type repr" do
 
   testXShouldEqual "export type Y = { yp: string }; export interface X{ xp: { xpp: Y }}"
     $ roll
-    $ AST.TsInterface
+    $ AST.tsInterface []
     $ Array.singleton
         { name: "xp"
         , optional: false
@@ -179,7 +180,6 @@ suite = Test.suite "Recursive type repr" do
             , type: roll $ AST.TsTypeRef $ FullyQualifiedName "\"Root\".Y"
             }
         }
-
   do
     let
       source = String.joinWith " "
@@ -189,7 +189,8 @@ suite = Test.suite "Recursive type repr" do
     testXShouldEqual
       source
       $ roll
-      $ AST.TsInterface
+      $ AST.tsInterface
+          [roll $ TsTypeRef $ FullyQualifiedName "\"Root\".Y"]
           [ { name: "n"
             , optional: false
             , type: roll $ AST.TsString
@@ -266,7 +267,7 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      body = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsParameter "param") }
+      body = roll $ AST.tsInterface [] $ Array.singleton { name: "x", optional: false, type: roll (AST.TsParameter "param") }
       params = Params (Array.NonEmpty.singleton (Param { default: Just $ roll AST.TsNumber, name: "param" }))
       expected = roll $ TsParametric body params
 
@@ -274,8 +275,117 @@ suite = Test.suite "Recursive type repr" do
 
   do
     let
-      expected = roll $ AST.TsInterface $ Array.singleton { name: "x", optional: false, type: roll (AST.TsArray $ roll AST.TsNumber) }
+      expected = roll $ AST.tsInterface [] $ Array.singleton { name: "x", optional: false, type: roll (AST.TsArray $ roll AST.TsNumber) }
     testXShouldEqual "export interface X{ x: number[] }" expected
+
+  -- * Declaration merging
+  --   - Interfaces are merged automatically
+  do
+    let
+      source = String.joinWith " "
+        [ "export interface X {"
+        , " x1: string; "
+        , "};"
+        , "export interface X {"
+        , " x2: number; "
+        , "};"
+        ]
+      expected = roll $ AST.tsInterface
+        []
+        [ { name: "x1", optional: false, type: roll AST.TsString }
+        , { name: "x2", optional: false, type: roll AST.TsNumber }
+        ]
+    testXShouldEqual source expected
+
+  do
+    let
+      source = String.joinWith " "
+        [ "export class Base {"
+        , " b: string; "
+        , "};"
+        , "export class X extends Base {"
+        , " x1: string; "
+        , "};"
+        , "export interface X {"
+        , " x2: number; "
+        , "};"
+        ]
+      expected = roll $ AST.TsClass
+        { bases: [roll $ TsTypeRef (FullyQualifiedName "\"Root\".Base")]
+        , constructors: [[]]
+        , props:
+          [ { name: "x1", optional: false, type: roll AST.TsString }
+          , { name: "x2", optional: false, type: roll AST.TsNumber }
+          , { name: "b", optional: false, type: roll AST.TsString }
+          ]
+        }
+    testXShouldEqual source expected
+
+  do
+    let
+      -- `export Z = number` gives strange result `b` is `TsObject` then
+      source = String.joinWith " "
+        [ "export class Base<t> {"
+        , " b: t; "
+        , "};"
+        , "export namespace X {"
+        , " export type Z = number;"
+        , "};"
+        , "export class X extends Base<X.Z> {"
+        , " x1: string; "
+        , "};"
+        ]
+      expected = roll $ AST.TsClass
+        { bases: [roll $ AST.TsApplication (FullyQualifiedName "\"Root\".Base") (Array.NonEmpty.singleton $ roll AST.TsNumber)]
+        , constructors: [[]]
+        , props:
+          [ { name: "x1", optional: false, type: roll AST.TsString }
+          , { name: "b", optional: false, type: roll AST.TsNumber }
+          ]
+        }
+    testXShouldEqual source expected
+
+
+--  do
+--    let
+--      -- `export Z = number` gives strange result `b` is `TsObject` then
+--      source = String.joinWith " "
+--        [ "interface Base<t> {"
+--        , " prop1: t; "
+--        , "};"
+--        , "export interface X extends Base<number> {"
+--        , " prop2: string; "
+--        , "};"
+--        ]
+--      expected = roll $ AST.TsClass
+--        { bases: [roll $ AST.TsApplication (FullyQualifiedName "\"Root\".Base") (Array.NonEmpty.singleton $ roll AST.TsNumber)]
+--        , constructors: [[]]
+--        , props:
+--          [ { name: "x1", optional: false, type: roll AST.TsString }
+--          , { name: "b", optional: false, type: roll AST.TsNumber }
+--          ]
+--        }
+--    testXShouldEqual source expected
+--
+--
+--   do
+--     let
+--       -- `export Z = number` gives strange result `b` is `TsObject` then
+--       source = String.joinWith " "
+--         [ "import * as React from 'react';"
+--         , "export interface X extends React.HTMLAttributes<HTMLDivElement> {"
+--         , "}"
+--         ]
+--       expected = roll $ AST.TsClass
+--         { bases: [roll $ AST.TsApplication (FullyQualifiedName "\"Root\".Base") (Array.NonEmpty.singleton $ roll AST.TsNumber)]
+--         , constructors: [[]]
+--         , props:
+--           [ { name: "x1", optional: false, type: roll AST.TsString }
+--           , { name: "b", optional: false, type: roll AST.TsNumber }
+--           ]
+--         }
+--     testXShouldEqual source expected
+
 
 -- | This fails but on our unfold recursion...
 -- | It should probably anyway or maybe...

@@ -7,8 +7,9 @@ import Data.Array (find)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (for)
 import Data.Undefined.NoProblem (opt, undefined)
+import Data.Undefined.NoProblem as NoProblem
 import Effect (Effect)
-import Effect.Uncurried (mkEffectFn1, mkEffectFn2, mkEffectFn3)
+import Effect.Uncurried (EffectFn1, mkEffectFn1, mkEffectFn2, mkEffectFn3, runEffectFn1, runEffectFn2)
 import Node.Path (FilePath)
 import TypeScript.Compiler.Parser (createSourceFile)
 import TypeScript.Compiler.Types (CompilerHost, scriptTarget)
@@ -20,6 +21,9 @@ import TypeScript.Testing.Types (InMemoryFile(..))
 type Opts r =
   { files :: Array InMemoryFile
   , defaultLib :: Maybe FilePath
+  -- You can provide a fallback compiler host to handle files that are not in memory.
+  -- It is a bit speculative if the fallback wokrs as expected.
+  , subhost :: Maybe BoundedCompilerHost
   | r
   }
 
@@ -49,14 +53,13 @@ boundedCompilerHost opts = do
         }
         sourceFiles
   let
-    host :: BoundedCompilerHost
-    host =
+    inMemoryHost =
       { fileExists: mkEffectFn1 \p -> do
           pure (Array.any (eq p <<< _.path) sourceFiles')
       , directoryExists: opt $ mkEffectFn1 \d -> do
           pure (d == "")
-      , getCurrentDirectory: opt $ pure ""
-      , getDirectories: opt $ mkEffectFn1 $ const (pure [ "" ])
+      , getCurrentDirectory: NoProblem.undefined -- opt $ pure ""
+      , getDirectories: NoProblem.undefined -- opt $ mkEffectFn1 $ const (pure [ "" ])
       , getCanonicalFileName: mkEffectFn1 pure
       , getNewLine: pure "\n"
       , getDefaultLibFileName: mkEffectFn1 (const $ pure defaultLibFile)
@@ -71,4 +74,34 @@ boundedCompilerHost opts = do
       , useCaseSensitiveFileNames: pure true
       , writeFile: mkEffectFn3 (\_ _ _ -> pure unit)
       }
+    host :: BoundedCompilerHost
+    host = case opts.subhost of
+      Nothing -> inMemoryHost
+      Just subhost ->
+        { fileExists: mkEffectFn1 \p -> do
+            (||) <$> runEffectFn1 subhost.fileExists p <*> runEffectFn1 inMemoryHost.fileExists p
+        , directoryExists: opt $ mkEffectFn1 \d -> do
+            (||) <$> runOptEffectFn1 subhost.directoryExists false d <*> runOptEffectFn1 inMemoryHost.directoryExists false d
+        , getCanonicalFileName: subhost.getCanonicalFileName
+        , getDefaultLibFileName: subhost.getDefaultLibFileName
+        , getNewLine: subhost.getNewLine
+        , useCaseSensitiveFileNames: subhost.useCaseSensitiveFileNames
+        , writeFile: subhost.writeFile
+        , getCurrentDirectory: subhost.getCurrentDirectory
+        , getDirectories: subhost.getDirectories
+        , getSourceFile: mkEffectFn2 \p x -> do
+            runEffectFn2 subhost.getSourceFile p x >>= NoProblem.toMaybe >>> case _ of
+              Just sourceFile -> pure $ opt sourceFile
+              Nothing -> runEffectFn2 inMemoryHost.getSourceFile p x
+        , readFile: mkEffectFn1 \p -> do
+            runEffectFn1 subhost.readFile p >>= NoProblem.toMaybe >>> case _ of
+              Just source -> pure $ opt source
+              Nothing -> runEffectFn1 inMemoryHost.readFile p
+        }
+
   pure host
+
+runOptEffectFn1 :: forall i o. NoProblem.Opt (EffectFn1 i o) -> o -> i -> Effect o
+runOptEffectFn1 optFnEff1 def = NoProblem.pseudoMap runEffectFn1 optFnEff1 NoProblem.! (const $ pure def)
+
+

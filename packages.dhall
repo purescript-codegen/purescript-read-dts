@@ -3,20 +3,26 @@ let mkPackage =
         sha256:0b197efa1d397ace6eb46b243ff2d73a3da5638d8d0ac8473e8e4a8fc528cf57
 
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.14.4-20211030/packages.dhall
-        sha256:5cd7c5696feea3d3f84505d311348b9e90a76c4ce3684930a0ff29606d2d816c
+  https://github.com/purescript/package-sets/releases/download/psc-0.15.4-20221201/packages.dhall
+    sha256:d1a68fa15709eaa686515eb5b9950d82c743f7bf73e3d87a4abe9e1be6fda571
 
 in  upstream
+  with errors = ../purescript-errors/spago.dhall as Location
+    -- mkPackage
+    -- [ "prelude", "either", "maybe", "transformers", "control", "effect" ]
+    -- "https://github.com/passy/purescript-errors.git"
+    -- "v4.1.0"
   with dodo-printer =
       mkPackage
         [ "ansi", "foldable-traversable", "lists", "maybe", "strings" ]
         "https://github.com/natefaubion/purescript-dodo-printer.git"
         "v2.1.0"
+  with js-object = ../js-object/spago.dhall as Location
   with js-unsafe-stringify =
       mkPackage
         ([] : List Text)
         "https://github.com/paluh/purescript-js-unsafe-stringify"
-        "master"
+        "v0.2.1"
   with language-cst-parser =
       mkPackage
         [ "arrays"
@@ -40,7 +46,7 @@ in  upstream
       mkPackage
         [ "fixed-points", "free", "prelude", "profunctor", "transformers" ]
         "https://github.com/slamdata/purescript-matryoshka.git"
-        "v0.4.0"
+        "v1.0.0"
   with pprint =
       mkPackage
         [ "arrays", "strings", "unfoldable" ]

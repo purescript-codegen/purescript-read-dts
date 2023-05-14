@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 export function isNodeExportedImpl(checker:ts.TypeChecker, node: ts.Node): boolean {
   let sym = checker.getSymbolAtLocation(node);

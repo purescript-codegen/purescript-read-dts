@@ -25,6 +25,10 @@ type Opts r = InMemory.Opts (dir :: DirName | r)
 compilerHost :: forall r. Opts r -> Effect CompilerHost
 compilerHost opts = BoundedCompilerHost.toCompilerHost <$> boundedCompilerHost opts
 
+-- TODO:
+-- This implementation was provided before we had the ability to
+-- provide a subhost to the InMemory implementation.
+-- We should check if we can simplify this implementation.
 boundedCompilerHost :: forall r. Opts r -> Effect BoundedCompilerHost
 boundedCompilerHost opts@{ dir: DirName dirName } = do
   let

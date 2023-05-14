@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import ts from "typescript";
 
 export const asNumberLiteralTypeImpl = (t: ts.Type): ts.NumberLiteralType | null => t.isNumberLiteral()?t:null;
 

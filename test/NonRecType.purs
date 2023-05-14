@@ -16,7 +16,8 @@ import Test.Unit (suite, test) as Test
 import Test.Unit.Assert (shouldEqual)
 import TypeScript.Compiler.Parser (SourceCode(..))
 import TypeScript.Compiler.Program (getTypeChecker)
-import TypeScript.Compiler.Types (FullyQualifiedName, Node, Program, Typ)
+import TypeScript.Compiler.Types (FullyQualifiedName, Program, Typ)
+import TypeScript.Compiler.Types.Nodes as Nodes
 
 extractTyp
   :: TypeName
@@ -44,7 +45,7 @@ extractType
            , type ::
                TsType
                  { fullyQualifiedName :: FullyQualifiedName
-                 , ref :: Node "DeclarationStatement" ()
+                 , ref :: Nodes.DeclarationStatement
                  }
                  (Typ ())
            }
@@ -64,7 +65,7 @@ testOnType
        , type ::
            TsType
              { fullyQualifiedName :: FullyQualifiedName
-             , ref :: Node "DeclarationStatement" ()
+             , ref :: Nodes.DeclarationStatement
              }
              (Typ ())
        }
@@ -95,6 +96,7 @@ suite = Test.suite "Non recursive ts type layer" do
       unit
 
   testXShouldEqual "export type X = Array<number>;" (AST.TsArray unit)
+  testXShouldEqual "export declare type X = Array<number>;" (AST.TsArray unit)
   testXShouldEqual "export type X = boolean" AST.TsBoolean
   testXShouldEqual "export type X = true" (AST.TsBooleanLiteral true)
   testXShouldEqual "export type X = false" (AST.TsBooleanLiteral false)
@@ -108,13 +110,12 @@ suite = Test.suite "Non recursive ts type layer" do
   testXShouldEqual "export type X = string | number" (AST.TsUnion [ unit, unit ])
   testXShouldEqual "export type X = { x: string } & { y: number }" (AST.TsIntersection [ unit, unit ])
   testXShouldEqual "export type X = {}" (AST.TsObject [])
-  testXShouldEqual "export interface X{}" (AST.TsInterface [])
+  testXShouldEqual "export interface X{}" (AST.tsInterface [] [])
   testXShouldEqual "export interface X{ m: number }"
-    (AST.TsInterface [ { name: "m", optional: false, type: unit } ])
+    (AST.tsInterface [] [ { name: "m", optional: false, type: unit } ])
   testXShouldEqual "export interface X{ m?: number }"
-    (AST.TsInterface [ { name: "m", optional: true, type: unit } ])
+    (AST.tsInterface [] [ { name: "m", optional: true, type: unit } ])
   testXShouldEqual "export class X{}" (AST.tsClass [] [ [] ] [])
-
   testXShouldEqual "class C<p> {}; export type X = C<number>"
     ( AST.TsApplication
         unit

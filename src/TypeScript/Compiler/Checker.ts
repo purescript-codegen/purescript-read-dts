@@ -1,4 +1,8 @@
-import * as ts from "typescript";
+import ts from "typescript";
+
+export const getExportsOfModule = (checker: ts.TypeChecker, moduleSymbol: ts.Symbol): ts.Symbol[] => {
+  return checker.getExportsOfModule(moduleSymbol);
+}
 
 export const typeToStringImpl = (checker: ts.TypeChecker, type: ts.Type): string => checker.typeToString(type)
 
@@ -13,4 +17,8 @@ export const getFullyQualifiedNameImpl = (checker: ts.TypeChecker, symbol: ts.Sy
 export const getTypeArgumentsImpl = (checker: ts.TypeChecker, type: ts.TypeReference): readonly ts.Type[] => checker.getTypeArguments(type);
 
 export const getSignaturesOfTypeImpl = (checker: ts.TypeChecker, type: ts.Type, kind: ts.SignatureKind): readonly ts.Signature[] => checker.getSignaturesOfType(type, kind);
+
+export const getExportSymbolOfSymbolImpl = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol => checker.getExportSymbolOfSymbol(symbol);
+
+
 

@@ -59,7 +59,12 @@ pprint = render <<< cata alg
         header = hcat $ [ text "class(" ] <> bases <> [ text ")" ]
       pprintProps header props
 
-  alg (TsInterface props) = pprintProps (text "interface") props
+  alg (TsInterface { bases, props }) = case bases of
+    [] -> pprintProps (text "interface") props
+    _ -> do
+      let
+        header = hcat $ [ text "interface(" ] <> bases <> [ text ")" ]
+      pprintProps header props
   alg (TsFunction parameters returnType) = do
     let
       arg { name, type: t } = joinWithDoc (text ":") [ text name, t ] (Just 80)
@@ -74,7 +79,7 @@ pprint = render <<< cata alg
   alg TsNull = text "null"
   alg TsNumber = text "number"
   -- FIXME
-  alg (TsObject props) = text "{}"
+  alg (TsObject props) = pprintProps (text "object") props
   -- | length props == 0 = text "{}"
   alg TsString = text "string"
   alg (TsTuple ts) =
@@ -84,9 +89,9 @@ pprint = render <<< cata alg
   alg (TsNumberLiteral n) = text $ "@" <> show n
   alg TsUndefined = text "undefined"
   alg (TsUnion ts) = joinWithDoc (text " | ") ts (Just 80)
+  alg (TsMerge ts) = joinWithDoc (text " `merge` ") ts (Just 80)
   alg (TsUnknown _) = text "unknown "
-
-  alg (TsParametric body params) = text "FIXME: parametric"
+  alg (TsParametric body params) = text "pprint.FIXME: parametric"
   alg (TsParameter _) = text "FIXME: param"
   alg (TsTypeRef fqn) = text (fqnToString fqn)
 
